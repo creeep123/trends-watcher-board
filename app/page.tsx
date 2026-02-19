@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { TrendsResponse, TrendKeyword } from "@/lib/types";
-import { TIMEFRAME_OPTIONS, GEO_OPTIONS } from "@/lib/types";
+import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS } from "@/lib/types";
 
 export default function Home() {
   const [timeframe, setTimeframe] = useState("now 1-d");
-  const [geo, setGeo] = useState("US");
+  const [geo, setGeo] = useState("");
+  const [keywords, setKeywords] = useState(DEFAULT_KEYWORDS);
+  const [keywordsInput, setKeywordsInput] = useState(DEFAULT_KEYWORDS);
   const [data, setData] = useState<TrendsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +17,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ timeframe, geo });
+      const params = new URLSearchParams({ timeframe, geo, keywords });
       const res = await fetch(`/api/trends?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: TrendsResponse = await res.json();
@@ -25,11 +27,18 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [timeframe, geo]);
+  }, [timeframe, geo, keywords]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleKeywordsSubmit = () => {
+    const trimmed = keywordsInput.trim();
+    if (trimmed && trimmed !== keywords) {
+      setKeywords(trimmed);
+    }
+  };
 
   const currentTimeframe = TIMEFRAME_OPTIONS.find((t) => t.value === timeframe);
   const currentGeo = GEO_OPTIONS.find((g) => g.value === geo);
@@ -65,7 +74,7 @@ export default function Home() {
           </div>
 
           {/* Filters */}
-          <div className="mt-3 flex flex-wrap gap-4">
+          <div className="mt-3 flex flex-wrap items-end gap-4">
             {/* Timeframe */}
             <div className="flex items-center gap-2">
               <span
@@ -133,6 +142,45 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {/* Keywords input */}
+          <div className="mt-3 flex items-center gap-2">
+            <span
+              className="text-xs font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              KEYWORDS
+            </span>
+            <div className="flex flex-1 gap-2">
+              <input
+                type="text"
+                value={keywordsInput}
+                onChange={(e) => setKeywordsInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleKeywordsSubmit();
+                }}
+                placeholder={DEFAULT_KEYWORDS}
+                className="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none transition-colors focus:border-blue-500"
+                style={{
+                  background: "var(--bg-secondary)",
+                  borderColor: "var(--border)",
+                  color: "var(--text-primary)",
+                }}
+              />
+              <button
+                onClick={handleKeywordsSubmit}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                style={{
+                  background: "var(--bg-card)",
+                  color: "var(--text-secondary)",
+                  borderWidth: 1,
+                  borderColor: "var(--border)",
+                }}
+              >
+                Apply
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -141,11 +189,11 @@ export default function Home() {
         {/* Status bar */}
         {data && !loading && (
           <div
-            className="mb-4 flex items-center gap-3 text-xs"
+            className="mb-4 flex flex-wrap items-center gap-3 text-xs"
             style={{ color: "var(--text-secondary)" }}
           >
             <span>
-              {currentGeo?.flag} {currentGeo?.label || "Global"} ·{" "}
+              {currentGeo?.flag || "🌍"} {currentGeo?.label || "Global"} ·{" "}
               {currentTimeframe?.description}
             </span>
             <span>·</span>
@@ -176,8 +224,8 @@ export default function Home() {
         {/* Loading skeleton */}
         {loading && (
           <div className="grid gap-6 md:grid-cols-2">
-            <SkeletonSection title="Google Trends" />
-            <SkeletonSection title="GitHub Trending" />
+            <SkeletonSection />
+            <SkeletonSection />
           </div>
         )}
 
@@ -355,7 +403,7 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
-function SkeletonSection({ title }: { title: string }) {
+function SkeletonSection() {
   return (
     <section>
       <div className="flex items-center gap-2">

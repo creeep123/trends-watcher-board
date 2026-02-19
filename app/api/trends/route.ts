@@ -10,15 +10,17 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const timeframe = searchParams.get("timeframe") || "now 1-d";
   const geo = searchParams.get("geo") || "";
+  const keywordsParam = searchParams.get("keywords") || "AI,ai video,ai tool,LLM";
+  const keywords = keywordsParam.split(",").map((k) => k.trim()).filter(Boolean);
 
-  const cacheKey = `trends:${timeframe}:${geo}`;
+  const cacheKey = `trends:${keywords.join(",")}:${timeframe}:${geo}`;
   const cached = getCached<TrendsResponse>(cacheKey);
   if (cached) {
     return NextResponse.json(cached);
   }
 
   const [google, github] = await Promise.all([
-    fetchGoogleTrends(timeframe, geo),
+    fetchGoogleTrends(timeframe, geo, keywords),
     fetchGithubTrends(),
   ]);
 
