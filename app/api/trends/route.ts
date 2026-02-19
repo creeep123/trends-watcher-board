@@ -4,6 +4,8 @@ import { fetchGithubTrends } from "@/lib/githubTrends";
 import { getCached, setCache } from "@/lib/cache";
 import type { TrendsResponse } from "@/lib/types";
 
+export const maxDuration = 30;
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const timeframe = searchParams.get("timeframe") || "now 1-d";

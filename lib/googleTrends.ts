@@ -3,8 +3,8 @@ import type { TrendKeyword } from "./types";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const googleTrends = require("google-trends-api");
 
-const SEARCH_ROOTS = ["AI", "ai video", "ai tool", "ai agent", "LLM", "GPT"];
-const MAX_PER_ROOT = 12;
+const SEARCH_ROOTS = ["AI", "ai tool", "LLM"];
+const MAX_PER_ROOT = 15;
 
 export async function fetchGoogleTrends(
   timeframe: string,
@@ -13,55 +13,76 @@ export async function fetchGoogleTrends(
   const allKeywords: TrendKeyword[] = [];
   const seen = new Set<string>();
 
-  for (const keyword of SEARCH_ROOTS) {
-    try {
-      const startTime = getStartTime(timeframe);
-      const results = await googleTrends.relatedQueries({
-        keyword,
-        startTime,
-        geo: geo || undefined,
-      });
+  // Fetch all roots in parallel to avoid timeout
+  const results = await Promise.allSettled(
+    SEARCH_ROOTS.map((keyword) => fetchForKeyword(keyword, timeframe, geo))
+  );
 
-      const parsed = JSON.parse(results);
-      const data = parsed?.default?.rankedList;
-      if (!data || !Array.isArray(data)) continue;
-
-      // rankedList[0] = top, rankedList[1] = rising
-      const rising = data[1]?.rankedKeyword || [];
-      const top = data[0]?.rankedKeyword || [];
-
-      // Prefer rising queries
-      const combined = [...rising, ...top];
-
-      for (const item of combined.slice(0, MAX_PER_ROOT)) {
-        const name = item?.query;
-        if (!name || name.toLowerCase() === keyword.toLowerCase()) continue;
-
-        const key = name.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-
-        const value = item?.value;
-        const formattedValue =
-          typeof value === "number" ? `+${value}%` : String(value || "");
-
-        allKeywords.push({
-          name,
-          value: formattedValue,
-          source: "Google Trends",
-          url: `https://www.google.com/search?q=${encodeURIComponent(name)}&udm=50`,
-        });
-      }
-
-      // Rate limiting
-      await new Promise((r) => setTimeout(r, 500));
-    } catch (e) {
-      console.error(`Google Trends error for "${keyword}":`, e);
+  for (const result of results) {
+    if (result.status !== "fulfilled") {
+      console.error("Google Trends fetch failed:", result.reason);
       continue;
+    }
+
+    for (const item of result.value) {
+      const key = item.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      allKeywords.push(item);
     }
   }
 
   return allKeywords;
+}
+
+async function fetchForKeyword(
+  keyword: string,
+  timeframe: string,
+  geo: string
+): Promise<TrendKeyword[]> {
+  const items: TrendKeyword[] = [];
+
+  try {
+    const startTime = getStartTime(timeframe);
+    const options: Record<string, unknown> = {
+      keyword,
+      startTime,
+    };
+    if (geo) options.geo = geo;
+
+    const results = await googleTrends.relatedQueries(options);
+    const parsed = JSON.parse(results);
+    const rankedList = parsed?.default?.rankedList;
+
+    if (!rankedList || !Array.isArray(rankedList)) return items;
+
+    // rankedList[0] = top, rankedList[1] = rising
+    const top = rankedList[0]?.rankedKeyword || [];
+    const rising = rankedList[1]?.rankedKeyword || [];
+
+    // Prefer rising, then top
+    const combined = [...rising, ...top];
+
+    for (const entry of combined.slice(0, MAX_PER_ROOT)) {
+      const name = entry?.query;
+      if (!name || name.toLowerCase() === keyword.toLowerCase()) continue;
+
+      const value = entry?.formattedValue || entry?.value;
+      const formattedValue =
+        typeof value === "number" ? `+${value}%` : String(value || "");
+
+      items.push({
+        name,
+        value: formattedValue,
+        source: "Google Trends",
+        url: `https://www.google.com/search?q=${encodeURIComponent(name)}&udm=50`,
+      });
+    }
+  } catch (e) {
+    console.error(`Google Trends error for "${keyword}":`, e);
+  }
+
+  return items;
 }
 
 function getStartTime(timeframe: string): Date {
