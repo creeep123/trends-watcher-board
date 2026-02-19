@@ -1,5 +1,5 @@
 {
   "framework": "nextjs",
-  "installCommand": "npm install --prefer-offline --no-audit --no-fund",
+  "installCommand": "yarn install",
   "buildCommand": "next build"
 }
