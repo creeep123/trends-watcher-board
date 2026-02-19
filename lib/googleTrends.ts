@@ -6,12 +6,15 @@ const googleTrends = require("google-trends-api");
 const SEARCH_ROOTS = ["AI", "ai tool", "LLM"];
 const MAX_PER_ROOT = 15;
 
+export const debugErrors: string[] = [];
+
 export async function fetchGoogleTrends(
   timeframe: string,
   geo: string
 ): Promise<TrendKeyword[]> {
   const allKeywords: TrendKeyword[] = [];
   const seen = new Set<string>();
+  debugErrors.length = 0;
 
   // Fetch all roots in parallel to avoid timeout
   const results = await Promise.allSettled(
@@ -20,7 +23,7 @@ export async function fetchGoogleTrends(
 
   for (const result of results) {
     if (result.status !== "fulfilled") {
-      console.error("Google Trends fetch failed:", result.reason);
+      debugErrors.push(`allSettled rejected: ${String(result.reason)}`);
       continue;
     }
 
@@ -50,15 +53,25 @@ async function fetchForKeyword(
     };
     if (geo) options.geo = geo;
 
+    debugErrors.push(`[${keyword}] calling relatedQueries with startTime=${startTime.toISOString()}, geo=${geo || "(empty)"}`);
+
     const results = await googleTrends.relatedQueries(options);
+
+    debugErrors.push(`[${keyword}] raw response length: ${results?.length || 0}`);
+
     const parsed = JSON.parse(results);
     const rankedList = parsed?.default?.rankedList;
 
-    if (!rankedList || !Array.isArray(rankedList)) return items;
+    if (!rankedList || !Array.isArray(rankedList)) {
+      debugErrors.push(`[${keyword}] no rankedList, keys: ${JSON.stringify(Object.keys(parsed?.default || parsed || {}))}`);
+      return items;
+    }
 
     // rankedList[0] = top, rankedList[1] = rising
     const top = rankedList[0]?.rankedKeyword || [];
     const rising = rankedList[1]?.rankedKeyword || [];
+
+    debugErrors.push(`[${keyword}] top: ${top.length}, rising: ${rising.length}`);
 
     // Prefer rising, then top
     const combined = [...rising, ...top];
@@ -79,7 +92,8 @@ async function fetchForKeyword(
       });
     }
   } catch (e) {
-    console.error(`Google Trends error for "${keyword}":`, e);
+    const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e);
+    debugErrors.push(`[${keyword}] ERROR: ${msg}`);
   }
 
   return items;
