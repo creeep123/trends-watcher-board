@@ -24,10 +24,10 @@ export const TIMEFRAME_OPTIONS = [
 ] as const;
 
 export const GEO_OPTIONS = [
-  { label: "Global", value: "", flag: "🌍" },
   { label: "US", value: "US", flag: "🇺🇸" },
-  { label: "CN", value: "CN", flag: "🇨🇳" },
   { label: "JP", value: "JP", flag: "🇯🇵" },
   { label: "GB", value: "GB", flag: "🇬🇧" },
   { label: "DE", value: "DE", flag: "🇩🇪" },
+  { label: "IN", value: "IN", flag: "🇮🇳" },
+  { label: "KR", value: "KR", flag: "🇰🇷" },
 ] as const;

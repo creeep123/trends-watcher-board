@@ -6,7 +6,7 @@ import { TIMEFRAME_OPTIONS, GEO_OPTIONS } from "@/lib/types";
 
 export default function Home() {
   const [timeframe, setTimeframe] = useState("now 1-d");
-  const [geo, setGeo] = useState("");
+  const [geo, setGeo] = useState("US");
   const [data, setData] = useState<TrendsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

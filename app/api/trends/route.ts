@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchGoogleTrends, debugErrors } from "@/lib/googleTrends";
+import { fetchGoogleTrends } from "@/lib/googleTrends";
 import { fetchGithubTrends } from "@/lib/githubTrends";
 import { getCached, setCache } from "@/lib/cache";
 import type { TrendsResponse } from "@/lib/types";
@@ -22,12 +22,11 @@ export async function GET(request: NextRequest) {
     fetchGithubTrends(),
   ]);
 
-  const response: TrendsResponse & { _debug?: string[] } = {
+  const response: TrendsResponse = {
     google,
     github,
     timestamp: new Date().toISOString(),
     params: { timeframe, geo },
-    _debug: debugErrors.slice(),
   };
 
   setCache(cacheKey, response);

@@ -1,118 +1,67 @@
 import type { TrendKeyword } from "./types";
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const googleTrends = require("google-trends-api");
-
-const SEARCH_ROOTS = ["AI", "ai tool", "LLM"];
-const MAX_PER_ROOT = 15;
-
-export const debugErrors: string[] = [];
-
+/**
+ * Fetch Google Trends via the public RSS feed.
+ * This is reliable on Vercel (no captcha/blocking issues).
+ * RSS provides daily trending searches with approximate traffic.
+ */
 export async function fetchGoogleTrends(
   timeframe: string,
   geo: string
 ): Promise<TrendKeyword[]> {
-  const allKeywords: TrendKeyword[] = [];
-  const seen = new Set<string>();
-  debugErrors.length = 0;
-
-  // Fetch all roots in parallel to avoid timeout
-  const results = await Promise.allSettled(
-    SEARCH_ROOTS.map((keyword) => fetchForKeyword(keyword, timeframe, geo))
-  );
-
-  for (const result of results) {
-    if (result.status !== "fulfilled") {
-      debugErrors.push(`allSettled rejected: ${String(result.reason)}`);
-      continue;
-    }
-
-    for (const item of result.value) {
-      const key = item.name.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      allKeywords.push(item);
-    }
-  }
-
-  return allKeywords;
-}
-
-async function fetchForKeyword(
-  keyword: string,
-  timeframe: string,
-  geo: string
-): Promise<TrendKeyword[]> {
-  const items: TrendKeyword[] = [];
+  // RSS feed supports these geos; default to US if unsupported
+  const supportedGeos = ["US", "GB", "JP", "DE", "FR", "BR", "IN", "AU", "CA", "KR"];
+  const feedGeo = geo && supportedGeos.includes(geo) ? geo : "US";
 
   try {
-    const startTime = getStartTime(timeframe);
-    const options: Record<string, unknown> = {
-      keyword,
-      startTime,
-    };
-    if (geo) options.geo = geo;
+    const rssUrl = `https://trends.google.com/trending/rss?geo=${feedGeo}`;
+    const res = await fetch(rssUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; TrendsWatcher/1.0)",
+      },
+    });
 
-    debugErrors.push(`[${keyword}] calling relatedQueries with startTime=${startTime.toISOString()}, geo=${geo || "(empty)"}`);
-
-    const results = await googleTrends.relatedQueries(options);
-
-    debugErrors.push(`[${keyword}] raw response length: ${results?.length || 0}`);
-
-    const parsed = JSON.parse(results);
-    const rankedList = parsed?.default?.rankedList;
-
-    if (!rankedList || !Array.isArray(rankedList)) {
-      debugErrors.push(`[${keyword}] no rankedList, keys: ${JSON.stringify(Object.keys(parsed?.default || parsed || {}))}`);
-      return items;
+    if (!res.ok) {
+      console.error(`Google Trends RSS failed: ${res.status}`);
+      return [];
     }
 
-    // rankedList[0] = top, rankedList[1] = rising
-    const top = rankedList[0]?.rankedKeyword || [];
-    const rising = rankedList[1]?.rankedKeyword || [];
-
-    debugErrors.push(`[${keyword}] top: ${top.length}, rising: ${rising.length}`);
-
-    // Prefer rising, then top
-    const combined = [...rising, ...top];
-
-    for (const entry of combined.slice(0, MAX_PER_ROOT)) {
-      const name = entry?.query;
-      if (!name || name.toLowerCase() === keyword.toLowerCase()) continue;
-
-      const value = entry?.formattedValue || entry?.value;
-      const formattedValue =
-        typeof value === "number" ? `+${value}%` : String(value || "");
-
-      items.push({
-        name,
-        value: formattedValue,
-        source: "Google Trends",
-        url: `https://www.google.com/search?q=${encodeURIComponent(name)}&udm=50`,
-      });
-    }
+    const xml = await res.text();
+    return parseRss(xml, feedGeo);
   } catch (e) {
-    const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e);
-    debugErrors.push(`[${keyword}] ERROR: ${msg}`);
+    console.error("Google Trends fetch error:", e);
+    return [];
+  }
+}
+
+function parseRss(xml: string, geo: string): TrendKeyword[] {
+  const items: TrendKeyword[] = [];
+
+  // Extract each <item>...</item> block
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let match;
+
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const block = match[1];
+
+    const title = extractTag(block, "title");
+    if (!title) continue;
+
+    const traffic = extractTag(block, "ht:approx_traffic") || "";
+
+    items.push({
+      name: title,
+      value: traffic,
+      source: `Google Trends (${geo})`,
+      url: `https://www.google.com/search?q=${encodeURIComponent(title)}&udm=50`,
+    });
   }
 
   return items;
 }
 
-function getStartTime(timeframe: string): Date {
-  const now = new Date();
-  switch (timeframe) {
-    case "now 1-H":
-      return new Date(now.getTime() - 60 * 60 * 1000);
-    case "now 4-H":
-      return new Date(now.getTime() - 4 * 60 * 60 * 1000);
-    case "now 1-d":
-      return new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    case "now 7-d":
-      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    case "today 1-m":
-      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    default:
-      return new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  }
+function extractTag(xml: string, tag: string): string | null {
+  const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`);
+  const match = regex.exec(xml);
+  return match ? match[1].trim() : null;
 }
