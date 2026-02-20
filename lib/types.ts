@@ -26,6 +26,8 @@ export const TIMEFRAME_OPTIONS = [
 export const GEO_OPTIONS = [
   { label: "Global", value: "", flag: "🌍" },
   { label: "US", value: "US", flag: "🇺🇸" },
+  { label: "ID", value: "ID", flag: "🇮🇩" },
+  { label: "BR", value: "BR", flag: "🇧🇷" },
   { label: "CN", value: "CN", flag: "🇨🇳" },
   { label: "JP", value: "JP", flag: "🇯🇵" },
   { label: "GB", value: "GB", flag: "🇬🇧" },
