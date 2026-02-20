@@ -1,6 +1,6 @@
 import type { TrendKeyword } from "./types";
 
-const API_BASE = process.env.PYTRENDS_API_URL || "http://43.165.126.121:8765";
+const API_BASE = process.env.PYTRENDS_API_URL || "http://43.165.126.121";
 
 /**
  * Fetch Google Trends via the pytrends API server.
