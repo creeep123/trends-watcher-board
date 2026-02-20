@@ -6,3 +6,5 @@ out/
 *.tsbuildinfo
 package-lock.json
 .vercel
+api-server/venv/
+api-server/__pycache__/
