@@ -32,3 +32,17 @@ body {
   background: var(--border);
   border-radius: 3px;
 }
+
+/* Hide horizontal scrollbar in filter bar on mobile */
+.overflow-x-auto {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.overflow-x-auto::-webkit-scrollbar {
+  display: none;
+}
+
+/* Smooth tap highlight for mobile */
+button, a {
+  -webkit-tap-highlight-color: transparent;
+}
