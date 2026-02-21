@@ -6,10 +6,12 @@ Board (Vercel) proxies requests here.
 
 import time
 import hashlib
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import quote_plus
 
+import requests as http_requests
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pytrends.request import TrendReq
@@ -155,6 +157,135 @@ def get_trends(
 
     _set_cache(key, response)
     return response
+
+
+@app.get("/api/trending")
+def get_trending(
+    geo: str = Query(default="US", description="Country code (e.g. US, ID, BR)"),
+):
+    """Get Trending Now via Google Trends RSS feed."""
+    cache_key = f"trending|{geo}"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    items: list[dict] = []
+    try:
+        rss_url = f"https://trends.google.com/trending/rss?geo={geo}"
+        resp = http_requests.get(rss_url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
+        root = ET.fromstring(resp.text)
+
+        for item in root.iter("item"):
+            title_el = item.find("title")
+            traffic_el = item.find("{https://trends.google.com/trending/rss}approx_traffic")
+            if title_el is not None and title_el.text:
+                name = title_el.text.strip()
+                traffic = traffic_el.text.strip() if traffic_el is not None and traffic_el.text else ""
+                items.append({
+                    "name": name,
+                    "traffic": traffic,
+                    "url": f"https://www.google.com/search?q={quote_plus(name)}&udm=50",
+                })
+    except Exception as e:
+        print(f"[RSS] trending error for geo={geo}: {e}")
+
+    response = {
+        "trending": items,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "geo": geo,
+    }
+    _set_cache(cache_key, response)
+    return response
+
+
+@app.get("/api/interest")
+def get_interest(
+    keyword: str = Query(description="Single keyword to check"),
+    geo: str = Query(default="", description="Country code, empty = global"),
+):
+    """Get interest over time (past 7 days) for a single keyword."""
+    cache_key = f"interest|{keyword.lower()}|{geo}"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    points: list[dict] = []
+    try:
+        pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
+        pytrends.build_payload([keyword], cat=0, timeframe="now 7-d", geo=geo, gprop="")
+        df = pytrends.interest_over_time()
+        if df is not None and not df.empty and keyword in df.columns:
+            for ts, row in df.iterrows():
+                points.append({
+                    "time": ts.isoformat(),
+                    "value": int(row[keyword]),
+                })
+    except Exception as e:
+        print(f"[pytrends] interest_over_time error for '{keyword}': {e}")
+
+    response = {
+        "keyword": keyword,
+        "geo": geo,
+        "points": points,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    _set_cache(cache_key, response)
+    return response
+
+
+@app.get("/api/multi-geo")
+def get_multi_geo(
+    keyword: str = Query(description="Single keyword to check"),
+    geos: str = Query(default="US,ID,BR,GB,DE,JP", description="Comma-separated country codes"),
+):
+    """Check if a keyword appears in trending/related queries across multiple countries."""
+    cache_key = f"multigeo|{keyword.lower()}|{geos}"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    geo_list = [g.strip() for g in geos.split(",") if g.strip()]
+    found_in: list[str] = []
+
+    for geo in geo_list:
+        try:
+            pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
+            pytrends.build_payload([keyword], cat=0, timeframe="now 1-d", geo=geo, gprop="")
+            df = pytrends.interest_over_time()
+            if df is not None and not df.empty and keyword in df.columns:
+                avg = df[keyword].mean()
+                if avg > 0:
+                    found_in.append(geo)
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"[pytrends] multi-geo error for '{keyword}' in {geo}: {e}")
+
+    response = {
+        "keyword": keyword,
+        "found_in": found_in,
+        "total_geos": len(geo_list),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    _set_cache(cache_key, response)
+    return response
+
+
+def _geo_to_pn(geo: str) -> str:
+    """Convert ISO country code to pytrends pn parameter for trending_searches."""
+    mapping = {
+        "US": "united_states",
+        "GB": "united_kingdom",
+        "DE": "germany",
+        "FR": "france",
+        "JP": "japan",
+        "BR": "brazil",
+        "ID": "indonesia",
+        "CN": "china",
+        "IN": "india",
+        "KR": "south_korea",
+    }
+    return mapping.get(geo.upper(), "united_states")
 
 
 @app.get("/health")

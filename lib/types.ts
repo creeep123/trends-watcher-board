@@ -3,6 +3,18 @@ export interface TrendKeyword {
   value: string;
   source: string;
   url: string;
+  tags?: string[];
+}
+
+export interface TrendingItem {
+  name: string;
+  traffic: string;
+  url: string;
+}
+
+export interface InterestPoint {
+  time: string;
+  value: number;
 }
 
 export interface TrendsResponse {
