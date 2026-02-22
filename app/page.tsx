@@ -87,9 +87,9 @@ function semrushUrl(kw: string) {
 function allintitleUrl(kw: string) {
   return `https://www.google.com/search?q=${encodeURIComponent(`allintitle:${kw}`)}`;
 }
-function namecheapUrl(kw: string) {
+function domainSearchUrl(kw: string) {
   const slug = kw.toLowerCase().replace(/[^a-z0-9]+/g, "");
-  return `https://www.namecheap.com/domains/registration/results/?domain=${encodeURIComponent(slug)}`;
+  return `https://qury.domains/${encodeURIComponent(slug)}`;
 }
 
 // --- Mobile tab type ---
@@ -189,6 +189,7 @@ export default function Home() {
       .then((d) => setMultiGeoData(d))
       .catch(() => setMultiGeoData(null))
       .finally(() => setMultiGeoLoading(false));
+
   }, [expandedKeyword, geo]);
 
   const handleKeywordsSubmit = () => {
@@ -760,6 +761,36 @@ function EnrichedDecisionPanel({
         </div>
       </div>
 
+      {/* Quick competition check */}
+      <div className="mb-3 rounded-lg p-2.5" style={{ background: "var(--bg-secondary)" }}>
+        <div className="mb-1.5 text-xs font-bold" style={{ color: "var(--text-primary)" }}>
+          竞争快查
+        </div>
+        <div className="mb-1.5 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+          点击下方按钮查看 SERP，看前 5 名是大站还是小站
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          <a
+            href={googleSearchUrl(keyword)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded py-2 text-center text-xs font-medium transition-opacity hover:opacity-80"
+            style={{ background: "rgba(66,133,244,0.15)", color: "#4285f4" }}
+          >
+            查 SERP
+          </a>
+          <a
+            href={allintitleUrl(keyword)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded py-2 text-center text-xs font-medium transition-opacity hover:opacity-80"
+            style={{ background: "rgba(234,67,53,0.15)", color: "#ea4335" }}
+          >
+            查 allintitle
+          </a>
+        </div>
+      </div>
+
       {/* Links */}
       <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2">
         <JumpLink href={googleAiUrl(keyword)} label="G AI" color="#8b5cf6" />
@@ -767,7 +798,7 @@ function EnrichedDecisionPanel({
         <JumpLink href={googleTrendsUrl(keyword)} label="G Trends" color="#34a853" />
         <JumpLink href={semrushUrl(keyword)} label="Semrush" color="#ff642d" />
         <JumpLink href={allintitleUrl(keyword)} label="allintitle" color="#ea4335" />
-        <JumpLink href={namecheapUrl(keyword)} label="域名" color="#de5833" />
+        <JumpLink href={domainSearchUrl(keyword)} label="域名" color="#de5833" />
       </div>
     </div>
   );
