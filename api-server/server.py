@@ -263,6 +263,64 @@ def get_trending(
     return response
 
 
+@app.get("/api/freshness")
+def get_freshness(
+    keyword: str = Query(description="Single keyword to check"),
+    geo: str = Query(default="", description="Country code, empty = global"),
+):
+    """Calculate freshness score: how 'new' a keyword is based on recent vs historical interest."""
+    cache_key = f"freshness|{keyword.lower()}|{geo}"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    recent_avg = 0.0
+    baseline_avg = 0.0
+
+    try:
+        pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
+
+        # Recent interest (past 24 hours)
+        pytrends.build_payload([keyword], cat=0, timeframe="now 1-d", geo=geo, gprop="")
+        df_recent = pytrends.interest_over_time()
+        if df_recent is not None and not df_recent.empty and keyword in df_recent.columns:
+            recent_avg = float(df_recent[keyword].mean())
+
+        time.sleep(1)
+
+        # Baseline interest (past 30 days)
+        pytrends.build_payload([keyword], cat=0, timeframe="today 1-m", geo=geo, gprop="")
+        df_baseline = pytrends.interest_over_time()
+        if df_baseline is not None and not df_baseline.empty and keyword in df_baseline.columns:
+            baseline_avg = float(df_baseline[keyword].mean())
+
+    except Exception as e:
+        print(f"[pytrends] freshness error for '{keyword}': {e}")
+
+    # Score: if baseline is near zero but recent is high → very fresh (new keyword)
+    # if baseline is similar to recent → old keyword
+    if recent_avg <= 0:
+        score = 0
+    elif baseline_avg <= 1:
+        # No historical interest → brand new keyword
+        score = 100
+    else:
+        ratio = recent_avg / baseline_avg
+        # ratio > 3 → extremely fresh, ratio ~1 → old/steady, ratio < 0.5 → declining
+        score = min(100, max(0, round((ratio - 0.5) / 2.5 * 100)))
+
+    response = {
+        "keyword": keyword,
+        "geo": geo,
+        "freshness": score,
+        "recent_avg": round(recent_avg, 1),
+        "baseline_avg": round(baseline_avg, 1),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    _set_cache(cache_key, response)
+    return response
+
+
 @app.get("/api/interest")
 def get_interest(
     keyword: str = Query(description="Single keyword to check"),

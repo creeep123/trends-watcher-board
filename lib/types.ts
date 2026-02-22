@@ -18,6 +18,19 @@ export interface InterestPoint {
   value: number;
 }
 
+export interface FreshnessData {
+  keyword: string;
+  freshness: number;
+  recent_avg: number;
+  baseline_avg: number;
+}
+
+export interface MultiGeoData {
+  keyword: string;
+  found_in: string[];
+  total_geos: number;
+}
+
 export interface TrendsResponse {
   google: TrendKeyword[];
   github: TrendKeyword[];

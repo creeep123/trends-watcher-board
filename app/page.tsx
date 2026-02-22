@@ -6,6 +6,8 @@ import type {
   TrendKeyword,
   TrendingItem,
   InterestPoint,
+  FreshnessData,
+  MultiGeoData,
 } from "@/lib/types";
 import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS } from "@/lib/types";
 
@@ -46,6 +48,28 @@ function sortBySignal(items: TrendKeyword[]): TrendKeyword[] {
   });
 }
 
+// --- KGR localStorage helpers ---
+
+function getStoredSupply(keyword: string): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(`kgr::${keyword.toLowerCase()}`);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return typeof data.supply === "number" ? data.supply : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeSupply(keyword: string, supply: number) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(
+    `kgr::${keyword.toLowerCase()}`,
+    JSON.stringify({ supply, ts: Date.now() })
+  );
+}
+
 // --- Jump links ---
 
 function googleSearchUrl(kw: string) {
@@ -59,6 +83,13 @@ function googleTrendsUrl(kw: string) {
 }
 function semrushUrl(kw: string) {
   return `https://www.semrush.com/analytics/keywordoverview/?q=${encodeURIComponent(kw)}`;
+}
+function allintitleUrl(kw: string) {
+  return `https://www.google.com/search?q=${encodeURIComponent(`allintitle:${kw}`)}`;
+}
+function namecheapUrl(kw: string) {
+  const slug = kw.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return `https://www.namecheap.com/domains/registration/results/?domain=${encodeURIComponent(slug)}`;
 }
 
 // --- Mobile tab type ---
@@ -83,6 +114,11 @@ export default function Home() {
   const [expandedKeyword, setExpandedKeyword] = useState<string | null>(null);
   const [interestData, setInterestData] = useState<InterestPoint[]>([]);
   const [interestLoading, setInterestLoading] = useState(false);
+
+  const [freshnessData, setFreshnessData] = useState<FreshnessData | null>(null);
+  const [freshnessLoading, setFreshnessLoading] = useState(false);
+  const [multiGeoData, setMultiGeoData] = useState<MultiGeoData | null>(null);
+  const [multiGeoLoading, setMultiGeoLoading] = useState(false);
 
   const [mobileTab, setMobileTab] = useState<MobileTab>("trending");
 
@@ -120,16 +156,39 @@ export default function Home() {
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchTrending(); }, [fetchTrending]);
 
+  // Fetch interest + freshness + multi-geo when a keyword is expanded
   useEffect(() => {
     if (!expandedKeyword) return;
+
+    // Interest (existing)
     setInterestLoading(true);
     setInterestData([]);
-    const params = new URLSearchParams({ keyword: expandedKeyword, geo });
-    fetch(`/api/interest?${params}`)
+    const interestParams = new URLSearchParams({ keyword: expandedKeyword, geo });
+    fetch(`/api/interest?${interestParams}`)
       .then((r) => r.json())
       .then((d) => setInterestData(d.points || []))
       .catch(() => setInterestData([]))
       .finally(() => setInterestLoading(false));
+
+    // Freshness
+    setFreshnessLoading(true);
+    setFreshnessData(null);
+    const freshParams = new URLSearchParams({ keyword: expandedKeyword, geo });
+    fetch(`/api/freshness?${freshParams}`)
+      .then((r) => r.json())
+      .then((d) => setFreshnessData(d))
+      .catch(() => setFreshnessData(null))
+      .finally(() => setFreshnessLoading(false));
+
+    // Multi-geo
+    setMultiGeoLoading(true);
+    setMultiGeoData(null);
+    const mgParams = new URLSearchParams({ keyword: expandedKeyword });
+    fetch(`/api/multi-geo?${mgParams}`)
+      .then((r) => r.json())
+      .then((d) => setMultiGeoData(d))
+      .catch(() => setMultiGeoData(null))
+      .finally(() => setMultiGeoLoading(false));
   }, [expandedKeyword, geo]);
 
   const handleKeywordsSubmit = () => {
@@ -186,9 +245,8 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Filters — horizontal scroll on mobile */}
+          {/* Filters */}
           <div className="mt-2 flex gap-3 overflow-x-auto pb-1 sm:mt-3 sm:flex-wrap sm:overflow-visible sm:pb-0">
-            {/* Timeframe */}
             <div className="flex shrink-0 items-center gap-1.5">
               <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>TIME</span>
               <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: "var(--bg-secondary)" }}>
@@ -208,7 +266,6 @@ export default function Home() {
                 ))}
               </div>
             </div>
-            {/* Region */}
             <div className="flex shrink-0 items-center gap-1.5">
               <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>GEO</span>
               <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: "var(--bg-secondary)" }}>
@@ -230,7 +287,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Keywords — full width */}
+          {/* Keywords */}
           <div className="mt-2 flex items-center gap-1.5 sm:mt-3 sm:gap-2">
             <span className="hidden text-xs font-medium sm:block" style={{ color: "var(--text-secondary)" }}>KEYWORDS</span>
             <input
@@ -277,7 +334,6 @@ export default function Home() {
 
       {/* ===== Main Content ===== */}
       <main className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
-        {/* Status bar */}
         {data && !loading && (
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs sm:mb-4 sm:gap-3" style={{ color: "var(--text-secondary)" }}>
             <span>{currentGeo?.flag || "🌍"} {currentGeo?.label || "Global"} · {currentTimeframe?.description}</span>
@@ -363,6 +419,10 @@ export default function Home() {
                       onToggle={() => toggleExpand(item.name)}
                       interestData={expandedKeyword === item.name ? interestData : []}
                       interestLoading={expandedKeyword === item.name && interestLoading}
+                      freshnessData={expandedKeyword === item.name ? freshnessData : null}
+                      freshnessLoading={expandedKeyword === item.name && freshnessLoading}
+                      multiGeoData={expandedKeyword === item.name ? multiGeoData : null}
+                      multiGeoLoading={expandedKeyword === item.name && multiGeoLoading}
                     />
                   ))
                 )}
@@ -445,9 +505,12 @@ function TrendingCard({
 
 function KeywordCard({
   item, index, isGithub, isExpanded, onToggle, interestData, interestLoading,
+  freshnessData, freshnessLoading, multiGeoData, multiGeoLoading,
 }: {
   item: TrendKeyword; index: number; isGithub?: boolean; isExpanded?: boolean;
   onToggle?: () => void; interestData?: InterestPoint[]; interestLoading?: boolean;
+  freshnessData?: FreshnessData | null; freshnessLoading?: boolean;
+  multiGeoData?: MultiGeoData | null; multiGeoLoading?: boolean;
 }) {
   const tags = getTags(item);
   const hasSurge = tags.includes("surge");
@@ -484,15 +547,66 @@ function KeywordCard({
         </span>
         <Chevron open={!!isExpanded} />
       </button>
-      {isExpanded && <DecisionPanel keyword={item.name} points={interestData || []} loading={!!interestLoading} />}
+      {isExpanded && (
+        <EnrichedDecisionPanel
+          keyword={item.name}
+          points={interestData || []}
+          loading={!!interestLoading}
+          freshnessData={freshnessData || null}
+          freshnessLoading={!!freshnessLoading}
+          multiGeoData={multiGeoData || null}
+          multiGeoLoading={!!multiGeoLoading}
+        />
+      )}
     </div>
   );
 }
 
-function DecisionPanel({ keyword, points, loading }: { keyword: string; points: InterestPoint[]; loading: boolean }) {
+// ===== Enhanced Decision Panel with KGR =====
+
+function EnrichedDecisionPanel({
+  keyword, points, loading,
+  freshnessData, freshnessLoading,
+  multiGeoData, multiGeoLoading,
+}: {
+  keyword: string; points: InterestPoint[]; loading: boolean;
+  freshnessData: FreshnessData | null; freshnessLoading: boolean;
+  multiGeoData: MultiGeoData | null; multiGeoLoading: boolean;
+}) {
+  const [supplyInput, setSupplyInput] = useState("");
+  const [storedSupply, setStoredSupply] = useState<number | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
+
+  // Load stored supply from localStorage on mount
+  useEffect(() => {
+    const saved = getStoredSupply(keyword);
+    setStoredSupply(saved);
+    if (saved !== null) setSupplyInput(String(saved));
+  }, [keyword]);
+
+  const handleSupplySubmit = () => {
+    const num = parseInt(supplyInput.replace(/[,\s]/g, ""), 10);
+    if (!isNaN(num) && num >= 0) {
+      storeSupply(keyword, num);
+      setStoredSupply(num);
+    }
+  };
+
+  // Calculate KGR: use interest peak value as demand proxy
+  const peakInterest = points.length > 0 ? Math.max(...points.map((p) => p.value)) : null;
+  const kgr = peakInterest !== null && storedSupply !== null && storedSupply > 0
+    ? peakInterest / storedSupply
+    : null;
+
+  const kgrStatus = kgr !== null
+    ? kgr < 0.25 ? { label: "低竞争，值得冲", color: "#34d399", bg: "rgba(52,211,153,0.15)" }
+    : kgr < 1 ? { label: "有竞争，谨慎评估", color: "#fbbf24", bg: "rgba(251,191,36,0.15)" }
+    : { label: "供给过剩，不建议", color: "#f87171", bg: "rgba(239,68,68,0.15)" }
+    : null;
+
   return (
     <div className="border-t px-3 py-3" style={{ borderColor: "var(--border)" }}>
-      {/* Chart */}
+      {/* 7-day trend chart */}
       <div className="mb-3">
         <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>7-day trend</span>
         {loading ? (
@@ -505,7 +619,176 @@ function DecisionPanel({ keyword, points, loading }: { keyword: string; points: 
           </div>
         )}
       </div>
-      {/* Links — 2x2 grid on mobile, single row on desktop */}
+
+      {/* === Assessment Section === */}
+      <div className="mb-3 rounded-lg p-2.5" style={{ background: "var(--bg-secondary)" }}>
+        <div className="mb-2 text-xs font-bold" style={{ color: "var(--text-primary)" }}>
+          上站评估
+        </div>
+
+        {/* Freshness + Multi-geo row */}
+        <div className="mb-2 grid grid-cols-2 gap-2">
+          {/* Freshness */}
+          <div className="rounded-md p-2" style={{ background: "var(--bg-card)" }}>
+            <div className="mb-1 text-xs" style={{ color: "var(--text-secondary)" }}>新鲜度</div>
+            {freshnessLoading ? (
+              <div className="h-4 w-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
+            ) : freshnessData ? (
+              <div className="flex items-center gap-1.5">
+                <ScoreBar value={freshnessData.freshness} />
+                <span className="text-xs font-bold" style={{ color: scoreColor(freshnessData.freshness) }}>
+                  {freshnessData.freshness}
+                </span>
+              </div>
+            ) : (
+              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>--</span>
+            )}
+          </div>
+
+          {/* Multi-geo */}
+          <div className="rounded-md p-2" style={{ background: "var(--bg-card)" }}>
+            <div className="mb-1 text-xs" style={{ color: "var(--text-secondary)" }}>多国热度</div>
+            {multiGeoLoading ? (
+              <div className="h-4 w-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
+            ) : multiGeoData ? (
+              <div>
+                <span className="text-xs font-bold" style={{
+                  color: multiGeoData.found_in.length >= 3 ? "#34d399"
+                    : multiGeoData.found_in.length >= 1 ? "#fbbf24" : "var(--text-secondary)",
+                }}>
+                  {multiGeoData.found_in.length}/{multiGeoData.total_geos} 国
+                </span>
+                {multiGeoData.found_in.length > 0 && (
+                  <div className="mt-0.5 text-xs" style={{ color: "var(--text-secondary)" }}>
+                    {multiGeoData.found_in.join(", ")}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>--</span>
+            )}
+          </div>
+        </div>
+
+        {/* Supply input + KGR */}
+        <div className="rounded-md p-2" style={{ background: "var(--bg-card)" }}>
+          <div className="mb-1.5 flex items-center gap-1.5">
+            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>页面供给量</span>
+            <button
+              onClick={() => setShowGuide(!showGuide)}
+              className="text-xs underline decoration-dotted"
+              style={{ color: "var(--accent-blue)" }}
+            >
+              {showGuide ? "收起" : "怎么查?"}
+            </button>
+          </div>
+
+          {/* Guide */}
+          {showGuide && (
+            <div className="mb-2 rounded p-2 text-xs leading-relaxed" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+              <div className="mb-1.5 font-medium" style={{ color: "var(--text-primary)" }}>
+                查 allintitle 结果数：
+              </div>
+              <ol className="ml-3 list-decimal space-y-0.5">
+                <li>点下面「查 allintitle」按钮打开 Google</li>
+                <li>看搜索结果页顶部 &quot;约 X,XXX 条结果&quot;</li>
+                <li>把那个数字填到输入框，按回车</li>
+              </ol>
+              <div className="mt-1.5 mb-1 font-medium" style={{ color: "var(--text-primary)" }}>KGR = 搜索热度 / 页面供给量</div>
+              <div>{"< 0.25 → 低竞争，值得冲"}</div>
+              <div>{"0.25~1 → 有竞争，谨慎评估"}</div>
+              <div>{"> 1 → 供给过剩，不建议做"}</div>
+            </div>
+          )}
+
+          {/* Input row */}
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={supplyInput}
+              onChange={(e) => setSupplyInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSupplySubmit(); }}
+              placeholder="填入 allintitle 结果数"
+              className="min-w-0 flex-1 rounded border px-2 py-1.5 text-xs outline-none"
+              style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+            />
+            <button
+              onClick={handleSupplySubmit}
+              className="shrink-0 rounded px-2 py-1.5 text-xs font-medium"
+              style={{ background: "var(--accent-blue)", color: "#fff" }}
+            >
+              OK
+            </button>
+          </div>
+
+          {/* Quick action: open allintitle search */}
+          <div className="mt-1.5 flex gap-1.5">
+            <a
+              href={allintitleUrl(keyword)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 rounded py-1.5 text-center text-xs font-medium transition-opacity hover:opacity-80"
+              style={{ background: "rgba(66,133,244,0.15)", color: "#4285f4" }}
+            >
+              查 allintitle
+            </a>
+            <button
+              onClick={() => { navigator.clipboard.writeText(`allintitle:${keyword}`); }}
+              className="shrink-0 rounded px-2 py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
+              style={{ background: "rgba(107,114,128,0.15)", color: "var(--text-secondary)" }}
+            >
+              复制
+            </button>
+          </div>
+
+          {/* KGR result */}
+          {kgr !== null && kgrStatus && (
+            <div className="mt-2 flex items-center gap-2 rounded p-2" style={{ background: kgrStatus.bg }}>
+              <span className="text-sm font-bold" style={{ color: kgrStatus.color }}>
+                KGR = {kgr.toFixed(3)}
+              </span>
+              <span className="text-xs" style={{ color: kgrStatus.color }}>
+                {kgrStatus.label}
+              </span>
+            </div>
+          )}
+          {storedSupply !== null && peakInterest !== null && kgr === null && storedSupply === 0 && (
+            <div className="mt-2 rounded p-2 text-xs" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>
+              供给量为 0 — 全新蓝海！
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Links */}
+      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2">
+        <JumpLink href={googleAiUrl(keyword)} label="G AI" color="#8b5cf6" />
+        <JumpLink href={googleSearchUrl(keyword)} label="Google" color="#4285f4" />
+        <JumpLink href={googleTrendsUrl(keyword)} label="G Trends" color="#34a853" />
+        <JumpLink href={semrushUrl(keyword)} label="Semrush" color="#ff642d" />
+        <JumpLink href={allintitleUrl(keyword)} label="allintitle" color="#ea4335" />
+        <JumpLink href={namecheapUrl(keyword)} label="域名" color="#de5833" />
+      </div>
+    </div>
+  );
+}
+
+// Original simple DecisionPanel for TrendingCard
+function DecisionPanel({ keyword, points, loading }: { keyword: string; points: InterestPoint[]; loading: boolean }) {
+  return (
+    <div className="border-t px-3 py-3" style={{ borderColor: "var(--border)" }}>
+      <div className="mb-3">
+        <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>7-day trend</span>
+        {loading ? (
+          <div className="mt-1 h-14 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
+        ) : points.length > 0 ? (
+          <MiniChart points={points} />
+        ) : (
+          <div className="mt-1 flex h-14 items-center justify-center rounded text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+            No trend data
+          </div>
+        )}
+      </div>
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
         <JumpLink href={googleAiUrl(keyword)} label="G AI" color="#8b5cf6" />
         <JumpLink href={googleSearchUrl(keyword)} label="Google" color="#4285f4" />
@@ -515,6 +798,28 @@ function DecisionPanel({ keyword, points, loading }: { keyword: string; points: 
     </div>
   );
 }
+
+// ===== Score helpers =====
+
+function scoreColor(score: number): string {
+  if (score >= 70) return "#34d399";
+  if (score >= 40) return "#fbbf24";
+  return "#f87171";
+}
+
+function ScoreBar({ value }: { value: number }) {
+  const clamped = Math.max(0, Math.min(100, value));
+  return (
+    <div className="h-1.5 flex-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+      <div
+        className="h-full rounded-full transition-all"
+        style={{ width: `${clamped}%`, background: scoreColor(clamped) }}
+      />
+    </div>
+  );
+}
+
+// ===== Chart =====
 
 function MiniChart({ points }: { points: InterestPoint[] }) {
   if (points.length < 2) return null;
