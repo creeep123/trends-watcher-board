@@ -89,7 +89,7 @@ function allintitleUrl(kw: string) {
 }
 function domainSearchUrl(kw: string) {
   const slug = kw.toLowerCase().replace(/[^a-z0-9]+/g, "");
-  return `https://qury.domains/${encodeURIComponent(slug)}`;
+  return `https://query.domains/${encodeURIComponent(slug)}`;
 }
 
 // --- Mobile tab type ---
