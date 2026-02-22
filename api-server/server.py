@@ -4,6 +4,8 @@ Provides Google Trends related queries via FastAPI.
 Board (Vercel) proxies requests here.
 """
 
+import json
+import os
 import time
 import hashlib
 import xml.etree.ElementTree as ET
@@ -15,6 +17,12 @@ import requests as http_requests
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pytrends.request import TrendReq
+
+OPENROUTER_API_KEY = os.environ.get(
+    "OPENROUTER_API_KEY",
+    "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",
+)
+LLM_MODEL = "z-ai/glm-4.5-air:free"
 
 app = FastAPI(title="Trends Watcher API")
 
@@ -159,11 +167,54 @@ def get_trends(
     return response
 
 
+def _classify_tech_terms(names: list[str]) -> set[str]:
+    """Use LLM to classify which trending terms are tech/AI related."""
+    if not names:
+        return set()
+
+    prompt = (
+        "I will give you a list of trending search terms. "
+        "Reply ONLY with a JSON array containing the EXACT terms that are related to: "
+        "AI, tech, software, apps, programming, crypto, digital tools, startups, or internet products. "
+        "Be strict: exclude sports, entertainment, politics, weather unless they directly involve tech. "
+        "If none match, reply []. No explanation, just the JSON array.\n\n"
+        "Terms:\n" + "\n".join(f"- {n}" for n in names)
+    )
+
+    try:
+        resp = http_requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": LLM_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 500,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"].strip()
+        # Extract JSON array from response
+        start = content.find("[")
+        end = content.rfind("]")
+        if start != -1 and end != -1:
+            arr = json.loads(content[start:end + 1])
+            return {t.lower().strip() for t in arr if isinstance(t, str)}
+    except Exception as e:
+        print(f"[LLM] classification error: {e}")
+
+    return set()
+
+
 @app.get("/api/trending")
 def get_trending(
     geo: str = Query(default="US", description="Country code (e.g. US, ID, BR)"),
 ):
-    """Get Trending Now via Google Trends RSS feed."""
+    """Get Trending Now via Google Trends RSS feed, with LLM tech classification."""
     cache_key = f"trending|{geo}"
     cached = _get_cached(cache_key)
     if cached:
@@ -186,9 +237,22 @@ def get_trending(
                     "name": name,
                     "traffic": traffic,
                     "url": f"https://www.google.com/search?q={quote_plus(name)}&udm=50",
+                    "is_tech": False,
                 })
     except Exception as e:
         print(f"[RSS] trending error for geo={geo}: {e}")
+
+    # LLM classification
+    if items:
+        names = [it["name"] for it in items]
+        tech_set = _classify_tech_terms(names)
+        for it in items:
+            if it["name"].lower().strip() in tech_set:
+                it["is_tech"] = True
+        # Sort: tech items first, then by original order
+        tech_items = [it for it in items if it["is_tech"]]
+        other_items = [it for it in items if not it["is_tech"]]
+        items = tech_items + other_items
 
     response = {
         "trending": items,

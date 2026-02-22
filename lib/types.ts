@@ -10,6 +10,7 @@ export interface TrendingItem {
   name: string;
   traffic: string;
   url: string;
+  is_tech?: boolean;
 }
 
 export interface InterestPoint {

@@ -416,12 +416,21 @@ function TrendingCard({
   item: TrendingItem; index: number; isExpanded: boolean; onToggle: () => void;
   interestData: InterestPoint[]; interestLoading: boolean;
 }) {
+  const isTech = item.is_tech;
   return (
     <div className="rounded-lg border transition-all"
-      style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue)" : "var(--border)" }}>
+      style={{
+        background: isTech ? "rgba(79, 143, 247, 0.06)" : "var(--bg-card)",
+        borderColor: isExpanded ? "var(--accent-blue)" : isTech ? "rgba(79, 143, 247, 0.3)" : "var(--border)",
+      }}>
       <button onClick={onToggle} className="flex w-full items-center gap-2.5 p-3 text-left sm:gap-3 sm:p-2.5">
         <Rank n={index + 1} />
         <span className="min-w-0 flex-1 truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        {isTech && (
+          <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(79, 143, 247, 0.15)", color: "#4f8ff7" }}>
+            Tech
+          </span>
+        )}
         {item.traffic && (
           <span className="shrink-0 rounded-md px-1.5 py-0.5 text-xs font-mono" style={{ background: "rgba(239, 68, 68, 0.15)", color: "#f87171" }}>
             {item.traffic}
