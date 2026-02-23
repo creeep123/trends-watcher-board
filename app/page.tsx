@@ -552,9 +552,9 @@ function TrendingCard({
         background: isTech ? "rgba(79, 143, 247, 0.06)" : "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue)" : isTech ? "rgba(79, 143, 247, 0.3)" : "var(--border)",
       }}>
-      <button onClick={onToggle} className="flex w-full items-center gap-2.5 p-3 text-left sm:gap-3 sm:p-2.5">
+      <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-3 text-left sm:items-center sm:gap-3 sm:p-2.5">
         <Rank n={index + 1} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        <span className="min-w-0 flex-1 text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>{item.name}</span>
         {isTech && (
           <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(79, 143, 247, 0.15)", color: "#4f8ff7" }}>
             Tech
@@ -594,7 +594,7 @@ function RedditCard({ post, index }: { post: RedditPost; index: number }) {
     >
       <Rank n={index + 1} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+        <div className="text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>
           {post.title}
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
@@ -624,12 +624,12 @@ function KeywordCard({
   if (isGithub) {
     return (
       <a href={item.url} target="_blank" rel="noopener noreferrer"
-        className="group flex items-center gap-2.5 rounded-lg border p-3 transition-all sm:gap-3 sm:p-2.5"
+        className="group flex items-start gap-2.5 rounded-lg border p-3 transition-all sm:items-center sm:gap-3 sm:p-2.5"
         style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
         onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-purple)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}>
         <Rank n={index + 1} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        <span className="min-w-0 flex-1 text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>{item.name}</span>
         <span className="shrink-0 rounded-md px-1.5 py-0.5 text-xs font-mono font-medium" style={{ background: "rgba(163, 120, 250, 0.15)", color: "var(--accent-purple)" }}>
           {item.value}
         </span>
@@ -641,9 +641,9 @@ function KeywordCard({
   return (
     <div className="rounded-lg border transition-all"
       style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)" }}>
-      <button onClick={onToggle} className="flex w-full items-center gap-2.5 p-3 text-left sm:gap-3 sm:p-2.5">
+      <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-3 text-left sm:items-center sm:gap-3 sm:p-2.5">
         <Rank n={index + 1} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        <span className="min-w-0 flex-1 text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>{item.name}</span>
         {tags.map((tag) => {
           const c = tagColor(tag);
           return <span key={tag} className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: c.bg, color: c.color }}>{tagLabel(tag)}</span>;
