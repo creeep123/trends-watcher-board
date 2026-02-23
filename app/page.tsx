@@ -8,6 +8,8 @@ import type {
   InterestPoint,
   FreshnessData,
   MultiGeoData,
+  RedditPost,
+  RedditKeyword,
 } from "@/lib/types";
 import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS } from "@/lib/types";
 
@@ -94,7 +96,7 @@ function domainSearchUrl(kw: string) {
 
 // --- Mobile tab type ---
 
-type MobileTab = "trending" | "queries" | "github";
+type MobileTab = "trending" | "queries" | "reddit" | "github";
 
 // --- Main ---
 
@@ -119,6 +121,10 @@ export default function Home() {
   const [freshnessLoading, setFreshnessLoading] = useState(false);
   const [multiGeoData, setMultiGeoData] = useState<MultiGeoData | null>(null);
   const [multiGeoLoading, setMultiGeoLoading] = useState(false);
+
+  const [redditPosts, setRedditPosts] = useState<RedditPost[]>([]);
+  const [redditKeywords, setRedditKeywords] = useState<RedditKeyword[]>([]);
+  const [redditLoading, setRedditLoading] = useState(true);
 
   const [mobileTab, setMobileTab] = useState<MobileTab>("trending");
 
@@ -153,8 +159,26 @@ export default function Home() {
     }
   }, [trendingGeo]);
 
+  const fetchReddit = useCallback(async () => {
+    setRedditLoading(true);
+    try {
+      const res = await fetch("/api/reddit?sort=hot");
+      if (res.ok) {
+        const json = await res.json();
+        setRedditPosts(json.posts || []);
+        setRedditKeywords(json.keywords || []);
+      }
+    } catch {
+      setRedditPosts([]);
+      setRedditKeywords([]);
+    } finally {
+      setRedditLoading(false);
+    }
+  }, []);
+
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchTrending(); }, [fetchTrending]);
+  useEffect(() => { fetchReddit(); }, [fetchReddit]);
 
   // Fetch interest + freshness + multi-geo when a keyword is expanded
   useEffect(() => {
@@ -214,6 +238,7 @@ export default function Home() {
   const MOBILE_TABS: { key: MobileTab; label: string; icon: string }[] = [
     { key: "trending", label: "Trending", icon: "🔥" },
     { key: "queries", label: "Queries", icon: "📊" },
+    { key: "reddit", label: "Reddit", icon: "💬" },
     { key: "github", label: "GitHub", icon: "💻" },
   ];
 
@@ -233,7 +258,7 @@ export default function Home() {
               <span className="sm:hidden">Board</span>
             </h1>
             <button
-              onClick={() => { fetchData(); fetchTrending(); }}
+              onClick={() => { fetchData(); fetchTrending(); fetchReddit(); }}
               disabled={loading}
               className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm"
               style={{
@@ -351,15 +376,16 @@ export default function Home() {
         )}
 
         {loading && (
-          <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-4">
             <SkeletonSection />
+            <div className="hidden lg:block"><SkeletonSection /></div>
             <div className="hidden lg:block"><SkeletonSection /></div>
             <div className="hidden lg:block"><SkeletonSection /></div>
           </div>
         )}
 
         {data && !loading && (
-          <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-4">
             {/* --- Trending Now --- */}
             <section className={`${mobileTab !== "trending" ? "hidden" : ""} sm:block`}>
               <div className="mb-2 flex items-center gap-2">
@@ -426,6 +452,48 @@ export default function Home() {
                       multiGeoLoading={expandedKeyword === item.name && multiGeoLoading}
                     />
                   ))
+                )}
+              </div>
+            </section>
+
+            {/* --- Reddit Signals --- */}
+            <section className={`${mobileTab !== "reddit" ? "hidden" : ""} sm:block`}>
+              <SectionHeader title="Reddit Signals" icon="💬" count={redditPosts.length} />
+              <div className="mt-2 space-y-1.5 lg:max-h-[calc(100vh-280px)] lg:overflow-y-auto">
+                {redditLoading ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="h-11 animate-pulse rounded-lg" style={{ background: "var(--bg-card)", opacity: 1 - i * 0.12 }} />
+                  ))
+                ) : redditPosts.length === 0 ? (
+                  <EmptyState text="No Reddit data" />
+                ) : (
+                  <>
+                    {redditKeywords.length > 0 && (
+                      <div className="rounded-lg border p-2.5" style={{ background: "rgba(255, 69, 0, 0.04)", borderColor: "rgba(255, 69, 0, 0.2)" }}>
+                        <div className="mb-1.5 text-xs font-bold" style={{ color: "#ff4500" }}>
+                          LLM Extracted Keywords
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {redditKeywords.map((kw, i) => (
+                            <a
+                              key={i}
+                              href={`https://www.google.com/search?q=${encodeURIComponent(kw.keyword)}&udm=50`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-md px-2 py-1 text-xs font-medium transition-opacity hover:opacity-80"
+                              style={{ background: "rgba(255, 69, 0, 0.12)", color: "#ff6b35" }}
+                              title={kw.context}
+                            >
+                              {kw.keyword} ({kw.posts})
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {redditPosts.map((post, i) => (
+                      <RedditCard key={`r-${i}`} post={post} index={i} />
+                    ))}
+                  </>
                 )}
               </div>
             </section>
@@ -501,6 +569,43 @@ function TrendingCard({
       </button>
       {isExpanded && <DecisionPanel keyword={item.name} points={interestData} loading={interestLoading} />}
     </div>
+  );
+}
+
+function RedditCard({ post, index }: { post: RedditPost; index: number }) {
+  const timeAgo = (dateStr: string) => {
+    if (!dateStr) return "";
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const hours = Math.floor(diff / 3600000);
+    if (hours < 1) return "just now";
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
+
+  return (
+    <a
+      href={post.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group flex items-start gap-2.5 rounded-lg border p-3 transition-all sm:gap-3 sm:p-2.5"
+      style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#ff4500"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
+    >
+      <Rank n={index + 1} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+          {post.title}
+        </div>
+        <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+          <span className="rounded px-1 py-0.5" style={{ background: "rgba(255, 69, 0, 0.1)", color: "#ff6b35" }}>
+            r/{post.subreddit}
+          </span>
+          {post.published && <span>{timeAgo(post.published)}</span>}
+        </div>
+      </div>
+      <ExternalIcon />
+    </a>
   );
 }
 

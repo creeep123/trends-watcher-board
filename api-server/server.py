@@ -29,7 +29,7 @@ app = FastAPI(title="Trends Watcher API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -408,6 +408,148 @@ def _geo_to_pn(geo: str) -> str:
         "KR": "south_korea",
     }
     return mapping.get(geo.upper(), "united_states")
+
+
+# --- Reddit signals ---
+
+REDDIT_SUBREDDITS = [
+    "artificial",
+    "MachineLearning",
+    "ChatGPT",
+    "LocalLLaMA",
+    "singularity",
+    "StableDiffusion",
+    "OpenAI",
+]
+REDDIT_UA = "trends-watcher-bot/1.0 (contact: dev@example.com)"
+REDDIT_ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
+
+
+def _fetch_subreddit_rss(subreddit: str, sort: str = "hot", limit: int = 15) -> list[dict]:
+    """Fetch posts from a subreddit via RSS (Atom feed)."""
+    posts = []
+    try:
+        url = f"https://www.reddit.com/r/{subreddit}/{sort}/.rss?limit={limit}"
+        if sort == "top":
+            url += "&t=day"
+        resp = http_requests.get(url, timeout=10, headers={"User-Agent": REDDIT_UA})
+        if resp.status_code != 200:
+            print(f"[Reddit] {subreddit} returned {resp.status_code}")
+            return posts
+
+        root = ET.fromstring(resp.text)
+        for entry in root.findall(".//a:entry", REDDIT_ATOM_NS):
+            title_el = entry.find("a:title", REDDIT_ATOM_NS)
+            link_el = entry.find("a:link", REDDIT_ATOM_NS)
+            published_el = entry.find("a:published", REDDIT_ATOM_NS)
+            if title_el is not None and title_el.text:
+                title = title_el.text.strip()
+                # Skip meta posts
+                if title.startswith("[D]") or title.startswith("[P]") or "megathread" in title.lower():
+                    continue
+                posts.append({
+                    "title": title,
+                    "url": link_el.get("href", "") if link_el is not None else "",
+                    "subreddit": subreddit,
+                    "published": published_el.text.strip() if published_el is not None and published_el.text else "",
+                })
+    except Exception as e:
+        print(f"[Reddit] RSS error for r/{subreddit}: {e}")
+    return posts
+
+
+def _extract_reddit_keywords(posts: list[dict]) -> list[dict]:
+    """Use LLM to extract trending tech/AI product names and keywords from Reddit post titles."""
+    if not posts:
+        return []
+
+    titles = [p["title"] for p in posts]
+    prompt = (
+        "Below are Reddit post titles from AI/tech subreddits. "
+        "Extract specific product names, tools, models, or technologies mentioned. "
+        "Reply ONLY with a JSON array of objects, each with:\n"
+        '- "keyword": the product/tool/model name (e.g. "Ollama", "GPT-5", "Stable Diffusion 4")\n'
+        '- "context": one-line summary of why it\'s trending (max 15 words)\n'
+        '- "posts": how many titles mention it\n\n'
+        "Rules:\n"
+        "- Only include specific named products/tools/models, NOT generic terms like 'AI' or 'machine learning'\n"
+        "- Merge similar mentions (e.g. 'GPT-5' and 'gpt5' → 'GPT-5')\n"
+        "- Max 15 keywords, sorted by mention count descending\n"
+        "- If nothing specific found, reply []\n\n"
+        "Titles:\n" + "\n".join(f"- {t}" for t in titles)
+    )
+
+    try:
+        resp = http_requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": LLM_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 800,
+            },
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"].strip()
+        start = content.find("[")
+        end = content.rfind("]")
+        if start != -1 and end != -1:
+            arr = json.loads(content[start:end + 1])
+            return [
+                {
+                    "keyword": item.get("keyword", ""),
+                    "context": item.get("context", ""),
+                    "posts": item.get("posts", 1),
+                }
+                for item in arr
+                if isinstance(item, dict) and item.get("keyword")
+            ]
+    except Exception as e:
+        print(f"[LLM] Reddit keyword extraction error: {e}")
+
+    return []
+
+
+@app.get("/api/reddit")
+def get_reddit(
+    sort: str = Query(default="hot", description="Sort: hot or top"),
+):
+    """Fetch AI/tech Reddit posts and extract trending keywords via LLM."""
+    cache_key = f"reddit|{sort}"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    all_posts: list[dict] = []
+    seen_titles: set[str] = set()
+
+    for sub in REDDIT_SUBREDDITS:
+        posts = _fetch_subreddit_rss(sub, sort=sort, limit=15)
+        for p in posts:
+            key = p["title"].lower().strip()
+            if key not in seen_titles:
+                seen_titles.add(key)
+                all_posts.append(p)
+        time.sleep(0.3)  # Rate limit between subreddits
+
+    # Extract keywords via LLM
+    keywords = _extract_reddit_keywords(all_posts)
+
+    response = {
+        "posts": all_posts[:50],  # Cap at 50 posts
+        "keywords": keywords,
+        "subreddits": REDDIT_SUBREDDITS,
+        "sort": sort,
+        "total_posts": len(all_posts),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    _set_cache(cache_key, response)
+    return response
 
 
 @app.get("/health")

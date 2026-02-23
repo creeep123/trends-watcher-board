@@ -31,6 +31,28 @@ export interface MultiGeoData {
   total_geos: number;
 }
 
+export interface RedditPost {
+  title: string;
+  url: string;
+  subreddit: string;
+  published: string;
+}
+
+export interface RedditKeyword {
+  keyword: string;
+  context: string;
+  posts: number;
+}
+
+export interface RedditResponse {
+  posts: RedditPost[];
+  keywords: RedditKeyword[];
+  subreddits: string[];
+  sort: string;
+  total_posts: number;
+  timestamp: string;
+}
+
 export interface TrendsResponse {
   google: TrendKeyword[];
   github: TrendKeyword[];
