@@ -2,6 +2,11 @@ import type { TrendKeyword } from "./types";
 
 const API_BASE = process.env.PYTRENDS_API_URL || "http://43.165.126.121";
 
+export interface GoogleTrendsResult {
+  google: TrendKeyword[];
+  _stale?: boolean;
+}
+
 /**
  * Fetch Google Trends via the pytrends API server.
  */
@@ -9,7 +14,7 @@ export async function fetchGoogleTrends(
   timeframe: string,
   geo: string,
   keywords: string[]
-): Promise<TrendKeyword[]> {
+): Promise<GoogleTrendsResult> {
   try {
     const params = new URLSearchParams({
       keywords: keywords.join(","),
@@ -23,13 +28,13 @@ export async function fetchGoogleTrends(
 
     if (!res.ok) {
       console.error(`pytrends API error: ${res.status}`);
-      return [];
+      return { google: [] };
     }
 
     const data = await res.json();
-    return data.google || [];
+    return { google: data.google || [], _stale: data._stale };
   } catch (e) {
     console.error("Google Trends fetch error:", e);
-    return [];
+    return { google: [] };
   }
 }

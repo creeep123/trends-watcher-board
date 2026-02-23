@@ -8,7 +8,9 @@ import json
 import os
 import time
 import hashlib
+import threading
 import xml.etree.ElementTree as ET
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import quote_plus
@@ -24,18 +26,21 @@ OPENROUTER_API_KEY = os.environ.get(
 )
 LLM_MODEL = "z-ai/glm-4.5-air:free"
 
-app = FastAPI(title="Trends Watcher API")
+# --- Tiered cache TTL (seconds) ---
+CACHE_TTL_MAP = {
+    "trends":    7200,   # 2h — related queries change slowly
+    "trending":  1800,   # 30min — RSS-based, low cost
+    "freshness": 14400,  # 4h — freshness doesn't shift fast
+    "interest":  7200,   # 2h — 7-day chart, hourly data
+    "multigeo":  21600,  # 6h — multi-country check is heavy
+    "reddit":    1800,   # 30min — RSS-based, low cost
+}
+DEFAULT_TTL = 3600  # 1h fallback
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["GET", "POST"],
-    allow_headers=["*"],
-)
 
-# In-memory cache: key -> {data, timestamp}
+# --- Cache with stale fallback ---
+# _cache[key] = {"data": dict, "timestamp": float}
 _cache: dict[str, dict] = {}
-CACHE_TTL = 1800  # 30 minutes
 
 
 def _cache_key(keywords: list[str], timeframe: str, geo: str) -> str:
@@ -43,18 +48,53 @@ def _cache_key(keywords: list[str], timeframe: str, geo: str) -> str:
     return hashlib.md5(raw.encode()).hexdigest()
 
 
+def _ttl_for(key: str) -> int:
+    """Resolve TTL based on cache key prefix."""
+    for prefix, ttl in CACHE_TTL_MAP.items():
+        if key.startswith(prefix) or prefix in key:
+            return ttl
+    return DEFAULT_TTL
+
+
 def _get_cached(key: str) -> Optional[dict]:
+    """Return cached data if fresh (within TTL)."""
     entry = _cache.get(key)
     if not entry:
         return None
-    if time.time() - entry["timestamp"] > CACHE_TTL:
-        del _cache[key]
+    if time.time() - entry["timestamp"] > _ttl_for(key):
+        return None  # Expired — but DON'T delete, keep for stale fallback
+    return entry["data"]
+
+
+def _get_stale(key: str) -> Optional[dict]:
+    """Return cached data even if expired. Used as fallback when upstream fails."""
+    entry = _cache.get(key)
+    if not entry:
         return None
     return entry["data"]
 
 
 def _set_cache(key: str, data: dict) -> None:
     _cache[key] = {"data": data, "timestamp": time.time()}
+
+
+def _is_empty_response(data: dict) -> bool:
+    """Check if a response is effectively empty (pytrends returned no data)."""
+    if not data:
+        return True
+    # trends endpoint
+    if "google" in data and len(data["google"]) == 0:
+        return True
+    # freshness with zero score and zero averages
+    if "freshness" in data and data.get("freshness") == 0 and data.get("recent_avg") == 0:
+        return True
+    # interest with no points
+    if "points" in data and len(data["points"]) == 0:
+        return True
+    # multi-geo with no found countries
+    if "found_in" in data and len(data["found_in"]) == 0:
+        return True
+    return False
 
 
 def fetch_related_queries(keyword: str, timeframe: str, geo: str) -> list[dict]:
@@ -133,8 +173,7 @@ def get_trends(
     if not keyword_list:
         keyword_list = ["AI"]
 
-    # Check cache
-    key = _cache_key(keyword_list, timeframe, geo)
+    key = f"trends|{_cache_key(keyword_list, timeframe, geo)}"
     cached = _get_cached(key)
     if cached:
         return cached
@@ -149,7 +188,6 @@ def get_trends(
             if item["name"].lower() not in seen_names:
                 seen_names.add(item["name"].lower())
                 all_items.append(item)
-        # Rate limit between keywords
         if kw != keyword_list[-1]:
             time.sleep(1)
 
@@ -162,6 +200,14 @@ def get_trends(
             "geo": geo,
         },
     }
+
+    # Stale fallback: if pytrends returned empty, try returning old data
+    if _is_empty_response(response):
+        stale = _get_stale(key)
+        if stale:
+            print(f"[cache] trends: pytrends empty, serving stale data")
+            stale["_stale"] = True
+            return stale
 
     _set_cache(key, response)
     return response
@@ -276,11 +322,11 @@ def get_freshness(
 
     recent_avg = 0.0
     baseline_avg = 0.0
+    fetch_failed = False
 
     try:
         pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
 
-        # Recent interest (past 24 hours)
         pytrends.build_payload([keyword], cat=0, timeframe="now 1-d", geo=geo, gprop="")
         df_recent = pytrends.interest_over_time()
         if df_recent is not None and not df_recent.empty and keyword in df_recent.columns:
@@ -288,7 +334,6 @@ def get_freshness(
 
         time.sleep(1)
 
-        # Baseline interest (past 30 days)
         pytrends.build_payload([keyword], cat=0, timeframe="today 1-m", geo=geo, gprop="")
         df_baseline = pytrends.interest_over_time()
         if df_baseline is not None and not df_baseline.empty and keyword in df_baseline.columns:
@@ -296,17 +341,14 @@ def get_freshness(
 
     except Exception as e:
         print(f"[pytrends] freshness error for '{keyword}': {e}")
+        fetch_failed = True
 
-    # Score: if baseline is near zero but recent is high → very fresh (new keyword)
-    # if baseline is similar to recent → old keyword
     if recent_avg <= 0:
         score = 0
     elif baseline_avg <= 1:
-        # No historical interest → brand new keyword
         score = 100
     else:
         ratio = recent_avg / baseline_avg
-        # ratio > 3 → extremely fresh, ratio ~1 → old/steady, ratio < 0.5 → declining
         score = min(100, max(0, round((ratio - 0.5) / 2.5 * 100)))
 
     response = {
@@ -317,6 +359,14 @@ def get_freshness(
         "baseline_avg": round(baseline_avg, 1),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+    if fetch_failed or (recent_avg <= 0 and baseline_avg <= 0):
+        stale = _get_stale(cache_key)
+        if stale:
+            print(f"[cache] freshness '{keyword}': pytrends failed, serving stale")
+            stale["_stale"] = True
+            return stale
+
     _set_cache(cache_key, response)
     return response
 
@@ -352,6 +402,14 @@ def get_interest(
         "points": points,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+    if _is_empty_response(response):
+        stale = _get_stale(cache_key)
+        if stale:
+            print(f"[cache] interest '{keyword}': empty, serving stale")
+            stale["_stale"] = True
+            return stale
+
     _set_cache(cache_key, response)
     return response
 
@@ -369,6 +427,7 @@ def get_multi_geo(
 
     geo_list = [g.strip() for g in geos.split(",") if g.strip()]
     found_in: list[str] = []
+    fetch_failed = False
 
     for geo in geo_list:
         try:
@@ -382,6 +441,7 @@ def get_multi_geo(
             time.sleep(0.5)
         except Exception as e:
             print(f"[pytrends] multi-geo error for '{keyword}' in {geo}: {e}")
+            fetch_failed = True
 
     response = {
         "keyword": keyword,
@@ -389,6 +449,14 @@ def get_multi_geo(
         "total_geos": len(geo_list),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+    if fetch_failed and len(found_in) == 0:
+        stale = _get_stale(cache_key)
+        if stale:
+            print(f"[cache] multi-geo '{keyword}': failed, serving stale")
+            stale["_stale"] = True
+            return stale
+
     _set_cache(cache_key, response)
     return response
 
@@ -552,6 +620,143 @@ def get_reddit(
     return response
 
 
+# --- Background warmup ---
+
+WARMUP_KEYWORDS = ["AI", "ai video", "ai tool", "LLM"]
+WARMUP_TIMEFRAME = "now 1-d"
+WARMUP_TRENDING_GEOS = ["US", "ID", "BR"]
+WARMUP_INTERVAL = 7200  # 2 hours
+
+_warmup_timer: Optional[threading.Timer] = None
+
+
+def _warmup_once():
+    """Pre-fetch default keyword data so first user request hits cache."""
+    print(f"[warmup] Starting at {datetime.now(timezone.utc).isoformat()}")
+
+    # 1. Warm up related queries for default keywords
+    try:
+        key = f"trends|{_cache_key(WARMUP_KEYWORDS, WARMUP_TIMEFRAME, '')}"
+        if not _get_cached(key):
+            all_items: list[dict] = []
+            seen_names: set[str] = set()
+            for kw in WARMUP_KEYWORDS:
+                results = fetch_related_queries(kw, WARMUP_TIMEFRAME, "")
+                for item in results:
+                    if item["name"].lower() not in seen_names:
+                        seen_names.add(item["name"].lower())
+                        all_items.append(item)
+                time.sleep(1.5)  # Slightly longer delay for warmup
+            response = {
+                "google": all_items,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "params": {"keywords": WARMUP_KEYWORDS, "timeframe": WARMUP_TIMEFRAME, "geo": ""},
+            }
+            if all_items:  # Only cache non-empty
+                _set_cache(key, response)
+                print(f"[warmup] trends: {len(all_items)} items cached")
+            else:
+                print("[warmup] trends: pytrends returned empty")
+    except Exception as e:
+        print(f"[warmup] trends error: {e}")
+
+    # 2. Warm up Trending Now for default geos
+    for geo in WARMUP_TRENDING_GEOS:
+        try:
+            cache_key = f"trending|{geo}"
+            if not _get_cached(cache_key):
+                rss_url = f"https://trends.google.com/trending/rss?geo={geo}"
+                resp = http_requests.get(rss_url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+                resp.raise_for_status()
+                root = ET.fromstring(resp.text)
+                items: list[dict] = []
+                for item in root.iter("item"):
+                    title_el = item.find("title")
+                    traffic_el = item.find("{https://trends.google.com/trending/rss}approx_traffic")
+                    if title_el is not None and title_el.text:
+                        name = title_el.text.strip()
+                        traffic = traffic_el.text.strip() if traffic_el is not None and traffic_el.text else ""
+                        items.append({"name": name, "traffic": traffic, "url": f"https://www.google.com/search?q={quote_plus(name)}&udm=50", "is_tech": False})
+                # LLM classification
+                if items:
+                    names = [it["name"] for it in items]
+                    tech_set = _classify_tech_terms(names)
+                    for it in items:
+                        if it["name"].lower().strip() in tech_set:
+                            it["is_tech"] = True
+                    tech_items = [it for it in items if it["is_tech"]]
+                    other_items = [it for it in items if not it["is_tech"]]
+                    items = tech_items + other_items
+                result = {"trending": items, "timestamp": datetime.now(timezone.utc).isoformat(), "geo": geo}
+                _set_cache(cache_key, result)
+                print(f"[warmup] trending {geo}: {len(items)} items")
+                time.sleep(0.5)
+        except Exception as e:
+            print(f"[warmup] trending {geo} error: {e}")
+
+    # 3. Warm up Reddit
+    try:
+        cache_key = "reddit|hot"
+        if not _get_cached(cache_key):
+            all_posts: list[dict] = []
+            seen_titles: set[str] = set()
+            for sub in REDDIT_SUBREDDITS:
+                posts = _fetch_subreddit_rss(sub, sort="hot", limit=15)
+                for p in posts:
+                    k = p["title"].lower().strip()
+                    if k not in seen_titles:
+                        seen_titles.add(k)
+                        all_posts.append(p)
+                time.sleep(0.3)
+            kws = _extract_reddit_keywords(all_posts)
+            result = {
+                "posts": all_posts[:50], "keywords": kws, "subreddits": REDDIT_SUBREDDITS,
+                "sort": "hot", "total_posts": len(all_posts),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            _set_cache(cache_key, result)
+            print(f"[warmup] reddit: {len(all_posts)} posts")
+    except Exception as e:
+        print(f"[warmup] reddit error: {e}")
+
+    print(f"[warmup] Done at {datetime.now(timezone.utc).isoformat()}")
+
+
+def _warmup_loop():
+    """Run warmup and schedule next run."""
+    global _warmup_timer
+    try:
+        _warmup_once()
+    except Exception as e:
+        print(f"[warmup] Unexpected error: {e}")
+    _warmup_timer = threading.Timer(WARMUP_INTERVAL, _warmup_loop)
+    _warmup_timer.daemon = True
+    _warmup_timer.start()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start warmup on server boot, stop on shutdown."""
+    # Startup: run first warmup after a short delay (let server bind first)
+    t = threading.Timer(3, _warmup_loop)
+    t.daemon = True
+    t.start()
+    print("[warmup] Scheduled initial warmup in 3s")
+    yield
+    # Shutdown: cancel pending timer
+    if _warmup_timer:
+        _warmup_timer.cancel()
+
+
+app.router.lifespan_context = lifespan
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    cache_stats = {}
+    now = time.time()
+    for key, entry in _cache.items():
+        age = round(now - entry["timestamp"])
+        ttl = _ttl_for(key)
+        cache_stats[key[:40]] = {"age_s": age, "ttl_s": ttl, "fresh": age < ttl}
+    return {"status": "ok", "cache_entries": len(_cache), "cache": cache_stats}

@@ -365,6 +365,11 @@ export default function Home() {
             <span>{currentGeo?.flag || "🌍"} {currentGeo?.label || "Global"} · {currentTimeframe?.description}</span>
             <span className="hidden sm:inline">·</span>
             <span className="hidden sm:inline">Updated {new Date(data.timestamp).toLocaleTimeString()}</span>
+            {data._stale && (
+              <span className="rounded px-1.5 py-0.5 text-[10px] font-medium" style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>
+                缓存数据 · Google 限频中
+              </span>
+            )}
           </div>
         )}
 

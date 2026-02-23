@@ -61,6 +61,7 @@ export interface TrendsResponse {
     timeframe: string;
     geo: string;
   };
+  _stale?: boolean;
 }
 
 export const TIMEFRAME_OPTIONS = [

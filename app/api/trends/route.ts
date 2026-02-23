@@ -19,16 +19,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(cached);
   }
 
-  const [google, github] = await Promise.all([
+  const [googleResult, github] = await Promise.all([
     fetchGoogleTrends(timeframe, geo, keywords),
     fetchGithubTrends(),
   ]);
 
-  const response: TrendsResponse = {
-    google,
+  const response = {
+    google: googleResult.google,
     github,
     timestamp: new Date().toISOString(),
     params: { timeframe, geo },
+    _stale: googleResult._stale || false,
   };
 
   setCache(cacheKey, response);
