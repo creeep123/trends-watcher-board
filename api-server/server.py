@@ -97,6 +97,15 @@ def _is_empty_response(data: dict) -> bool:
     return False
 
 
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 def fetch_related_queries(keyword: str, timeframe: str, geo: str) -> list[dict]:
     """Fetch rising + top related queries for a single keyword."""
     items = []
