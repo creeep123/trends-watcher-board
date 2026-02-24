@@ -10,6 +10,8 @@ import type {
   MultiGeoData,
   RedditPost,
   RedditKeyword,
+  EnrichData,
+  EnrichResponse,
 } from "@/lib/types";
 import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS } from "@/lib/types";
 
@@ -39,8 +41,15 @@ function tagColor(tag: string): { bg: string; color: string } {
   return map[tag] || { bg: "rgba(107,114,128,0.15)", color: "#9ca3af" };
 }
 
-function sortBySignal(items: TrendKeyword[]): TrendKeyword[] {
+function sortBySignal(items: TrendKeyword[], enrichMap?: Record<string, EnrichData>): TrendKeyword[] {
   return [...items].sort((a, b) => {
+    // If enrich scores available, sort by score first
+    const aScore = enrichMap?.[a.name]?.score;
+    const bScore = enrichMap?.[b.name]?.score;
+    if (aScore !== undefined && bScore !== undefined) return bScore - aScore;
+    if (aScore !== undefined) return -1;
+    if (bScore !== undefined) return 1;
+    // Fallback: tag count + value
     const aTags = getTags(a).length;
     const bTags = getTags(b).length;
     if (aTags !== bTags) return bTags - aTags;
@@ -126,6 +135,9 @@ export default function Home() {
   const [redditKeywords, setRedditKeywords] = useState<RedditKeyword[]>([]);
   const [redditLoading, setRedditLoading] = useState(true);
 
+  const [enrichMap, setEnrichMap] = useState<Record<string, EnrichData>>({});
+  const [enrichLoading, setEnrichLoading] = useState(false);
+
   const [mobileTab, setMobileTab] = useState<MobileTab>("trending");
 
   const fetchData = useCallback(async () => {
@@ -180,6 +192,22 @@ export default function Home() {
   useEffect(() => { fetchTrending(); }, [fetchTrending]);
   useEffect(() => { fetchReddit(); }, [fetchReddit]);
 
+  // Fetch enrich scores when google data is available
+  useEffect(() => {
+    if (!data || data.google.length === 0) return;
+    setEnrichLoading(true);
+    const keywords = data.google.slice(0, 10).map((k) => ({ name: k.name, value: k.value }));
+    fetch("/api/enrich", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keywords }),
+    })
+      .then((r) => r.json())
+      .then((d: EnrichResponse) => setEnrichMap(d.results || {}))
+      .catch(() => setEnrichMap({}))
+      .finally(() => setEnrichLoading(false));
+  }, [data]);
+
   // Fetch interest + freshness + multi-geo when a keyword is expanded
   useEffect(() => {
     if (!expandedKeyword) return;
@@ -227,7 +255,7 @@ export default function Home() {
 
   const currentTimeframe = TIMEFRAME_OPTIONS.find((t) => t.value === timeframe);
   const currentGeo = GEO_OPTIONS.find((g) => g.value === geo);
-  const sortedGoogle = data ? sortBySignal(data.google) : [];
+  const sortedGoogle = data ? sortBySignal(data.google, enrichMap) : [];
 
   const TRENDING_GEOS = [
     { label: "US", value: "US" },
@@ -455,6 +483,8 @@ export default function Home() {
                       freshnessLoading={expandedKeyword === item.name && freshnessLoading}
                       multiGeoData={expandedKeyword === item.name ? multiGeoData : null}
                       multiGeoLoading={expandedKeyword === item.name && multiGeoLoading}
+                      enrichData={enrichMap[item.name]}
+                      enrichLoading={enrichLoading}
                     />
                   ))
                 )}
@@ -617,11 +647,13 @@ function RedditCard({ post, index }: { post: RedditPost; index: number }) {
 function KeywordCard({
   item, index, isGithub, isExpanded, onToggle, interestData, interestLoading,
   freshnessData, freshnessLoading, multiGeoData, multiGeoLoading,
+  enrichData, enrichLoading,
 }: {
   item: TrendKeyword; index: number; isGithub?: boolean; isExpanded?: boolean;
   onToggle?: () => void; interestData?: InterestPoint[]; interestLoading?: boolean;
   freshnessData?: FreshnessData | null; freshnessLoading?: boolean;
   multiGeoData?: MultiGeoData | null; multiGeoLoading?: boolean;
+  enrichData?: EnrichData; enrichLoading?: boolean;
 }) {
   const tags = getTags(item);
   const hasSurge = tags.includes("surge");
@@ -643,12 +675,37 @@ function KeywordCard({
     );
   }
 
+  const score = enrichData?.score;
+  const scoreBg = score !== undefined
+    ? score >= 80 ? "rgba(52,211,153,0.2)" : score >= 60 ? "rgba(59,130,246,0.2)" : score >= 40 ? "rgba(251,191,36,0.2)" : "rgba(107,114,128,0.2)"
+    : "var(--bg-secondary)";
+  const scoreColor2 = score !== undefined
+    ? score >= 80 ? "#34d399" : score >= 60 ? "#60a5fa" : score >= 40 ? "#fbbf24" : "#9ca3af"
+    : "var(--text-secondary)";
+
   return (
     <div className="rounded-lg border transition-all"
-      style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)" }}>
+      style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue)" : score !== undefined && score >= 80 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)" }}>
       <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-3 text-left sm:items-center sm:gap-3 sm:p-2.5">
-        <Rank n={index + 1} />
+        {/* Score badge or rank */}
+        {enrichLoading && !enrichData ? (
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full animate-pulse" style={{ background: "var(--bg-secondary)" }}>
+            <span className="text-[9px]" style={{ color: "var(--text-secondary)" }}>...</span>
+          </span>
+        ) : score !== undefined ? (
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: scoreBg, color: scoreColor2 }}>
+            {score}
+          </span>
+        ) : (
+          <Rank n={index + 1} />
+        )}
         <span className="min-w-0 flex-1 text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        {score !== undefined && score >= 80 && (
+          <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>冲</span>
+        )}
+        {enrichData && enrichData.multi_geo_count >= 3 && (
+          <span className="hidden shrink-0 rounded px-1.5 py-0.5 text-xs font-medium sm:inline" style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}>{enrichData.multi_geo_count}国</span>
+        )}
         {tags.map((tag) => {
           const c = tagColor(tag);
           return <span key={tag} className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: c.bg, color: c.color }}>{tagLabel(tag)}</span>;
@@ -667,6 +724,7 @@ function KeywordCard({
           freshnessLoading={!!freshnessLoading}
           multiGeoData={multiGeoData || null}
           multiGeoLoading={!!multiGeoLoading}
+          enrichData={enrichData}
         />
       )}
     </div>
@@ -679,10 +737,12 @@ function EnrichedDecisionPanel({
   keyword, points, loading,
   freshnessData, freshnessLoading,
   multiGeoData, multiGeoLoading,
+  enrichData,
 }: {
   keyword: string; points: InterestPoint[]; loading: boolean;
   freshnessData: FreshnessData | null; freshnessLoading: boolean;
   multiGeoData: MultiGeoData | null; multiGeoLoading: boolean;
+  enrichData?: EnrichData;
 }) {
   const [supplyInput, setSupplyInput] = useState("");
   const [storedSupply, setStoredSupply] = useState<number | null>(null);
@@ -730,6 +790,33 @@ function EnrichedDecisionPanel({
           </div>
         )}
       </div>
+
+      {/* === Score Breakdown === */}
+      {enrichData && (
+        <div className="mb-3 rounded-lg p-2.5" style={{ background: "var(--bg-secondary)" }}>
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>上站指数</span>
+            <span className="rounded-full px-2 py-0.5 text-sm font-bold" style={{
+              background: enrichData.score >= 80 ? "rgba(52,211,153,0.2)" : enrichData.score >= 60 ? "rgba(59,130,246,0.2)" : enrichData.score >= 40 ? "rgba(251,191,36,0.2)" : "rgba(107,114,128,0.2)",
+              color: enrichData.score >= 80 ? "#34d399" : enrichData.score >= 60 ? "#60a5fa" : enrichData.score >= 40 ? "#fbbf24" : "#9ca3af",
+            }}>
+              {enrichData.score}
+            </span>
+            {enrichData.score >= 80 && <span className="text-xs font-medium" style={{ color: "#34d399" }}>值得冲!</span>}
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <ScoreDimension label="增长" score={enrichData.growth_score} />
+            <ScoreDimension label="竞争" score={enrichData.competition_score} note={enrichData.competition_level !== "unknown" ? enrichData.competition_level : undefined} />
+            <ScoreDimension label="多国" score={Math.round(enrichData.multi_geo_count / 6 * 100)} note={`${enrichData.multi_geo_count}国`} />
+            <ScoreDimension label="加速" score={enrichData.acceleration_score} />
+          </div>
+          {enrichData.multi_geo_found.length > 0 && (
+            <div className="mt-1.5 text-xs" style={{ color: "var(--text-secondary)" }}>
+              热度国家: {enrichData.multi_geo_found.join(", ")}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* === Assessment Section === */}
       <div className="mb-3 rounded-lg p-2.5" style={{ background: "var(--bg-secondary)" }}>
@@ -941,6 +1028,19 @@ function DecisionPanel({ keyword, points, loading }: { keyword: string; points: 
 }
 
 // ===== Score helpers =====
+
+function ScoreDimension({ label, score, note }: { label: string; score: number; note?: string }) {
+  return (
+    <div className="rounded-md p-1.5" style={{ background: "var(--bg-card)" }}>
+      <div className="mb-0.5 text-[10px]" style={{ color: "var(--text-secondary)" }}>{label}</div>
+      <div className="flex items-center gap-1.5">
+        <ScoreBar value={score} />
+        <span className="text-xs font-bold" style={{ color: scoreColor(score) }}>{score}</span>
+      </div>
+      {note && <div className="mt-0.5 text-[10px]" style={{ color: "var(--text-secondary)" }}>{note}</div>}
+    </div>
+  );
+}
 
 function scoreColor(score: number): string {
   if (score >= 70) return "#34d399";

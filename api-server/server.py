@@ -6,7 +6,9 @@ Board (Vercel) proxies requests here.
 
 import json
 import os
+import re
 import time
+import random
 import hashlib
 import threading
 import xml.etree.ElementTree as ET
@@ -14,6 +16,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import quote_plus
+
+from pydantic import BaseModel
 
 import requests as http_requests
 from fastapi import FastAPI, Query
@@ -34,6 +38,8 @@ CACHE_TTL_MAP = {
     "interest":  7200,   # 2h — 7-day chart, hourly data
     "multigeo":  21600,  # 6h — multi-country check is heavy
     "reddit":    1800,   # 30min — RSS-based, low cost
+    "enrich":    3600,   # 1h — composite scoring
+    "allintitle": 7200,  # 2h — competition changes slowly
 }
 DEFAULT_TTL = 3600  # 1h fallback
 
@@ -626,6 +632,226 @@ def get_reddit(
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     _set_cache(cache_key, response)
+    return response
+
+
+# --- Enrich: scoring system ---
+
+_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+]
+ENRICH_GEOS = ["US", "ID", "BR", "GB", "DE", "JP"]
+
+
+def _fetch_allintitle(keyword: str) -> int:
+    """Query Google for allintitle:keyword and return approximate result count."""
+    cache_key = f"allintitle|{keyword.lower()}"
+    cached = _get_cached(cache_key)
+    if cached is not None:
+        return cached.get("count", -1)
+
+    try:
+        query = f"allintitle:{keyword}"
+        resp = http_requests.get(
+            "https://www.google.com/search",
+            params={"q": query},
+            headers={
+                "User-Agent": random.choice(_USER_AGENTS),
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+            timeout=10,
+        )
+        if resp.status_code == 429:
+            print(f"[allintitle] Rate limited for '{keyword}'")
+            return -1
+        resp.raise_for_status()
+
+        # Parse "About X results" or "X results"
+        text = resp.text
+        match = re.search(r'(?:About\s+)?([\d,]+)\s+results?', text)
+        count = int(match.group(1).replace(",", "")) if match else -1
+
+        _set_cache(cache_key, {"count": count})
+        print(f"[allintitle] '{keyword}': {count}")
+        return count
+    except Exception as e:
+        print(f"[allintitle] Error for '{keyword}': {e}")
+        return -1
+
+
+def _score_growth(value_str: str) -> int:
+    """Map growth percentage to 0-100 score."""
+    cleaned = value_str.replace("+", "").replace("%", "").replace(",", "").strip()
+    try:
+        val = int(cleaned)
+    except (ValueError, TypeError):
+        return 30  # non-numeric (e.g. "Breakout") gets moderate score
+    if val >= 5000:
+        return 100
+    if val >= 1000:
+        return 80
+    if val >= 500:
+        return 60
+    if val >= 100:
+        return 40
+    return max(0, val // 5)
+
+
+def _score_competition(allintitle_count: int) -> tuple[int, str]:
+    """Map allintitle count to competition score (higher = less competitive = better)."""
+    if allintitle_count < 0:
+        return 50, "unknown"  # couldn't fetch, neutral score
+    if allintitle_count <= 50:
+        return 100, "very_low"
+    if allintitle_count <= 200:
+        return 80, "low"
+    if allintitle_count <= 1000:
+        return 55, "medium"
+    if allintitle_count <= 5000:
+        return 25, "high"
+    return 0, "high"
+
+
+def _score_multi_geo(found_count: int, total: int) -> int:
+    """Map multi-geo presence to 0-100 score."""
+    if total == 0:
+        return 0
+    return min(100, round(found_count / total * 100))
+
+
+def _score_acceleration(points: list[dict]) -> int:
+    """Calculate acceleration from interest over time points."""
+    if len(points) < 5:
+        return 50  # not enough data, neutral
+    values = [p["value"] for p in points]
+    recent = values[-len(values) // 3:]  # last third
+    earlier = values[:len(values) * 2 // 3]  # first two-thirds
+    avg_recent = sum(recent) / len(recent) if recent else 0
+    avg_earlier = sum(earlier) / len(earlier) if earlier else 0
+    if avg_earlier <= 0:
+        return 90 if avg_recent > 0 else 50
+    ratio = avg_recent / avg_earlier
+    if ratio >= 2.0:
+        return 100
+    if ratio >= 1.5:
+        return 80
+    if ratio >= 1.0:
+        return 55
+    if ratio >= 0.5:
+        return 25
+    return 0
+
+
+def _enrich_single(keyword: str, growth_value: str) -> dict:
+    """Compute full enrichment for a single keyword."""
+    # 1. Growth score (from value string)
+    growth_score = _score_growth(growth_value)
+
+    # 2. Competition (allintitle) — may fail on servers without direct Google access
+    allintitle_count = _fetch_allintitle(keyword)
+    comp_score, comp_level = _score_competition(allintitle_count)
+
+    # 3. Multi-geo (reuse internal logic)
+    found_in: list[str] = []
+    for geo in ENRICH_GEOS:
+        try:
+            pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 15))
+            pytrends.build_payload([keyword], cat=0, timeframe="now 1-d", geo=geo, gprop="")
+            df = pytrends.interest_over_time()
+            if df is not None and not df.empty and keyword in df.columns:
+                if df[keyword].mean() > 0:
+                    found_in.append(geo)
+            time.sleep(0.3)
+        except Exception as e:
+            print(f"[enrich] multi-geo '{keyword}' {geo}: {e}")
+    geo_score = _score_multi_geo(len(found_in), len(ENRICH_GEOS))
+
+    # 4. Acceleration (interest over time)
+    accel_score = 50  # default
+    try:
+        pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 15))
+        pytrends.build_payload([keyword], cat=0, timeframe="now 7-d", geo="", gprop="")
+        df = pytrends.interest_over_time()
+        if df is not None and not df.empty and keyword in df.columns:
+            points = [{"value": int(row[keyword])} for _, row in df.iterrows()]
+            accel_score = _score_acceleration(points)
+    except Exception as e:
+        print(f"[enrich] interest '{keyword}': {e}")
+
+    # Final composite score
+    # If allintitle unavailable (-1), redistribute weight to other dimensions
+    if allintitle_count < 0:
+        total = round(
+            growth_score * 0.40
+            + geo_score * 0.35
+            + accel_score * 0.25
+        )
+    else:
+        total = round(
+            growth_score * 0.30
+            + comp_score * 0.30
+            + geo_score * 0.25
+            + accel_score * 0.15
+        )
+
+    return {
+        "growth_score": growth_score,
+        "allintitle_count": allintitle_count,
+        "competition_score": comp_score,
+        "competition_level": comp_level,
+        "multi_geo_count": len(found_in),
+        "multi_geo_found": found_in,
+        "acceleration_score": accel_score,
+        "score": total,
+    }
+
+
+class EnrichRequest(BaseModel):
+    keywords: list[dict]  # [{"name": "...", "value": "+5000%"}, ...]
+
+
+@app.post("/api/enrich")
+def enrich_keywords(req: EnrichRequest):
+    """Compute enrichment scores for a list of keywords."""
+    items = req.keywords[:10]  # Limit to 10
+
+    # Check if entire batch is cached
+    names_key = "|".join(sorted(k["name"].lower() for k in items))
+    batch_key = f"enrich|{hashlib.md5(names_key.encode()).hexdigest()}"
+    cached = _get_cached(batch_key)
+    if cached:
+        return cached
+
+    results: dict[str, dict] = {}
+    for item in items:
+        kw_name = item.get("name", "")
+        kw_value = item.get("value", "0%")
+        if not kw_name:
+            continue
+
+        # Per-keyword cache
+        single_key = f"enrich_single|{kw_name.lower()}"
+        single_cached = _get_cached(single_key)
+        if single_cached:
+            results[kw_name] = single_cached
+            continue
+
+        enriched = _enrich_single(kw_name, kw_value)
+        results[kw_name] = enriched
+        _set_cache(single_key, enriched)
+
+        # Delay between keywords to avoid rate limiting
+        time.sleep(random.uniform(2, 4))
+
+    response = {
+        "results": results,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    _set_cache(batch_key, response)
     return response
 
 

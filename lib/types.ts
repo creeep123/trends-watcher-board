@@ -53,6 +53,22 @@ export interface RedditResponse {
   timestamp: string;
 }
 
+export interface EnrichData {
+  growth_score: number;
+  allintitle_count: number;
+  competition_score: number;
+  competition_level: "very_low" | "low" | "medium" | "high" | "unknown";
+  multi_geo_count: number;
+  multi_geo_found: string[];
+  acceleration_score: number;
+  score: number;
+}
+
+export interface EnrichResponse {
+  results: Record<string, EnrichData>;
+  timestamp: string;
+}
+
 export interface TrendsResponse {
   google: TrendKeyword[];
   github: TrendKeyword[];
