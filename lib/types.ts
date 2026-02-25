@@ -58,9 +58,6 @@ export interface EnrichData {
   allintitle_count: number;
   competition_score: number;
   competition_level: "very_low" | "low" | "medium" | "high" | "unknown";
-  multi_geo_count: number;
-  multi_geo_found: string[];
-  acceleration_score: number;
   score: number;
 }
 

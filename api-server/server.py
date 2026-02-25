@@ -193,7 +193,7 @@ def get_trends(
     if cached:
         return cached
 
-    # Fetch for each keyword (sequential, 1s delay between)
+    # Fetch for each keyword (sequential, 2s delay between to avoid 429)
     all_items: list[dict] = []
     seen_names: set[str] = set()
 
@@ -204,7 +204,7 @@ def get_trends(
                 seen_names.add(item["name"].lower())
                 all_items.append(item)
         if kw != keyword_list[-1]:
-            time.sleep(1)
+            time.sleep(2)
 
     response = {
         "google": all_items,
@@ -223,6 +223,10 @@ def get_trends(
             print(f"[cache] trends: pytrends empty, serving stale data")
             stale["_stale"] = True
             return stale
+        # Don't cache empty responses — let next request try again
+        print(f"[cache] trends: pytrends empty, no stale data available")
+        response["_stale"] = True
+        return response
 
     _set_cache(key, response)
     return response
@@ -424,6 +428,8 @@ def get_interest(
             print(f"[cache] interest '{keyword}': empty, serving stale")
             stale["_stale"] = True
             return stale
+        # Don't cache empty — let next request retry
+        return response
 
     _set_cache(cache_key, response)
     return response
@@ -644,7 +650,6 @@ _USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
 ]
-ENRICH_GEOS = ["US", "ID", "BR", "GB", "DE", "JP"]
 
 
 def _fetch_allintitle(keyword: str) -> int:
@@ -747,65 +752,32 @@ def _score_acceleration(points: list[dict]) -> int:
 
 
 def _enrich_single(keyword: str, growth_value: str) -> dict:
-    """Compute full enrichment for a single keyword."""
-    # 1. Growth score (from value string)
+    """Compute enrichment for a single keyword.
+
+    LIGHTWEIGHT: only uses growth value (already known) + allintitle (1 HTTP call).
+    Multi-geo and acceleration are computed client-side from existing
+    /api/multi-geo and /api/interest endpoints to avoid pytrends rate limiting.
+    """
+    # 1. Growth score (from value string, no API call needed)
     growth_score = _score_growth(growth_value)
 
-    # 2. Competition (allintitle) — may fail on servers without direct Google access
+    # 2. Competition (allintitle) — single HTTP call to Google, not pytrends
     allintitle_count = _fetch_allintitle(keyword)
     comp_score, comp_level = _score_competition(allintitle_count)
 
-    # 3. Multi-geo (reuse internal logic)
-    found_in: list[str] = []
-    for geo in ENRICH_GEOS:
-        try:
-            pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 15))
-            pytrends.build_payload([keyword], cat=0, timeframe="now 1-d", geo=geo, gprop="")
-            df = pytrends.interest_over_time()
-            if df is not None and not df.empty and keyword in df.columns:
-                if df[keyword].mean() > 0:
-                    found_in.append(geo)
-            time.sleep(0.3)
-        except Exception as e:
-            print(f"[enrich] multi-geo '{keyword}' {geo}: {e}")
-    geo_score = _score_multi_geo(len(found_in), len(ENRICH_GEOS))
-
-    # 4. Acceleration (interest over time)
-    accel_score = 50  # default
-    try:
-        pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 15))
-        pytrends.build_payload([keyword], cat=0, timeframe="now 7-d", geo="", gprop="")
-        df = pytrends.interest_over_time()
-        if df is not None and not df.empty and keyword in df.columns:
-            points = [{"value": int(row[keyword])} for _, row in df.iterrows()]
-            accel_score = _score_acceleration(points)
-    except Exception as e:
-        print(f"[enrich] interest '{keyword}': {e}")
-
-    # Final composite score
-    # If allintitle unavailable (-1), redistribute weight to other dimensions
+    # Composite score: growth + competition only (2 dimensions)
+    # Multi-geo and acceleration are computed on frontend from existing data
     if allintitle_count < 0:
-        total = round(
-            growth_score * 0.40
-            + geo_score * 0.35
-            + accel_score * 0.25
-        )
+        # allintitle unavailable — growth is the only signal
+        total = growth_score
     else:
-        total = round(
-            growth_score * 0.30
-            + comp_score * 0.30
-            + geo_score * 0.25
-            + accel_score * 0.15
-        )
+        total = round(growth_score * 0.55 + comp_score * 0.45)
 
     return {
         "growth_score": growth_score,
         "allintitle_count": allintitle_count,
         "competition_score": comp_score,
         "competition_level": comp_level,
-        "multi_geo_count": len(found_in),
-        "multi_geo_found": found_in,
-        "acceleration_score": accel_score,
         "score": total,
     }
 
@@ -816,7 +788,10 @@ class EnrichRequest(BaseModel):
 
 @app.post("/api/enrich")
 def enrich_keywords(req: EnrichRequest):
-    """Compute enrichment scores for a list of keywords."""
+    """Compute enrichment scores for a list of keywords.
+
+    Lightweight: only allintitle HTTP calls (no pytrends), so won't trigger 429.
+    """
     items = req.keywords[:10]  # Limit to 10
 
     # Check if entire batch is cached
@@ -844,8 +819,8 @@ def enrich_keywords(req: EnrichRequest):
         results[kw_name] = enriched
         _set_cache(single_key, enriched)
 
-        # Delay between keywords to avoid rate limiting
-        time.sleep(random.uniform(2, 4))
+        # Small delay between allintitle requests
+        time.sleep(random.uniform(1, 2))
 
     response = {
         "results": results,
@@ -866,36 +841,14 @@ _warmup_timer: Optional[threading.Timer] = None
 
 
 def _warmup_once():
-    """Pre-fetch default keyword data so first user request hits cache."""
+    """Pre-fetch default keyword data so first user request hits cache.
+
+    Order: trending (RSS) → reddit (RSS) → trends (pytrends) — pytrends last
+    because it may be rate-limited and we want the other data available ASAP.
+    """
     print(f"[warmup] Starting at {datetime.now(timezone.utc).isoformat()}")
 
-    # 1. Warm up related queries for default keywords
-    try:
-        key = f"trends|{_cache_key(WARMUP_KEYWORDS, WARMUP_TIMEFRAME, '')}"
-        if not _get_cached(key):
-            all_items: list[dict] = []
-            seen_names: set[str] = set()
-            for kw in WARMUP_KEYWORDS:
-                results = fetch_related_queries(kw, WARMUP_TIMEFRAME, "")
-                for item in results:
-                    if item["name"].lower() not in seen_names:
-                        seen_names.add(item["name"].lower())
-                        all_items.append(item)
-                time.sleep(1.5)  # Slightly longer delay for warmup
-            response = {
-                "google": all_items,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "params": {"keywords": WARMUP_KEYWORDS, "timeframe": WARMUP_TIMEFRAME, "geo": ""},
-            }
-            if all_items:  # Only cache non-empty
-                _set_cache(key, response)
-                print(f"[warmup] trends: {len(all_items)} items cached")
-            else:
-                print("[warmup] trends: pytrends returned empty")
-    except Exception as e:
-        print(f"[warmup] trends error: {e}")
-
-    # 2. Warm up Trending Now for default geos
+    # 1. Warm up Trending Now for default geos (RSS, fast, no rate limit)
     for geo in WARMUP_TRENDING_GEOS:
         try:
             cache_key = f"trending|{geo}"
@@ -929,7 +882,7 @@ def _warmup_once():
         except Exception as e:
             print(f"[warmup] trending {geo} error: {e}")
 
-    # 3. Warm up Reddit
+    # 2. Warm up Reddit (RSS, fast, no rate limit)
     try:
         cache_key = "reddit|hot"
         if not _get_cached(cache_key):
@@ -953,6 +906,32 @@ def _warmup_once():
             print(f"[warmup] reddit: {len(all_posts)} posts")
     except Exception as e:
         print(f"[warmup] reddit error: {e}")
+
+    # 3. Warm up related queries for default keywords (pytrends, may be rate-limited)
+    try:
+        key = f"trends|{_cache_key(WARMUP_KEYWORDS, WARMUP_TIMEFRAME, '')}"
+        if not _get_cached(key):
+            all_items: list[dict] = []
+            seen_names: set[str] = set()
+            for kw in WARMUP_KEYWORDS:
+                results = fetch_related_queries(kw, WARMUP_TIMEFRAME, "")
+                for item in results:
+                    if item["name"].lower() not in seen_names:
+                        seen_names.add(item["name"].lower())
+                        all_items.append(item)
+                time.sleep(2)  # Longer delay to avoid rate limiting
+            response = {
+                "google": all_items,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "params": {"keywords": WARMUP_KEYWORDS, "timeframe": WARMUP_TIMEFRAME, "geo": ""},
+            }
+            if all_items:  # Only cache non-empty
+                _set_cache(key, response)
+                print(f"[warmup] trends: {len(all_items)} items cached")
+            else:
+                print("[warmup] trends: pytrends returned empty (rate limited?)")
+    except Exception as e:
+        print(f"[warmup] trends error: {e}")
 
     print(f"[warmup] Done at {datetime.now(timezone.utc).isoformat()}")
 

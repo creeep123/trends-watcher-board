@@ -703,9 +703,6 @@ function KeywordCard({
         {score !== undefined && score >= 80 && (
           <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>冲</span>
         )}
-        {enrichData && enrichData.multi_geo_count >= 3 && (
-          <span className="hidden shrink-0 rounded px-1.5 py-0.5 text-xs font-medium sm:inline" style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}>{enrichData.multi_geo_count}国</span>
-        )}
         {tags.map((tag) => {
           const c = tagColor(tag);
           return <span key={tag} className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: c.bg, color: c.color }}>{tagLabel(tag)}</span>;
@@ -792,7 +789,7 @@ function EnrichedDecisionPanel({
       </div>
 
       {/* === Score Breakdown === */}
-      {enrichData && (
+      {enrichData && enrichData.score !== undefined && (
         <div className="mb-3 rounded-lg p-2.5" style={{ background: "var(--bg-secondary)" }}>
           <div className="mb-2 flex items-center gap-2">
             <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>上站指数</span>
@@ -804,17 +801,10 @@ function EnrichedDecisionPanel({
             </span>
             {enrichData.score >= 80 && <span className="text-xs font-medium" style={{ color: "#34d399" }}>值得冲!</span>}
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <ScoreDimension label="增长" score={enrichData.growth_score} />
-            <ScoreDimension label="竞争" score={enrichData.competition_score} note={enrichData.competition_level !== "unknown" ? enrichData.competition_level : undefined} />
-            <ScoreDimension label="多国" score={Math.round(enrichData.multi_geo_count / 6 * 100)} note={`${enrichData.multi_geo_count}国`} />
-            <ScoreDimension label="加速" score={enrichData.acceleration_score} />
+          <div className="grid grid-cols-2 gap-2">
+            <ScoreDimension label="增长" score={enrichData.growth_score || 0} />
+            <ScoreDimension label="竞争" score={enrichData.competition_score || 0} note={enrichData.competition_level !== "unknown" ? enrichData.competition_level : undefined} />
           </div>
-          {enrichData.multi_geo_found.length > 0 && (
-            <div className="mt-1.5 text-xs" style={{ color: "var(--text-secondary)" }}>
-              热度国家: {enrichData.multi_geo_found.join(", ")}
-            </div>
-          )}
         </div>
       )}
 
