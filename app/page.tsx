@@ -196,11 +196,23 @@ export default function Home() {
   useEffect(() => {
     if (!data || data.google.length === 0) return;
     setEnrichLoading(true);
-    const keywords = data.google.slice(0, 10).map((k) => ({ name: k.name, value: k.value }));
+
+    // Select top 10 keywords by surge value (not by position)
+    const sortedByValue = [...data.google].sort((a, b) => {
+      // Extract numeric value from strings like "+5000%", "200", "Breakout"
+      const getNumericValue = (val: string): number => {
+        if (val === "Breakout") return 10000;
+        const num = parseInt(val.replace(/[+%,]/g, ""), 10);
+        return isNaN(num) ? 0 : num;
+      };
+      return getNumericValue(b.value) - getNumericValue(a.value);
+    });
+
+    const topKeywords = sortedByValue.slice(0, 10).map((k) => ({ name: k.name, value: k.value }));
     fetch("/api/enrich", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ keywords }),
+      body: JSON.stringify({ keywords: topKeywords }),
     })
       .then((r) => r.json())
       .then((d: EnrichResponse) => setEnrichMap(d.results || {}))
