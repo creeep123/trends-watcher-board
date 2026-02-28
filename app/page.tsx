@@ -149,7 +149,7 @@ function googleAiUrl(kw: string) {
   return `https://www.google.com/search?q=${encodeURIComponent(`what is ${kw}, explain in both English and Chinese, just speak plainly`)}&udm=50`;
 }
 function googleTrendsUrl(kw: string) {
-  return `https://trends.google.com/trends/explore?q=${encodeURIComponent(kw)}&date=now%207-d`;
+  return `https://trends.google.com/trends/explore?q=${encodeURIComponent(kw)}&date=today%201-m`;
 }
 function semrushUrl(kw: string) {
   return `https://www.semrush.com/analytics/keywordoverview/?q=${encodeURIComponent(kw)}`;
@@ -591,15 +591,15 @@ export default function Home() {
                 <div className="flex gap-2">
                   {kgrItems.length > 0 && (
                     <button onClick={handleCompareTrends}
-                      className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+                      className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80"
                       style={{ background: "var(--accent-green)", color: "#fff" }}>
-                      📊 对比趋势
+                      📊 对比
                     </button>
                   )}
                   <button onClick={() => setKgrExpanded(false)}
                     className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80"
                     style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
-                    收起
+                    ✕
                   </button>
                 </div>
               </div>
@@ -673,7 +673,7 @@ export default function Home() {
               borderColor: "var(--border)",
               color: kgrItems.length > 0 ? "var(--accent-blue)" : "var(--text-secondary)"
             }}>
-            🎯 KGR 工作台 {kgrItems.length > 0 && `(${kgrItems.length})`}
+            🎯 KGR {kgrItems.length > 0 && `(${kgrItems.length})`}
           </button>
         </div>
       )}
@@ -890,10 +890,10 @@ function TrendingCard({
             e.stopPropagation();
             onAddToKGR(item.name);
           }}
-            className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
+            className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
             style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
             title="添加到 KGR 工作台">
-            +
+            +KGR
           </button>
         )}
         {isTech && (
@@ -1012,10 +1012,10 @@ function KeywordCard({
             e.stopPropagation();
             onAddToKGR(item.name);
           }}
-            className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
+            className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
             style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
             title="添加到 KGR 工作台">
-            +
+            +KGR
           </button>
         )}
         {score !== undefined && score >= 75 && (
@@ -1235,13 +1235,13 @@ function EnrichedDecisionPanel({
       </div>
 
       {/* Simplified Links - two-row layout for better spacing */}
-      <div className="space-y-1.5">
-        <div className="flex gap-1.5">
+      <div className="space-y-2">
+        <div className="flex gap-2">
           <JumpLink href={googleAiUrl(keyword)} label="G AI" color="#8b5cf6" />
           <JumpLink href={googleSearchUrl(keyword)} label="Google" color="#4285f4" />
           <JumpLink href={googleTrendsUrl(keyword)} label="Trends" color="#34a853" />
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex gap-2">
           <JumpLink href={semrushUrl(keyword)} label="Semrush" color="#ff642d" />
           <JumpLink href={allintitleUrl(keyword)} label="allintitle" color="#ea4335" />
           <JumpLink href={domainSearchUrl(keyword)} label="域名" color="#de5833" />
@@ -1267,7 +1267,7 @@ function DecisionPanel({ keyword, points, loading }: { keyword: string; points: 
           </div>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-1.5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2">
         <JumpLink href={googleAiUrl(keyword)} label="G AI" color="#8b5cf6" />
         <JumpLink href={googleSearchUrl(keyword)} label="Google" color="#4285f4" />
         <JumpLink href={googleTrendsUrl(keyword)} label="Trends" color="#34a853" />
@@ -1354,7 +1354,7 @@ function MiniChart({ points }: { points: InterestPoint[] }) {
 function JumpLink({ href, label, color }: { href: string; label: string; color: string }) {
   return (
     <a href={href} target="_blank" rel="noopener noreferrer"
-      className="flex-1 rounded-md py-1 px-2 text-center text-xs font-medium transition-all hover:opacity-90 hover:scale-105"
+      className="flex-1 rounded-md py-1.5 px-2.5 text-center text-xs font-medium transition-all hover:opacity-90 hover:scale-105"
       style={{
         background: `${color}15`,
         color,
