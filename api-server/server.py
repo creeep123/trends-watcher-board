@@ -5,6 +5,7 @@ Board (Vercel) proxies requests here.
 """
 
 import json
+import math
 import os
 import re
 import time
@@ -689,21 +690,21 @@ def _fetch_allintitle(keyword: str) -> int:
 
 
 def _score_growth(value_str: str) -> int:
-    """Map growth percentage to 0-100 score."""
+    """Map growth percentage to 0-100 score using log curve.
+
+    log10(val) * 27 - 24 produces:
+      100% → 30,  500% → 49,  1000% → 57,  5000% → 76,
+      10000% → 84,  50000% → 100
+    """
     cleaned = value_str.replace("+", "").replace("%", "").replace(",", "").strip()
     try:
         val = int(cleaned)
     except (ValueError, TypeError):
-        return 30  # non-numeric (e.g. "Breakout") gets moderate score
-    if val >= 5000:
-        return 100
-    if val >= 1000:
-        return 80
-    if val >= 500:
-        return 60
-    if val >= 100:
-        return 40
-    return max(0, val // 5)
+        return 50  # non-numeric (e.g. "Breakout") gets moderate-high score
+    if val <= 0:
+        return 0
+    score = round(math.log10(max(val, 1)) * 27 - 24)
+    return max(0, min(100, score))
 
 
 def _score_competition(allintitle_count: int) -> tuple[int, str]:
@@ -765,20 +766,19 @@ def _enrich_single(keyword: str, growth_value: str) -> dict:
     allintitle_count = _fetch_allintitle(keyword)
     comp_score, comp_level = _score_competition(allintitle_count)
 
-    # Composite score: growth + competition only (2 dimensions)
-    # Multi-geo and acceleration are computed on frontend from existing data
-    if allintitle_count < 0:
-        # allintitle unavailable — growth is the only signal
-        total = growth_score
-    else:
-        total = round(growth_score * 0.55 + comp_score * 0.45)
+    # Base score: growth + competition (2 dimensions)
+    # Always blend — when allintitle fails, comp_score is 50 (neutral)
+    # This preserves differentiation via growth_score differences
+    base_score = round(growth_score * 0.55 + comp_score * 0.45)
 
     return {
         "growth_score": growth_score,
         "allintitle_count": allintitle_count,
         "competition_score": comp_score,
         "competition_level": comp_level,
-        "score": total,
+        "base_score": base_score,
+        "score": base_score,
+        "has_full_score": False,
     }
 
 

@@ -58,7 +58,11 @@ export interface EnrichData {
   allintitle_count: number;
   competition_score: number;
   competition_level: "very_low" | "low" | "medium" | "high" | "unknown";
+  base_score: number;
   score: number;
+  has_full_score: boolean;
+  freshness_score?: number;
+  multi_geo_score?: number;
 }
 
 export interface EnrichResponse {
@@ -97,3 +101,21 @@ export const GEO_OPTIONS = [
 ] as const;
 
 export const DEFAULT_KEYWORDS = "AI, ai video, ai tool, LLM";
+
+// KGR Workbench types
+export interface KGRItem {
+  keyword: string;
+  allintitleCount: number | null;  // Auto-fetched from backend
+  allintitleTimestamp: string | null;  // When fetched
+  searchVolume: number | null;  // Manual input from Semrush/Google Ads
+  searchVolumeTimestamp: string | null;  // When entered
+  kgr: number | null;  // Calculated: searchVolume / allintitleCount
+  kgrStatus: 'good' | 'medium' | 'bad' | null;  // <0.025 good, 0.025-1 medium, >1 bad
+  addedAt: string;  // ISO timestamp when added to workbench
+}
+
+export interface KGRWorkbenchState {
+  items: KGRItem[];
+  isExpanded: boolean;
+  lastUpdated: string;
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type {
   TrendsResponse,
   TrendKeyword,
@@ -12,6 +12,7 @@ import type {
   RedditKeyword,
   EnrichData,
   EnrichResponse,
+  KGRItem,
 } from "@/lib/types";
 import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS } from "@/lib/types";
 
@@ -59,6 +60,41 @@ function sortBySignal(items: TrendKeyword[], enrichMap?: Record<string, EnrichDa
   });
 }
 
+// --- 4-dimension composite score ---
+
+function computeFullScore(
+  enrichData: EnrichData,
+  freshnessData: FreshnessData | null,
+  multiGeoData: MultiGeoData | null,
+): { score: number; freshness_score?: number; multi_geo_score?: number; has_full_score: boolean } {
+  const growth = enrichData.growth_score || 0;
+  const competition = enrichData.competition_score || 0;
+
+  const freshness = freshnessData ? freshnessData.freshness : null;
+  const multiGeo = multiGeoData
+    ? Math.min(100, Math.round(multiGeoData.found_in.length / Math.max(multiGeoData.total_geos, 1) * 100))
+    : null;
+
+  let score: number;
+  if (freshness !== null && multiGeo !== null) {
+    // Full 4-dimension: growth 30% + competition 25% + freshness 25% + multigeo 20%
+    score = Math.round(growth * 0.30 + competition * 0.25 + freshness * 0.25 + multiGeo * 0.20);
+  } else if (freshness !== null) {
+    score = Math.round(growth * 0.35 + competition * 0.30 + freshness * 0.35);
+  } else if (multiGeo !== null) {
+    score = Math.round(growth * 0.37 + competition * 0.30 + multiGeo * 0.33);
+  } else {
+    score = enrichData.base_score ?? enrichData.score;
+  }
+
+  return {
+    score,
+    freshness_score: freshness ?? undefined,
+    multi_geo_score: multiGeo ?? undefined,
+    has_full_score: freshness !== null && multiGeo !== null,
+  };
+}
+
 // --- KGR localStorage helpers ---
 
 function getStoredSupply(keyword: string): number | null {
@@ -79,6 +115,29 @@ function storeSupply(keyword: string, supply: number) {
     `kgr::${keyword.toLowerCase()}`,
     JSON.stringify({ supply, ts: Date.now() })
   );
+}
+
+// KGR Workbench localStorage
+const KGR_WORKBENCH_KEY = "kgr_workbench_v2";
+
+function loadKGRWorkbench(): KGRItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(KGR_WORKBENCH_KEY);
+    if (!raw) return [];
+    const data = JSON.parse(raw);
+    return Array.isArray(data.items) ? data.items : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveKGRWorkbench(items: KGRItem[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(KGR_WORKBENCH_KEY, JSON.stringify({
+    items,
+    lastUpdated: new Date().toISOString()
+  }));
 }
 
 // --- Jump links ---
@@ -140,6 +199,11 @@ export default function Home() {
 
   const [mobileTab, setMobileTab] = useState<MobileTab>("trending");
 
+  // KGR Workbench state
+  const [kgrItems, setKgrItems] = useState<KGRItem[]>([]);
+  const [kgrExpanded, setKgrExpanded] = useState(false);
+  const [kgrLoading, setKgrLoading] = useState<Record<string, boolean>>({});
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -191,6 +255,16 @@ export default function Home() {
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchTrending(); }, [fetchTrending]);
   useEffect(() => { fetchReddit(); }, [fetchReddit]);
+
+  // Load KGR workbench on mount
+  useEffect(() => {
+    setKgrItems(loadKGRWorkbench());
+  }, []);
+
+  // Save KGR workbench on change
+  useEffect(() => {
+    saveKGRWorkbench(kgrItems);
+  }, [kgrItems]);
 
   // Fetch enrich scores when google data is available
   useEffect(() => {
@@ -256,6 +330,27 @@ export default function Home() {
 
   }, [expandedKeyword, geo]);
 
+  // Progressive score upgrade: when freshness/multi-geo arrives, recompute full score
+  useEffect(() => {
+    if (!expandedKeyword || !enrichMap[expandedKeyword]) return;
+    if (freshnessLoading || multiGeoLoading) return;
+
+    const current = enrichMap[expandedKeyword];
+    const { score, freshness_score, multi_geo_score, has_full_score } = computeFullScore(
+      current, freshnessData, multiGeoData,
+    );
+
+    if (score !== current.score ||
+        freshness_score !== current.freshness_score ||
+        multi_geo_score !== current.multi_geo_score) {
+      setEnrichMap(prev => ({
+        ...prev,
+        [expandedKeyword]: { ...prev[expandedKeyword], score, freshness_score, multi_geo_score, has_full_score },
+      }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedKeyword, freshnessData, multiGeoData, freshnessLoading, multiGeoLoading]);
+
   const handleKeywordsSubmit = () => {
     const trimmed = keywordsInput.trim();
     if (trimmed && trimmed !== keywords) setKeywords(trimmed);
@@ -265,9 +360,85 @@ export default function Home() {
     setExpandedKeyword(expandedKeyword === name ? null : name);
   };
 
+  // KGR Workbench handlers
+  const handleAddToKGR = useCallback((keyword: string) => {
+    // Check if already exists
+    if (kgrItems.some(item => item.keyword === keyword)) {
+      return; // Already in workbench
+    }
+
+    const newItem: KGRItem = {
+      keyword,
+      allintitleCount: null,
+      allintitleTimestamp: null,
+      searchVolume: null,
+      searchVolumeTimestamp: null,
+      kgr: null,
+      kgrStatus: null,
+      addedAt: new Date().toISOString(),
+    };
+
+    setKgrItems(prev => [...prev, newItem]);
+
+    // Auto-fetch allintitle
+    fetchAllintitleForKGR(keyword);
+  }, [kgrItems]);
+
+  const fetchAllintitleForKGR = async (keyword: string) => {
+    setKgrLoading(prev => ({ ...prev, [keyword]: true }));
+
+    try {
+      const res = await fetch("/api/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          keywords: [{ name: keyword, value: "0" }]
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const count = data.results[keyword]?.allintitle_count;
+
+        if (count !== undefined && count >= 0) {
+          handleUpdateKGR(keyword, {
+            allintitleCount: count,
+            allintitleTimestamp: new Date().toISOString(),
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch allintitle:", e);
+    } finally {
+      setKgrLoading(prev => ({ ...prev, [keyword]: false }));
+    }
+  };
+
+  const handleUpdateKGR = (keyword: string, updates: Partial<KGRItem>) => {
+    setKgrItems(prev => prev.map(item =>
+      item.keyword === keyword ? { ...item, ...updates } : item
+    ));
+  };
+
+  const handleRemoveFromKGR = (keyword: string) => {
+    setKgrItems(prev => prev.filter(item => item.keyword !== keyword));
+  };
+
+  const handleCompareTrends = () => {
+    const keywords = kgrItems.map(item => item.keyword);
+    if (keywords.length === 0) return;
+
+    const url = `https://trends.google.com/trends/explore?date=today%201-m&q=${
+      keywords.map(k => encodeURIComponent(k)).join(",")
+    }`;
+    window.open(url, "_blank");
+  };
+
   const currentTimeframe = TIMEFRAME_OPTIONS.find((t) => t.value === timeframe);
   const currentGeo = GEO_OPTIONS.find((g) => g.value === geo);
-  const sortedGoogle = data ? sortBySignal(data.google, enrichMap) : [];
+  // Memoize sort: only re-sort when enrich batch completes, not on progressive updates
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sortedGoogle = useMemo(() => data ? sortBySignal(data.google, enrichMap) : [], [data, enrichLoading]);
 
   const TRENDING_GEOS = [
     { label: "US", value: "US" },
@@ -398,6 +569,115 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ===== KGR Workbench Panel ===== */}
+      {kgrExpanded && (
+        <div className="mx-auto max-w-7xl px-3 py-3 sm:px-4">
+          <div className="rounded-lg border" style={{
+            background: "var(--bg-card)",
+            borderColor: "var(--border)"
+          }}>
+            <div className="border-b p-3" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🎯</span>
+                  <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                    KGR 决策工作台
+                  </h2>
+                  <span className="rounded-full px-2 py-0.5 text-xs"
+                    style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                    {kgrItems.length}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  {kgrItems.length > 0 && (
+                    <button onClick={handleCompareTrends}
+                      className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+                      style={{ background: "var(--accent-green)", color: "#fff" }}>
+                      📊 对比趋势
+                    </button>
+                  )}
+                  <button onClick={() => setKgrExpanded(false)}
+                    className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80"
+                    style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                    收起
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Manual keyword input */}
+            <div className="border-b p-3" style={{ borderColor: "var(--border)" }}>
+              <input type="text" placeholder="手动添加关键词，按回车确认..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.currentTarget.value.trim()) {
+                    handleAddToKGR(e.currentTarget.value.trim());
+                    e.currentTarget.value = "";
+                  }
+                }}
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
+                style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              {kgrItems.length > 0 ? (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-xs" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                      <th className="p-3 text-left font-medium">关键词</th>
+                      <th className="p-3 text-right font-medium">allintitle</th>
+                      <th className="p-3 text-right font-medium">真实搜索量</th>
+                      <th className="p-3 text-right font-medium">KGR</th>
+                      <th className="p-3 text-center font-medium">状态</th>
+                      <th className="p-3 text-center font-medium">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kgrItems.map((item) => (
+                      <KGRRow key={item.keyword} item={item}
+                        onUpdate={handleUpdateKGR}
+                        onRemove={handleRemoveFromKGR}
+                        onFetchAllintitle={fetchAllintitleForKGR}
+                        loading={kgrLoading[item.keyword]}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="p-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+                  从下方列表添加关键词，或手动输入
+                </div>
+              )}
+            </div>
+
+            {/* Help text */}
+            <div className="border-t p-3 text-xs" style={{
+              borderColor: "var(--border)",
+              color: "var(--text-secondary)"
+            }}>
+              💡 KGR = 真实搜索量 / allintitle数量。小于 0.025 是黄金关键词（低竞争高价值）。
+              搜索量请从 <a href="https://www.semrush.com" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue)" }}>Semrush</a> 或 <a href="https://ads.google.com/aw/keywordplanner" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue)" }}>Google Ads</a> 查询后填入。
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toggle button when collapsed */}
+      {!kgrExpanded && (
+        <div className="mx-auto max-w-7xl px-3 pb-3 sm:px-4">
+          <button onClick={() => setKgrExpanded(true)}
+            className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+            style={{
+              background: "var(--bg-card)",
+              borderColor: "var(--border)",
+              color: kgrItems.length > 0 ? "var(--accent-blue)" : "var(--text-secondary)"
+            }}>
+            🎯 KGR 工作台 {kgrItems.length > 0 && `(${kgrItems.length})`}
+          </button>
+        </div>
+      )}
+
       {/* ===== Main Content ===== */}
       <main className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
         {data && !loading && (
@@ -469,6 +749,7 @@ export default function Home() {
                       onToggle={() => toggleExpand(item.name)}
                       interestData={expandedKeyword === item.name ? interestData : []}
                       interestLoading={expandedKeyword === item.name && interestLoading}
+                      onAddToKGR={handleAddToKGR}
                     />
                   ))
                 )}
@@ -497,6 +778,7 @@ export default function Home() {
                       multiGeoLoading={expandedKeyword === item.name && multiGeoLoading}
                       enrichData={enrichMap[item.name]}
                       enrichLoading={enrichLoading}
+                      onAddToKGR={handleAddToKGR}
                     />
                   ))
                 )}
@@ -587,10 +869,11 @@ function SectionHeader({ title, icon, count }: { title: string; icon: string; co
 }
 
 function TrendingCard({
-  item, index, isExpanded, onToggle, interestData, interestLoading,
+  item, index, isExpanded, onToggle, interestData, interestLoading, onAddToKGR,
 }: {
   item: TrendingItem; index: number; isExpanded: boolean; onToggle: () => void;
   interestData: InterestPoint[]; interestLoading: boolean;
+  onAddToKGR?: (keyword: string) => void;
 }) {
   const isTech = item.is_tech;
   return (
@@ -602,6 +885,17 @@ function TrendingCard({
       <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-3 text-left sm:items-center sm:gap-3 sm:p-2.5">
         <Rank n={index + 1} />
         <span className="min-w-0 flex-1 text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        {onAddToKGR && (
+          <button onClick={(e) => {
+            e.stopPropagation();
+            onAddToKGR(item.name);
+          }}
+            className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
+            style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
+            title="添加到 KGR 工作台">
+            +
+          </button>
+        )}
         {isTech && (
           <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(79, 143, 247, 0.15)", color: "#4f8ff7" }}>
             Tech
@@ -659,13 +953,14 @@ function RedditCard({ post, index }: { post: RedditPost; index: number }) {
 function KeywordCard({
   item, index, isGithub, isExpanded, onToggle, interestData, interestLoading,
   freshnessData, freshnessLoading, multiGeoData, multiGeoLoading,
-  enrichData, enrichLoading,
+  enrichData, enrichLoading, onAddToKGR,
 }: {
   item: TrendKeyword; index: number; isGithub?: boolean; isExpanded?: boolean;
   onToggle?: () => void; interestData?: InterestPoint[]; interestLoading?: boolean;
   freshnessData?: FreshnessData | null; freshnessLoading?: boolean;
   multiGeoData?: MultiGeoData | null; multiGeoLoading?: boolean;
   enrichData?: EnrichData; enrichLoading?: boolean;
+  onAddToKGR?: (keyword: string) => void;
 }) {
   const tags = getTags(item);
   const hasSurge = tags.includes("surge");
@@ -689,15 +984,15 @@ function KeywordCard({
 
   const score = enrichData?.score;
   const scoreBg = score !== undefined
-    ? score >= 80 ? "rgba(52,211,153,0.2)" : score >= 60 ? "rgba(59,130,246,0.2)" : score >= 40 ? "rgba(251,191,36,0.2)" : "rgba(107,114,128,0.2)"
+    ? score >= 75 ? "rgba(52,211,153,0.2)" : score >= 55 ? "rgba(59,130,246,0.2)" : score >= 35 ? "rgba(251,191,36,0.2)" : "rgba(107,114,128,0.2)"
     : "var(--bg-secondary)";
   const scoreColor2 = score !== undefined
-    ? score >= 80 ? "#34d399" : score >= 60 ? "#60a5fa" : score >= 40 ? "#fbbf24" : "#9ca3af"
+    ? score >= 75 ? "#34d399" : score >= 55 ? "#60a5fa" : score >= 35 ? "#fbbf24" : "#9ca3af"
     : "var(--text-secondary)";
 
   return (
     <div className="rounded-lg border transition-all"
-      style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue)" : score !== undefined && score >= 80 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)" }}>
+      style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)" }}>
       <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-3 text-left sm:items-center sm:gap-3 sm:p-2.5">
         {/* Score badge or rank */}
         {enrichLoading && !enrichData ? (
@@ -712,7 +1007,18 @@ function KeywordCard({
           <Rank n={index + 1} />
         )}
         <span className="min-w-0 flex-1 text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>{item.name}</span>
-        {score !== undefined && score >= 80 && (
+        {onAddToKGR && (
+          <button onClick={(e) => {
+            e.stopPropagation();
+            onAddToKGR(item.name);
+          }}
+            className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
+            style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
+            title="添加到 KGR 工作台">
+            +
+          </button>
+        )}
+        {score !== undefined && score >= 75 && (
           <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>冲</span>
         )}
         {tags.map((tag) => {
@@ -755,7 +1061,6 @@ function EnrichedDecisionPanel({
 }) {
   const [supplyInput, setSupplyInput] = useState("");
   const [storedSupply, setStoredSupply] = useState<number | null>(null);
-  const [showGuide, setShowGuide] = useState(false);
 
   // Load stored supply from localStorage on mount
   useEffect(() => {
@@ -785,9 +1090,9 @@ function EnrichedDecisionPanel({
     : null;
 
   return (
-    <div className="border-t px-3 py-3" style={{ borderColor: "var(--border)" }}>
+    <div className="border-t px-3 py-2.5" style={{ borderColor: "var(--border)" }}>
       {/* 7-day trend chart */}
-      <div className="mb-3">
+      <div className="mb-2.5">
         <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>7-day trend</span>
         {loading ? (
           <div className="mt-1 h-14 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
@@ -806,16 +1111,21 @@ function EnrichedDecisionPanel({
           <div className="mb-2 flex items-center gap-2">
             <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>上站指数</span>
             <span className="rounded-full px-2 py-0.5 text-sm font-bold" style={{
-              background: enrichData.score >= 80 ? "rgba(52,211,153,0.2)" : enrichData.score >= 60 ? "rgba(59,130,246,0.2)" : enrichData.score >= 40 ? "rgba(251,191,36,0.2)" : "rgba(107,114,128,0.2)",
-              color: enrichData.score >= 80 ? "#34d399" : enrichData.score >= 60 ? "#60a5fa" : enrichData.score >= 40 ? "#fbbf24" : "#9ca3af",
+              background: enrichData.score >= 75 ? "rgba(52,211,153,0.2)" : enrichData.score >= 55 ? "rgba(59,130,246,0.2)" : enrichData.score >= 35 ? "rgba(251,191,36,0.2)" : "rgba(107,114,128,0.2)",
+              color: enrichData.score >= 75 ? "#34d399" : enrichData.score >= 55 ? "#60a5fa" : enrichData.score >= 35 ? "#fbbf24" : "#9ca3af",
             }}>
               {enrichData.score}
             </span>
-            {enrichData.score >= 80 && <span className="text-xs font-medium" style={{ color: "#34d399" }}>值得冲!</span>}
+            {!enrichData.has_full_score && (
+              <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>(初步)</span>
+            )}
+            {enrichData.score >= 75 && <span className="text-xs font-medium" style={{ color: "#34d399" }}>值得冲!</span>}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <ScoreDimension label="增长" score={enrichData.growth_score || 0} />
-            <ScoreDimension label="竞争" score={enrichData.competition_score || 0} note={enrichData.competition_level !== "unknown" ? enrichData.competition_level : undefined} />
+            <ScoreDimension label="增长 30%" score={enrichData.growth_score || 0} />
+            <ScoreDimension label="竞争 25%" score={enrichData.competition_score || 0} note={enrichData.competition_level !== "unknown" ? enrichData.competition_level : undefined} />
+            <ScoreDimension label="新鲜 25%" score={enrichData.freshness_score ?? 0} note={enrichData.freshness_score === undefined ? "展开加载" : undefined} />
+            <ScoreDimension label="多国 20%" score={enrichData.multi_geo_score ?? 0} note={enrichData.multi_geo_score === undefined ? "展开加载" : undefined} />
           </div>
         </div>
       )}
@@ -874,32 +1184,14 @@ function EnrichedDecisionPanel({
         <div className="rounded-md p-2" style={{ background: "var(--bg-card)" }}>
           <div className="mb-1.5 flex items-center gap-1.5">
             <span className="text-xs" style={{ color: "var(--text-secondary)" }}>页面供给量</span>
-            <button
-              onClick={() => setShowGuide(!showGuide)}
-              className="text-xs underline decoration-dotted"
+            <span
+              className="cursor-help text-xs"
               style={{ color: "var(--accent-blue)" }}
+              title="1. 点击查 allintitle 打开 Google&#10;2. 看结果页顶部 '约 X,XXX 条结果'&#10;3. 把数字填入下方输入框"
             >
-              {showGuide ? "收起" : "怎么查?"}
-            </button>
+              ⓘ
+            </span>
           </div>
-
-          {/* Guide */}
-          {showGuide && (
-            <div className="mb-2 rounded p-2 text-xs leading-relaxed" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
-              <div className="mb-1.5 font-medium" style={{ color: "var(--text-primary)" }}>
-                查 allintitle 结果数：
-              </div>
-              <ol className="ml-3 list-decimal space-y-0.5">
-                <li>点下面「查 allintitle」按钮打开 Google</li>
-                <li>看搜索结果页顶部 &quot;约 X,XXX 条结果&quot;</li>
-                <li>把那个数字填到输入框，按回车</li>
-              </ol>
-              <div className="mt-1.5 mb-1 font-medium" style={{ color: "var(--text-primary)" }}>KGR = 搜索热度 / 页面供给量</div>
-              <div>{"< 0.25 → 低竞争，值得冲"}</div>
-              <div>{"0.25~1 → 有竞争，谨慎评估"}</div>
-              <div>{"> 1 → 供给过剩，不建议做"}</div>
-            </div>
-          )}
 
           {/* Input row */}
           <div className="flex items-center gap-1.5">
@@ -909,36 +1201,18 @@ function EnrichedDecisionPanel({
               onChange={(e) => setSupplyInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSupplySubmit(); }}
               placeholder="填入 allintitle 结果数"
-              className="min-w-0 flex-1 rounded border px-2 py-1.5 text-xs outline-none"
+              className="min-w-0 flex-1 rounded border px-2 py-1 text-xs outline-none"
               style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
             />
-            <button
-              onClick={handleSupplySubmit}
-              className="shrink-0 rounded px-2 py-1.5 text-xs font-medium"
-              style={{ background: "var(--accent-blue)", color: "#fff" }}
-            >
-              OK
-            </button>
-          </div>
-
-          {/* Quick action: open allintitle search */}
-          <div className="mt-1.5 flex gap-1.5">
             <a
               href={allintitleUrl(keyword)}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 rounded py-1.5 text-center text-xs font-medium transition-opacity hover:opacity-80"
+              className="rounded px-2 py-1 text-xs font-medium transition-opacity hover:opacity-80"
               style={{ background: "rgba(66,133,244,0.15)", color: "#4285f4" }}
             >
               查 allintitle
             </a>
-            <button
-              onClick={() => { navigator.clipboard.writeText(`allintitle:${keyword}`); }}
-              className="shrink-0 rounded px-2 py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
-              style={{ background: "rgba(107,114,128,0.15)", color: "var(--text-secondary)" }}
-            >
-              复制
-            </button>
           </div>
 
           {/* KGR result */}
@@ -960,44 +1234,18 @@ function EnrichedDecisionPanel({
         </div>
       </div>
 
-      {/* Quick competition check */}
-      <div className="mb-3 rounded-lg p-2.5" style={{ background: "var(--bg-secondary)" }}>
-        <div className="mb-1.5 text-xs font-bold" style={{ color: "var(--text-primary)" }}>
-          竞争快查
+      {/* Simplified Links - two-row layout for better spacing */}
+      <div className="space-y-1.5">
+        <div className="flex gap-1.5">
+          <JumpLink href={googleAiUrl(keyword)} label="G AI" color="#8b5cf6" />
+          <JumpLink href={googleSearchUrl(keyword)} label="Google" color="#4285f4" />
+          <JumpLink href={googleTrendsUrl(keyword)} label="Trends" color="#34a853" />
         </div>
-        <div className="mb-1.5 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-          点击下方按钮查看 SERP，看前 5 名是大站还是小站
+        <div className="flex gap-1.5">
+          <JumpLink href={semrushUrl(keyword)} label="Semrush" color="#ff642d" />
+          <JumpLink href={allintitleUrl(keyword)} label="allintitle" color="#ea4335" />
+          <JumpLink href={domainSearchUrl(keyword)} label="域名" color="#de5833" />
         </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <a
-            href={googleSearchUrl(keyword)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded py-2 text-center text-xs font-medium transition-opacity hover:opacity-80"
-            style={{ background: "rgba(66,133,244,0.15)", color: "#4285f4" }}
-          >
-            查 SERP
-          </a>
-          <a
-            href={allintitleUrl(keyword)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded py-2 text-center text-xs font-medium transition-opacity hover:opacity-80"
-            style={{ background: "rgba(234,67,53,0.15)", color: "#ea4335" }}
-          >
-            查 allintitle
-          </a>
-        </div>
-      </div>
-
-      {/* Links */}
-      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2">
-        <JumpLink href={googleAiUrl(keyword)} label="G AI" color="#8b5cf6" />
-        <JumpLink href={googleSearchUrl(keyword)} label="Google" color="#4285f4" />
-        <JumpLink href={googleTrendsUrl(keyword)} label="G Trends" color="#34a853" />
-        <JumpLink href={semrushUrl(keyword)} label="Semrush" color="#ff642d" />
-        <JumpLink href={allintitleUrl(keyword)} label="allintitle" color="#ea4335" />
-        <JumpLink href={domainSearchUrl(keyword)} label="域名" color="#de5833" />
       </div>
     </div>
   );
@@ -1019,10 +1267,10 @@ function DecisionPanel({ keyword, points, loading }: { keyword: string; points: 
           </div>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-1.5">
         <JumpLink href={googleAiUrl(keyword)} label="G AI" color="#8b5cf6" />
         <JumpLink href={googleSearchUrl(keyword)} label="Google" color="#4285f4" />
-        <JumpLink href={googleTrendsUrl(keyword)} label="G Trends" color="#34a853" />
+        <JumpLink href={googleTrendsUrl(keyword)} label="Trends" color="#34a853" />
         <JumpLink href={semrushUrl(keyword)} label="Semrush" color="#ff642d" />
       </div>
     </div>
@@ -1106,9 +1354,13 @@ function MiniChart({ points }: { points: InterestPoint[] }) {
 function JumpLink({ href, label, color }: { href: string; label: string; color: string }) {
   return (
     <a href={href} target="_blank" rel="noopener noreferrer"
-      className="rounded-md py-2 text-center text-xs font-medium transition-opacity hover:opacity-80 active:opacity-60 sm:py-1.5"
-      style={{ background: `${color}20`, color }}>
-      {label} ↗
+      className="flex-1 rounded-md py-1 px-2 text-center text-xs font-medium transition-all hover:opacity-90 hover:scale-105"
+      style={{
+        background: `${color}15`,
+        color,
+        border: `1px solid ${color}30`
+      }}>
+      {label}
     </a>
   );
 }
@@ -1161,5 +1413,122 @@ function SkeletonSection() {
         ))}
       </div>
     </section>
+  );
+}
+
+// KGR Workbench components
+function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
+  item: KGRItem;
+  onUpdate: (keyword: string, updates: Partial<KGRItem>) => void;
+  onRemove: (keyword: string) => void;
+  loading?: boolean;
+  onFetchAllintitle: (keyword: string) => void;
+}) {
+  const [volumeInput, setVolumeInput] = useState(
+    item.searchVolume !== null ? String(item.searchVolume) : ""
+  );
+
+  const handleVolumeSubmit = () => {
+    const vol = parseInt(volumeInput.replace(/[,\s]/g, ""), 10);
+    if (!isNaN(vol) && vol >= 0) {
+      const kgr = item.allintitleCount && item.allintitleCount > 0
+        ? vol / item.allintitleCount : null;
+      const status = kgr !== null
+        ? kgr < 0.025 ? 'good' : kgr < 1 ? 'medium' : 'bad'
+        : null;
+      onUpdate(item.keyword, {
+        searchVolume: vol,
+        searchVolumeTimestamp: new Date().toISOString(),
+        kgr,
+        kgrStatus: status as 'good' | 'medium' | 'bad' | null
+      });
+    }
+  };
+
+  const timeAgo = (timestamp: string | null) => {
+    if (!timestamp) return "";
+    const diff = Date.now() - new Date(timestamp).getTime();
+    const hours = Math.floor(diff / 3600000);
+    if (hours < 1) return "刚刚";
+    if (hours < 24) return `${hours}小时前`;
+    return `${Math.floor(hours / 24)}天前`;
+  };
+
+  const statusConfig = {
+    good: { bg: "rgba(52,211,153,0.15)", color: "#34d399", label: "✅ 黄金" },
+    medium: { bg: "rgba(251,191,36,0.15)", color: "#fbbf24", label: "⚠️ 谨慎" },
+    bad: { bg: "rgba(239,68,68,0.15)", color: "#f87171", label: "❌ 饱和" },
+  };
+
+  return (
+    <tr className="border-b" style={{ borderColor: "var(--border)" }}>
+      <td className="p-3">
+        <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+          {item.keyword}
+        </div>
+        <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
+          添加于 {timeAgo(item.addedAt)}
+        </div>
+      </td>
+      <td className="p-3 text-right">
+        {loading ? (
+          <span className="animate-pulse text-xs">获取中...</span>
+        ) : item.allintitleCount !== null ? (
+          <div>
+            <span className="font-mono text-sm">{item.allintitleCount.toLocaleString()}</span>
+            {item.allintitleTimestamp && (
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                {timeAgo(item.allintitleTimestamp)}
+              </div>
+            )}
+          </div>
+        ) : (
+          <button onClick={() => onFetchAllintitle(item.keyword)}
+            className="rounded px-2 py-1 text-xs underline" style={{ color: "var(--accent-blue)" }}>
+            获取
+          </button>
+        )}
+      </td>
+      <td className="p-3">
+        <input type="text" value={volumeInput}
+          onChange={(e) => setVolumeInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleVolumeSubmit(); }}
+          onBlur={handleVolumeSubmit}
+          placeholder="填入"
+          className="w-24 rounded border px-2 py-1 text-right text-sm"
+          style={{
+            background: "var(--bg-secondary)",
+            borderColor: "var(--border)",
+            color: "var(--text-primary)"
+          }}
+        />
+        {item.searchVolumeTimestamp && (
+          <div className="text-right text-xs" style={{ color: "var(--text-secondary)" }}>
+            {timeAgo(item.searchVolumeTimestamp)}
+          </div>
+        )}
+      </td>
+      <td className="p-3 text-right">
+        {item.kgr !== null && (
+          <span className="font-mono text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+            {item.kgr.toFixed(4)}
+          </span>
+        )}
+      </td>
+      <td className="p-3 text-center">
+        {item.kgrStatus && (
+          <span className="rounded px-2 py-1 text-xs font-medium"
+            style={{ background: statusConfig[item.kgrStatus].bg, color: statusConfig[item.kgrStatus].color }}>
+            {statusConfig[item.kgrStatus].label}
+          </span>
+        )}
+      </td>
+      <td className="p-3 text-center">
+        <button onClick={() => onRemove(item.keyword)}
+          className="text-xs hover:opacity-80" style={{ color: "var(--accent-red)" }}>
+          移除
+        </button>
+      </td>
+    </tr>
   );
 }
