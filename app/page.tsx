@@ -1427,6 +1427,20 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
   const [volumeInput, setVolumeInput] = useState(
     item.searchVolume !== null ? String(item.searchVolume) : ""
   );
+  const [allintitleInput, setAllintitleInput] = useState("");
+  const [showAllintitleManual, setShowAllintitleManual] = useState(false);
+
+  const handleAllintitleManualSubmit = () => {
+    const count = parseInt(allintitleInput.replace(/[,\s]/g, ""), 10);
+    if (!isNaN(count) && count >= 0) {
+      onUpdate(item.keyword, {
+        allintitleCount: count,
+        allintitleTimestamp: new Date().toISOString(),
+      });
+      setAllintitleInput("");
+      setShowAllintitleManual(false);
+    }
+  };
 
   const handleVolumeSubmit = () => {
     const vol = parseInt(volumeInput.replace(/[,\s]/g, ""), 10);
@@ -1444,6 +1458,8 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
       });
     }
   };
+
+  const allintitleGoogleUrl = `https://www.google.com/search?q=${encodeURIComponent(`allintitle:${item.keyword}`)}`;
 
   const timeAgo = (timestamp: string | null) => {
     if (!timestamp) return "";
@@ -1482,11 +1498,52 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
               </div>
             )}
           </div>
+        ) : showAllintitleManual ? (
+          <div className="flex items-center justify-end gap-1">
+            <input
+              type="text"
+              value={allintitleInput}
+              onChange={(e) => setAllintitleInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAllintitleManualSubmit(); }}
+              onBlur={handleAllintitleManualSubmit}
+              placeholder="结果数"
+              className="w-20 rounded border px-2 py-1 text-right text-xs"
+              style={{
+                background: "var(--bg-secondary)",
+                borderColor: "var(--border)",
+                color: "var(--text-primary)"
+              }}
+              autoFocus
+            />
+            <a
+              href={allintitleGoogleUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded px-1.5 py-1 text-xs"
+              style={{ background: "rgba(66,133,244,0.15)", color: "#4285f4" }}
+              title="在 Google 搜索 allintitle，看结果页顶部的 '约 X 条结果'"
+            >
+              G
+            </a>
+          </div>
         ) : (
-          <button onClick={() => onFetchAllintitle(item.keyword)}
-            className="rounded px-2 py-1 text-xs underline" style={{ color: "var(--accent-blue)" }}>
-            获取
-          </button>
+          <div className="flex items-center justify-end gap-1">
+            <button
+              onClick={() => onFetchAllintitle(item.keyword)}
+              className="rounded px-2 py-1 text-xs underline"
+              style={{ color: "var(--accent-blue)" }}
+            >
+              自动获取
+            </button>
+            <button
+              onClick={() => setShowAllintitleManual(true)}
+              className="text-xs"
+              style={{ color: "var(--text-secondary)" }}
+              title="手动输入从 Google 查询的结果"
+            >
+              ✏️
+            </button>
+          </div>
         )}
       </td>
       <td className="p-3">
