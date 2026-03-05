@@ -120,7 +120,7 @@ function storeSupply(keyword: string, supply: number) {
 }
 
 // KGR Workbench localStorage
-const KGR_WORKBENCH_KEY = "kgr_workbench_v2";
+const KGR_WORKBENCH_KEY = "kgr_workbench_v3";
 
 function loadKGRWorkbench(): KGRItem[] {
   if (typeof window === "undefined") return [];
@@ -128,7 +128,25 @@ function loadKGRWorkbench(): KGRItem[] {
     const raw = localStorage.getItem(KGR_WORKBENCH_KEY);
     if (!raw) return [];
     const data = JSON.parse(raw);
-    return Array.isArray(data.items) ? data.items : [];
+    if (!Array.isArray(data.items)) return [];
+
+    // Migrate old data to new format
+    return data.items.map((item: any): KGRItem => ({
+      keyword: item.keyword || "",
+      allintitleCount: item.allintitleCount ?? null,
+      allintitleTimestamp: item.allintitleTimestamp ?? null,
+      searchVolume: item.searchVolume ?? null,
+      searchVolumeTimestamp: item.searchVolumeTimestamp ?? null,
+      kd: item.kd ?? null,
+      kdTimestamp: item.kdTimestamp ?? null,
+      kgr: item.kgr ?? null,
+      kgrStatus: item.kgrStatus ?? null,
+      ekgr: item.ekgr ?? null,
+      ekgrStatus: item.ekgrStatus ?? null,
+      kdroi: item.kdroi ?? null,
+      kdroiStatus: item.kdroiStatus ?? null,
+      addedAt: item.addedAt || new Date().toISOString(),
+    }));
   } catch {
     return [];
   }
