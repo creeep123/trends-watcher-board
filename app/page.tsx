@@ -14,7 +14,9 @@ import type {
   EnrichResponse,
   KGRItem,
 } from "@/lib/types";
-import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS } from "@/lib/types";
+import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS,
+  getKGRInterpretation, getEKGRInterpretation, getKDROIInterpretation,
+  calculateEKGR, calculateKDROI } from "@/lib/types";
 
 // --- Tag logic ---
 
@@ -203,6 +205,10 @@ export default function Home() {
   const [kgrItems, setKgrItems] = useState<KGRItem[]>([]);
   const [kgrExpanded, setKgrExpanded] = useState(false);
   const [kgrLoading, setKgrLoading] = useState<Record<string, boolean>>({});
+  const [batchImportText, setBatchImportText] = useState("");
+  const [showBatchImport, setShowBatchImport] = useState(false);
+  const [kgrFilter, setKgrFilter] = useState<'all' | 'good-kgr' | 'good-ekgr' | 'good-kdroi'>('all');
+  const [kgrSort, setKgrSort] = useState<'added' | 'kgr' | 'ekgr' | 'kdroi'>('added');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -373,8 +379,14 @@ export default function Home() {
       allintitleTimestamp: null,
       searchVolume: null,
       searchVolumeTimestamp: null,
+      kd: null,
+      kdTimestamp: null,
       kgr: null,
       kgrStatus: null,
+      ekgr: null,
+      ekgrStatus: null,
+      kdroi: null,
+      kdroiStatus: null,
       addedAt: new Date().toISOString(),
     };
 
@@ -415,13 +427,141 @@ export default function Home() {
   };
 
   const handleUpdateKGR = (keyword: string, updates: Partial<KGRItem>) => {
-    setKgrItems(prev => prev.map(item =>
-      item.keyword === keyword ? { ...item, ...updates } : item
-    ));
+    setKgrItems(prev => prev.map(item => {
+      if (item.keyword === keyword) {
+        const updated = { ...item, ...updates };
+
+        // Recalculate KGR if we have the data
+        if (updated.searchVolume && updated.allintitleCount && updated.allintitleCount > 0) {
+          updated.kgr = updated.searchVolume / updated.allintitleCount;
+          if (updated.kgr < 0.025) updated.kgrStatus = 'good';
+          else if (updated.kgr < 1) updated.kgrStatus = 'medium';
+          else updated.kgrStatus = 'bad';
+        } else {
+          updated.kgr = null;
+          updated.kgrStatus = null;
+        }
+
+        // Calculate EKGR
+        updated.ekgr = calculateEKGR(updated.searchVolume, updated.allintitleCount, updated.kd);
+        if (updated.ekgr !== null) {
+          if (updated.ekgr > 20) updated.ekgrStatus = 'good';
+          else if (updated.ekgr > 10) updated.ekgrStatus = 'medium';
+          else updated.ekgrStatus = 'bad';
+        } else {
+          updated.ekgrStatus = null;
+        }
+
+        // Calculate KDROI
+        updated.kdroi = calculateKDROI(updated.searchVolume, updated.kd);
+        if (updated.kdroi !== null) {
+          if (updated.kdroi > 200) updated.kdroiStatus = 'good';
+          else if (updated.kdroi > 100) updated.kdroiStatus = 'medium';
+          else updated.kdroiStatus = 'bad';
+        } else {
+          updated.kdroiStatus = null;
+        }
+
+        return updated;
+      }
+      return item;
+    }));
   };
 
   const handleRemoveFromKGR = (keyword: string) => {
     setKgrItems(prev => prev.filter(item => item.keyword !== keyword));
+  };
+
+  // Batch import keywords
+  const handleBatchImport = () => {
+    const keywords = batchImportText
+      .split('\n')
+      .map(k => k.trim())
+      .filter(k => k.length > 0);
+
+    keywords.forEach(keyword => {
+      handleAddToKGR(keyword);
+    });
+
+    setBatchImportText("");
+    setShowBatchImport(false);
+  };
+
+  // Fetch allintitle for all items
+  const handleFetchAllAllintitle = async () => {
+    for (const item of kgrItems) {
+      if (item.allintitleCount === null) {
+        await fetchAllintitleForKGR(item.keyword);
+      }
+    }
+  };
+
+  // Filter and sort items
+  const filteredAndSortedItems = useMemo(() => {
+    let items = [...kgrItems];
+
+    // Apply filter
+    if (kgrFilter === 'good-kgr') {
+      items = items.filter(item => item.kgrStatus === 'good');
+    } else if (kgrFilter === 'good-ekgr') {
+      items = items.filter(item => item.ekgrStatus === 'good');
+    } else if (kgrFilter === 'good-kdroi') {
+      items = items.filter(item => item.kdroiStatus === 'good');
+    }
+
+    // Apply sort
+    items.sort((a, b) => {
+      if (kgrSort === 'added') {
+        return new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime();
+      } else if (kgrSort === 'kgr') {
+        const aVal = a.kgr ?? Infinity;
+        const bVal = b.kgr ?? Infinity;
+        return aVal - bVal;
+      } else if (kgrSort === 'ekgr') {
+        const aVal = a.ekgr ?? -Infinity;
+        const bVal = b.ekgr ?? -Infinity;
+        return bVal - aVal;
+      } else if (kgrSort === 'kdroi') {
+        const aVal = a.kdroi ?? -Infinity;
+        const bVal = b.kdroi ?? -Infinity;
+        return bVal - aVal;
+      }
+      return 0;
+    });
+
+    return items;
+  }, [kgrItems, kgrFilter, kgrSort]);
+
+  // Export to CSV
+  const handleExportCSV = () => {
+    const headers = ['关键词', 'allintitle', '搜索量', 'KD', 'KGR', 'KGR状态', 'EKGR', 'EKGR状态', 'KDROI', 'KDROI状态'];
+    const rows = filteredAndSortedItems.map(item => [
+      item.keyword,
+      item.allintitleCount ?? '',
+      item.searchVolume ?? '',
+      item.kd ?? '',
+      item.kgr?.toFixed(4) ?? '',
+      item.kgrStatus ?? '',
+      item.ekgr?.toFixed(4) ?? '',
+      item.ekgrStatus ?? '',
+      (item.kdroi?.toFixed(2) ?? '') + '%',
+      item.kdroiStatus ?? ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `kgr-analysis-${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleCompareTrends = () => {
@@ -590,12 +730,32 @@ export default function Home() {
                 </div>
                 <div className="flex gap-2">
                   {kgrItems.length > 0 && (
-                    <button onClick={handleCompareTrends}
-                      className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80"
-                      style={{ background: "var(--accent-green)", color: "#fff" }}>
-                      📊 对比
-                    </button>
+                    <>
+                      <button onClick={handleFetchAllAllintitle}
+                        className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80"
+                        style={{ background: "var(--accent-blue)", color: "#fff" }}
+                        title="自动获取所有关键词的 allintitle 数据">
+                        🔄 一键分析
+                      </button>
+                      <button onClick={handleExportCSV}
+                        className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80"
+                        style={{ background: "var(--accent-green)", color: "#fff" }}
+                        title="导出为 CSV 文件">
+                        📥 导出
+                      </button>
+                      <button onClick={handleCompareTrends}
+                        className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80"
+                        style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}>
+                        📊 对比
+                      </button>
+                    </>
                   )}
+                  <button onClick={() => setShowBatchImport(!showBatchImport)}
+                    className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80"
+                    style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}
+                    title="批量导入关键词">
+                    📋 批量
+                  </button>
                   <button onClick={() => setKgrExpanded(false)}
                     className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80"
                     style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
@@ -617,24 +777,96 @@ export default function Home() {
                 className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
                 style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
               />
+
+              {/* Batch import textarea */}
+              {showBatchImport && (
+                <div className="mt-3">
+                  <textarea
+                    value={batchImportText}
+                    onChange={(e) => setBatchImportText(e.target.value)}
+                    placeholder="批量导入关键词（每行一个）&#10;AI tool&#10;machine learning&#10;data science"
+                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
+                    style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)", minHeight: "120px" }}
+                    rows={5}
+                  />
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={handleBatchImport}
+                      disabled={!batchImportText.trim()}
+                      className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-50"
+                      style={{ background: "var(--accent-blue)", color: "#fff" }}
+                    >
+                      导入 {batchImportText.split('\n').filter(k => k.trim()).length} 个关键词
+                    </button>
+                    <button
+                      onClick={() => { setShowBatchImport(false); setBatchImportText(""); }}
+                      className="rounded-lg px-3 py-1.5 text-xs transition-colors hover:opacity-80"
+                      style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Filter and Sort controls */}
+            {kgrItems.length > 0 && (
+              <div className="border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>筛选:</span>
+                    <select
+                      value={kgrFilter}
+                      onChange={(e) => setKgrFilter(e.target.value as any)}
+                      className="rounded border px-2 py-1 text-xs outline-none"
+                      style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                    >
+                      <option value="all">全部</option>
+                      <option value="good-kgr">黄金 KGR</option>
+                      <option value="good-ekgr">优质 EKGR</option>
+                      <option value="good-kdroi">高 KDROI</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>排序:</span>
+                    <select
+                      value={kgrSort}
+                      onChange={(e) => setKgrSort(e.target.value as any)}
+                      className="rounded border px-2 py-1 text-xs outline-none"
+                      style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                    >
+                      <option value="added">添加时间</option>
+                      <option value="kgr">KGR (低→高)</option>
+                      <option value="ekgr">EKGR (高→低)</option>
+                      <option value="kdroi">KDROI (高→低)</option>
+                    </select>
+                  </div>
+                  <div className="ml-auto text-xs" style={{ color: "var(--text-secondary)" }}>
+                    显示 {filteredAndSortedItems.length} / {kgrItems.length} 个
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Table */}
             <div className="overflow-x-auto">
-              {kgrItems.length > 0 ? (
+              {filteredAndSortedItems.length > 0 ? (
                 <table className="w-full">
                   <thead>
                     <tr className="border-b text-xs" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-                      <th className="p-3 text-left font-medium">关键词</th>
-                      <th className="p-3 text-right font-medium">allintitle</th>
-                      <th className="p-3 text-right font-medium">真实搜索量</th>
-                      <th className="p-3 text-right font-medium">KGR</th>
-                      <th className="p-3 text-center font-medium">状态</th>
-                      <th className="p-3 text-center font-medium">操作</th>
+                      <th className="p-2 text-left font-medium">关键词</th>
+                      <th className="p-2 text-right font-medium">allintitle</th>
+                      <th className="p-2 text-right font-medium">搜索量</th>
+                      <th className="p-2 text-right font-medium">KD</th>
+                      <th className="p-2 text-right font-medium">KGR</th>
+                      <th className="p-2 text-right font-medium">EKGR</th>
+                      <th className="p-2 text-right font-medium">KDROI</th>
+                      <th className="p-2 text-center font-medium">操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {kgrItems.map((item) => (
+                    {filteredAndSortedItems.map((item) => (
                       <KGRRow key={item.keyword} item={item}
                         onUpdate={handleUpdateKGR}
                         onRemove={handleRemoveFromKGR}
@@ -646,7 +878,7 @@ export default function Home() {
                 </table>
               ) : (
                 <div className="p-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
-                  从下方列表添加关键词，或手动输入
+                  {kgrItems.length === 0 ? "从下方列表添加关键词，或手动输入" : "没有符合筛选条件的关键词"}
                 </div>
               )}
             </div>
@@ -656,8 +888,34 @@ export default function Home() {
               borderColor: "var(--border)",
               color: "var(--text-secondary)"
             }}>
-              💡 KGR = 真实搜索量 / allintitle数量。小于 0.025 是黄金关键词（低竞争高价值）。
-              搜索量请从 <a href="https://www.semrush.com" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue)" }}>Semrush</a> 或 <a href="https://ads.google.com/aw/keywordplanner" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue)" }}>Google Ads</a> 查询后填入。
+              <div className="space-y-1.5">
+                <div className="flex items-start gap-2">
+                  <span className="shrink-0">📊</span>
+                  <div>
+                    <strong>KGR</strong> = 搜索量 ÷ allintitle
+                    <span className="ml-1 inline-block rounded px-1" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>&lt; 0.025 🏆 黄金</span>
+                    <span className="ml-1 inline-block rounded px-1" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}>&lt; 0.1 ✅ 优质</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="shrink-0">🎯</span>
+                  <div>
+                    <strong>EKGR</strong> = (搜索量 × 0.6) ÷ (allintitle × √KD)
+                    <span className="ml-1 inline-block rounded px-1" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>&gt; 20 🏆 极优</span>
+                    <span className="ml-1 inline-block rounded px-1" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}>&gt; 10 ✅ 优质</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="shrink-0">💰</span>
+                  <div>
+                    <strong>KDROI</strong> = (收入 - 反链成本) ÷ 反链成本
+                    <span className="ml-1 inline-block rounded px-1" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>&gt; 200% 🏆 极高回报</span>
+                  </div>
+                </div>
+                <div className="pt-1" style={{ color: "var(--text-secondary)" }}>
+                  数据来源: <a href="https://www.semrush.com" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue)" }}>Semrush</a> | <a href="https://ads.google.com/aw/keywordplanner" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue)" }}>Google Ads</a> | <a href="https://ahrefs.com" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue)" }}>Ahrefs</a>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1427,6 +1685,9 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
   const [volumeInput, setVolumeInput] = useState(
     item.searchVolume !== null ? String(item.searchVolume) : ""
   );
+  const [kdInput, setKdInput] = useState(
+    item.kd !== null ? String(item.kd) : ""
+  );
   const [allintitleInput, setAllintitleInput] = useState("");
   const [showAllintitleManual, setShowAllintitleManual] = useState(false);
 
@@ -1445,16 +1706,19 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
   const handleVolumeSubmit = () => {
     const vol = parseInt(volumeInput.replace(/[,\s]/g, ""), 10);
     if (!isNaN(vol) && vol >= 0) {
-      const kgr = item.allintitleCount && item.allintitleCount > 0
-        ? vol / item.allintitleCount : null;
-      const status = kgr !== null
-        ? kgr < 0.025 ? 'good' : kgr < 1 ? 'medium' : 'bad'
-        : null;
       onUpdate(item.keyword, {
         searchVolume: vol,
         searchVolumeTimestamp: new Date().toISOString(),
-        kgr,
-        kgrStatus: status as 'good' | 'medium' | 'bad' | null
+      });
+    }
+  };
+
+  const handleKdSubmit = () => {
+    const kd = parseInt(kdInput.replace(/[,\s]/g, ""), 10);
+    if (!isNaN(kd) && kd >= 0 && kd <= 100) {
+      onUpdate(item.keyword, {
+        kd: kd,
+        kdTimestamp: new Date().toISOString(),
       });
     }
   };
@@ -1470,33 +1734,27 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
     return `${Math.floor(hours / 24)}天前`;
   };
 
-  const statusConfig = {
-    good: { bg: "rgba(52,211,153,0.15)", color: "#34d399", label: "✅ 黄金" },
-    medium: { bg: "rgba(251,191,36,0.15)", color: "#fbbf24", label: "⚠️ 谨慎" },
-    bad: { bg: "rgba(239,68,68,0.15)", color: "#f87171", label: "❌ 饱和" },
-  };
+  // Get interpretations for each metric
+  const kgrInterpretation = getKGRInterpretation(item.kgr);
+  const ekgrInterpretation = getEKGRInterpretation(item.ekgr);
+  const kdroiInterpretation = getKDROIInterpretation(item.kdroi);
 
   return (
     <tr className="border-b" style={{ borderColor: "var(--border)" }}>
-      <td className="p-3">
-        <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+      {/* Keyword */}
+      <td className="p-2">
+        <div className="max-w-[120px] truncate text-sm font-medium" style={{ color: "var(--text-primary)" }} title={item.keyword}>
           {item.keyword}
         </div>
-        <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
-          添加于 {timeAgo(item.addedAt)}
-        </div>
       </td>
-      <td className="p-3 text-right">
+
+      {/* allintitle */}
+      <td className="p-2 text-right">
         {loading ? (
           <span className="animate-pulse text-xs">获取中...</span>
         ) : item.allintitleCount !== null ? (
           <div>
-            <span className="font-mono text-sm">{item.allintitleCount.toLocaleString()}</span>
-            {item.allintitleTimestamp && (
-              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                {timeAgo(item.allintitleTimestamp)}
-              </div>
-            )}
+            <span className="font-mono text-xs">{item.allintitleCount.toLocaleString()}</span>
           </div>
         ) : showAllintitleManual ? (
           <div className="flex items-center justify-end gap-1">
@@ -1507,7 +1765,7 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
               onKeyDown={(e) => { if (e.key === "Enter") handleAllintitleManualSubmit(); }}
               onBlur={handleAllintitleManualSubmit}
               placeholder="结果数"
-              className="w-20 rounded border px-2 py-1 text-right text-xs"
+              className="w-16 rounded border px-1.5 py-1 text-right text-xs"
               style={{
                 background: "var(--bg-secondary)",
                 borderColor: "var(--border)",
@@ -1519,7 +1777,7 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
               href={allintitleGoogleUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded px-1.5 py-1 text-xs"
+              className="rounded px-1 py-1 text-xs"
               style={{ background: "rgba(66,133,244,0.15)", color: "#4285f4" }}
               title="在 Google 搜索 allintitle，看结果页顶部的 '约 X 条结果'"
             >
@@ -1530,10 +1788,10 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
           <div className="flex items-center justify-end gap-1">
             <button
               onClick={() => onFetchAllintitle(item.keyword)}
-              className="rounded px-2 py-1 text-xs underline"
+              className="rounded px-1.5 py-1 text-xs underline"
               style={{ color: "var(--accent-blue)" }}
             >
-              自动获取
+              获取
             </button>
             <button
               onClick={() => setShowAllintitleManual(true)}
@@ -1546,44 +1804,123 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
           </div>
         )}
       </td>
-      <td className="p-3">
+
+      {/* Search Volume */}
+      <td className="p-2">
         <input type="text" value={volumeInput}
           onChange={(e) => setVolumeInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleVolumeSubmit(); }}
           onBlur={handleVolumeSubmit}
-          placeholder="填入"
-          className="w-24 rounded border px-2 py-1 text-right text-sm"
+          placeholder="搜索量"
+          className="w-20 rounded border px-2 py-1 text-right text-xs"
           style={{
             background: "var(--bg-secondary)",
             borderColor: "var(--border)",
             color: "var(--text-primary)"
           }}
         />
-        {item.searchVolumeTimestamp && (
-          <div className="text-right text-xs" style={{ color: "var(--text-secondary)" }}>
-            {timeAgo(item.searchVolumeTimestamp)}
+      </td>
+
+      {/* KD */}
+      <td className="p-2">
+        <input type="text" value={kdInput}
+          onChange={(e) => setKdInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleKdSubmit(); }}
+          onBlur={handleKdSubmit}
+          placeholder="0-100"
+          className="w-16 rounded border px-2 py-1 text-right text-xs"
+          style={{
+            background: "var(--bg-secondary)",
+            borderColor: "var(--border)",
+            color: "var(--text-primary)"
+          }}
+        />
+      </td>
+
+      {/* KGR */}
+      <td className="p-2 text-right">
+        {item.kgr !== null ? (
+          <div className="flex flex-col items-end gap-0.5">
+            <span
+              className="font-mono text-xs font-bold"
+              style={{ color: kgrInterpretation.color }}
+              title={kgrInterpretation.description}
+            >
+              {item.kgr.toFixed(4)}
+            </span>
+            {item.kgrStatus && (
+              <span
+                className="text-[10px]"
+                style={{ color: kgrInterpretation.color }}
+              >
+                {kgrInterpretation.emoji}
+              </span>
+            )}
           </div>
+        ) : (
+          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>--</span>
         )}
       </td>
-      <td className="p-3 text-right">
-        {item.kgr !== null && (
-          <span className="font-mono text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-            {item.kgr.toFixed(4)}
-          </span>
+
+      {/* EKGR */}
+      <td className="p-2 text-right">
+        {item.ekgr !== null ? (
+          <div className="flex flex-col items-end gap-0.5">
+            <span
+              className="font-mono text-xs font-bold"
+              style={{ color: ekgrInterpretation.color }}
+              title={ekgrInterpretation.description}
+            >
+              {item.ekgr.toFixed(2)}
+            </span>
+            {item.ekgrStatus && (
+              <span
+                className="text-[10px]"
+                style={{ color: ekgrInterpretation.color }}
+              >
+                {ekgrInterpretation.emoji}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>--</span>
         )}
       </td>
-      <td className="p-3 text-center">
-        {item.kgrStatus && (
-          <span className="rounded px-2 py-1 text-xs font-medium"
-            style={{ background: statusConfig[item.kgrStatus].bg, color: statusConfig[item.kgrStatus].color }}>
-            {statusConfig[item.kgrStatus].label}
-          </span>
+
+      {/* KDROI */}
+      <td className="p-2 text-right">
+        {item.kdroi !== null ? (
+          <div className="flex flex-col items-end gap-0.5">
+            <span
+              className="font-mono text-xs font-bold"
+              style={{ color: kdroiInterpretation.color }}
+              title={kdroiInterpretation.description}
+            >
+              {item.kdroi.toFixed(0)}%
+            </span>
+            {item.kdroiStatus && (
+              <span
+                className="text-[10px]"
+                style={{ color: kdroiInterpretation.color }}
+              >
+                {kdroiInterpretation.emoji}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>--</span>
         )}
       </td>
-      <td className="p-3 text-center">
-        <button onClick={() => onRemove(item.keyword)}
-          className="text-xs hover:opacity-80" style={{ color: "var(--accent-red)" }}>
-          移除
+
+      {/* Actions */}
+      <td className="p-2 text-center">
+        <button
+          onClick={() => onRemove(item.keyword)}
+          className="text-xs hover:opacity-80"
+          style={{ color: "var(--accent-red)" }}
+          title="移除"
+        >
+          ✕
         </button>
       </td>
     </tr>
