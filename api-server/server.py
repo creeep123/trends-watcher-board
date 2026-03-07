@@ -44,6 +44,23 @@ CACHE_TTL_MAP = {
 }
 DEFAULT_TTL = 3600  # 1h fallback
 
+# --- Rate limiting for pytrends ---
+_last_request_time = 0
+_MIN_REQUEST_INTERVAL = 2.0  # Minimum seconds between pytrends requests
+_rate_limit_lock = threading.Lock()
+
+def _rate_limit_pytrends():
+    """Ensure minimum time between pytrends requests to avoid rate limiting."""
+    global _last_request_time
+    with _rate_limit_lock:
+        now = time.time()
+        time_since_last = now - _last_request_time
+        if time_since_last < _MIN_REQUEST_INTERVAL:
+            time.sleep(_MIN_REQUEST_INTERVAL - time_since_last)
+        # Add small random jitter (0-0.5s) to make requests look more natural
+        time.sleep(random.uniform(0, 0.5))
+        _last_request_time = time.time()
+
 
 # --- Cache with stale fallback ---
 # _cache[key] = {"data": dict, "timestamp": float}
@@ -118,6 +135,7 @@ def fetch_related_queries(keyword: str, timeframe: str, geo: str) -> list[dict]:
     items = []
 
     try:
+        _rate_limit_pytrends()  # Rate limit before pytrends request
         pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
         pytrends.build_payload([keyword], cat=0, timeframe=timeframe, geo=geo, gprop="")
         related = pytrends.related_queries()
@@ -345,6 +363,7 @@ def get_freshness(
     fetch_failed = False
 
     try:
+        _rate_limit_pytrends()  # Rate limit before pytrends request
         pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
 
         pytrends.build_payload([keyword], cat=0, timeframe="now 1-d", geo=geo, gprop="")
@@ -404,6 +423,7 @@ def get_interest(
 
     points: list[dict] = []
     try:
+        _rate_limit_pytrends()  # Rate limit before pytrends request
         pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
         pytrends.build_payload([keyword], cat=0, timeframe="now 7-d", geo=geo, gprop="")
         df = pytrends.interest_over_time()
@@ -453,6 +473,7 @@ def get_multi_geo(
 
     for geo in geo_list:
         try:
+            _rate_limit_pytrends()  # Rate limit before pytrends request
             pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
             pytrends.build_payload([keyword], cat=0, timeframe="now 1-d", geo=geo, gprop="")
             df = pytrends.interest_over_time()
