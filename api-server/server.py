@@ -21,7 +21,7 @@ from urllib.parse import quote_plus
 from pydantic import BaseModel
 
 import requests as http_requests
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pytrends.request import TrendReq
 
@@ -984,6 +984,261 @@ async def lifespan(app: FastAPI):
 
 
 app.router.lifespan_context = lifespan
+
+
+# --- Root Keyword Monitoring ---
+
+# 词根存储（生产环境应使用数据库）
+_root_keywords: dict[str, dict] = {}
+_root_keywords_lock = threading.Lock()
+
+# 词根扫描队列和状态
+_scan_queue: list[str] = []
+_scan_progress: dict[str, dict] = {}  # {keyword: {"status": "pending"|"scanning"|"done"|"error", "timestamp": float}}
+_scan_lock = threading.Lock()
+
+
+def _generate_root_id(keyword: str) -> str:
+    """生成词根 ID"""
+    return hashlib.md5(keyword.lower().encode()).hexdigest()[:12]
+
+
+@app.get("/api/roots")
+def get_root_keywords():
+    """获取所有词根"""
+    with _root_keywords_lock:
+        return {
+            "keywords": list(_root_keywords.values()),
+            "total": len(_root_keywords),
+            "lastUpdated": datetime.now().isoformat()
+        }
+
+
+@app.post("/api/roots")
+def add_root_keyword(keyword: str = Query(..., description="关键词")):
+    """添加单个词根"""
+    if not keyword or not keyword.strip():
+        raise HTTPException(status_code=400, detail="关键词不能为空")
+
+    keyword = keyword.strip()
+    root_id = _generate_root_id(keyword)
+
+    with _root_keywords_lock:
+        if root_id in _root_keywords:
+            raise HTTPException(status_code=400, detail="词根已存在")
+
+        _root_keywords[root_id] = {
+            "id": root_id,
+            "keyword": keyword,
+            "priority": "medium",
+            "addedAt": datetime.now().isoformat(),
+            "lastChecked": None,
+            "nextCheckTime": None,
+            "checkFrequency": 12,
+            "latestData": {
+                "trendValue": None,
+                "changePercent": None,
+                "status": "unknown",
+                "relatedKeywords": [],
+                "newKeywords": [],
+                "timestamp": None
+            },
+            "history": []
+        }
+
+    return {"success": True, "id": root_id}
+
+
+@app.delete("/api/roots/{keyword}")
+def delete_root_keyword(keyword: str):
+    """删除词根"""
+    keyword_id = _generate_root_id(keyword)
+
+    with _root_keywords_lock:
+        if keyword_id not in _root_keywords:
+            raise HTTPException(status_code=404, detail="词根不存在")
+
+        del _root_keywords[key_id]
+
+    return {"success": True}
+
+
+@app.post("/api/roots/import")
+def import_root_keywords(keywords: list[str]):
+    """批量导入词根"""
+    if not keywords:
+        raise HTTPException(status_code=400, detail="关键词列表不能为空")
+
+    added = []
+    skipped = []
+
+    with _root_keywords_lock:
+        for kw in keywords:
+            keyword = kw.strip()
+            if not keyword:
+                continue
+
+            root_id = _generate_root_id(keyword)
+
+            if root_id in _root_keywords:
+                skipped.append(keyword)
+            else:
+                _root_keywords[root_id] = {
+                    "id": root_id,
+                    "keyword": keyword,
+                    "priority": "medium",
+                    "addedAt": datetime.now().isoformat(),
+                    "lastChecked": None,
+                    "nextCheckTime": None,
+                    "checkFrequency": 12,
+                    "latestData": {
+                        "trendValue": None,
+                        "changePercent": None,
+                        "status": "unknown",
+                        "relatedKeywords": [],
+                        "newKeywords": [],
+                        "timestamp": None
+                    },
+                    "history": []
+                }
+                added.append(keyword)
+
+    return {
+        "success": True,
+        "added": added,
+        "skipped": skipped,
+        "total": len(added)
+    }
+
+
+@app.post("/api/roots/scan")
+def scan_root_keywords(limit: int = Query(5, description="每次扫描数量")):
+    """扫描词根（渐进式）"""
+    # 获取需要扫描的词根
+    with _root_keywords_lock:
+        all_keywords = list(_root_keywords.values())
+
+    # 按优先级和上次扫描时间排序
+    def sort_key(kw):
+        last_checked = kw.get("lastChecked")
+        if not last_checked:
+            return 0  # 从未扫描的优先
+        return -datetime.fromisoformat(last_checked).timestamp()
+
+    all_keywords.sort(key=sort_key)
+
+    # 取前 N 个
+    to_scan = all_keywords[:limit]
+
+    if not to_scan:
+        return {"scanned": 0, "results": []}
+
+    results = []
+    for kw in to_scan:
+        try:
+            # 使用现有的 interest_over_time 端点获取趋势数据
+            keyword = kw["keyword"]
+            cache_key = f"roots:interest:{keyword}"
+
+            # 检查缓存
+            cached = _get_cached(cache_key)
+            if cached:
+                trend_value = cached.get("points", [{}])[-1].get("value", 0) if cached.get("points") else 0
+                related = cached.get("related", [])
+            else:
+                # 获取新数据
+                _rate_limit_pytrends()
+                pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
+                pytrends.build_payload([keyword], cat=0, timeframe="now 7-d", geo="", gprop="")
+                df = pytrends.interest_over_time()
+
+                if df is not None and not df.empty and keyword in df.columns:
+                    points = []
+                    for ts, row in df.iterrows():
+                        points.append({"timestamp": ts.isoformat(), "value": int(row[keyword])})
+                    trend_value = points[-1]["value"] if points else 0
+                else:
+                    trend_value = 0
+                    points = []
+
+                # 获取相关词
+                related_queries = pytrends.related_queries()
+                related = []
+                if keyword in related_queries and related_queries[keyword]:
+                    rq = related_queries[keyword]
+                    if rq.get('top') is not None:
+                        for _, row in rq['top'].head(10).iterrows():
+                            related.append(row['query'])
+
+                # 保存缓存
+                _set_cache(cache_key, {"points": points, "related": related})
+
+            # 计算变化百分比
+            change_percent = None
+            if kw.get("latestData", {}).get("trendValue") is not None:
+                old_value = kw["latestData"]["trendValue"]
+                if old_value > 0:
+                    change_percent = ((trend_value - old_value) / old_value) * 100
+
+            # 确定状态
+            if change_percent is not None:
+                if change_percent > 50:
+                    status = "surging"
+                elif change_percent > 10:
+                    status = "rising"
+                elif change_percent < -10:
+                    status = "declining"
+                else:
+                    status = "stable"
+            else:
+                status = "unknown"
+
+            # 更新词根数据
+            root_id = kw["id"]
+            with _root_keywords_lock:
+                if root_id in _root_keywords:
+                    old_related = set(kw.get("latestData", {}).get("relatedKeywords", []))
+                    new_related = set(related)
+                    new_keywords = list(new_related - old_related)
+
+                    _root_keywords[root_id]["lastChecked"] = datetime.now().isoformat()
+                    _root_keywords[root_id]["latestData"] = {
+                        "trendValue": trend_value,
+                        "changePercent": round(change_percent, 2) if change_percent is not None else None,
+                        "status": status,
+                        "relatedKeywords": related[:20],  # 只保存前20个
+                        "newKeywords": new_keywords[:5],    # 只保存前5个新词
+                        "timestamp": datetime.now().isoformat()
+                    }
+
+                    # 保存历史快照
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    _root_keywords[root_id]["history"].append({
+                        "date": today,
+                        "trendValue": trend_value,
+                        "relatedKeywords": related[:20],
+                        "topRising": new_keywords[:5],
+                        "timestamp": datetime.now().isoformat()
+                    })
+
+            results.append({
+                "keyword": keyword,
+                "trendValue": trend_value,
+                "changePercent": change_percent,
+                "status": status
+            })
+
+        except Exception as e:
+            print(f"[roots] Error scanning '{keyword}': {e}")
+            results.append({
+                "keyword": keyword,
+                "error": str(e)
+            })
+
+    return {
+        "scanned": len(results),
+        "results": results
+    }
 
 
 @app.get("/health")

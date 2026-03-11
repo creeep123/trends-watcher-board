@@ -13,6 +13,7 @@ import type {
   EnrichData,
   EnrichResponse,
   KGRItem,
+  RootKeyword,
 } from "@/lib/types";
 import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS,
   getKGRInterpretation, getEKGRInterpretation, getKDROIInterpretation,
@@ -228,6 +229,14 @@ export default function Home() {
   const [kgrFilter, setKgrFilter] = useState<'all' | 'good-kgr' | 'good-ekgr' | 'good-kdroi'>('all');
   const [kgrSort, setKgrSort] = useState<'added' | 'kgr' | 'ekgr' | 'kdroi'>('added');
 
+  // Root Keywords Monitoring state
+  const [rootsExpanded, setRootsExpanded] = useState(false);
+  const [rootKeywords, setRootKeywords] = useState<RootKeyword[]>([]);
+  const [rootsLoading, setRootsLoading] = useState(false);
+  const [rootsImportText, setRootsImportText] = useState("");
+  const [showRootsImport, setShowRootsImport] = useState(false);
+  const [scanProgress, setScanProgress] = useState({ scanned: 0, total: 0 });
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -291,6 +300,10 @@ export default function Home() {
   }, [kgrItems]);
 
   // Fetch enrich scores when google data is available
+  useEffect(() => {
+    fetchRootKeywords();
+  }, []);
+
   useEffect(() => {
     if (!data || data.google.length === 0) return;
     setEnrichLoading(true);
@@ -590,6 +603,90 @@ export default function Home() {
       keywords.map(k => encodeURIComponent(k)).join(",")
     }`;
     window.open(url, "_blank");
+  };
+
+  // Root Keywords Monitoring handlers
+  const fetchRootKeywords = async () => {
+    try {
+      const res = await fetch("/api/roots");
+      if (res.ok) {
+        const data = await res.json();
+        setRootKeywords(data.keywords || []);
+      }
+    } catch (e) {
+      console.error("Failed to fetch root keywords:", e);
+    }
+  };
+
+  const addRootKeyword = async (keyword: string) => {
+    try {
+      const res = await fetch(`/api/roots?keyword=${encodeURIComponent(keyword)}`, {
+        method: "POST"
+      });
+      if (res.ok) {
+        await fetchRootKeywords();
+      }
+    } catch (e) {
+      console.error("Failed to add root keyword:", e);
+    }
+  };
+
+  const deleteRootKeyword = async (keyword: string) => {
+    try {
+      const res = await fetch(`/api/roots/${encodeURIComponent(keyword)}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        await fetchRootKeywords();
+      }
+    } catch (e) {
+      console.error("Failed to delete root keyword:", e);
+    }
+  };
+
+  const importRootKeywords = async () => {
+    const keywords = rootsImportText
+      .split('\n')
+      .map(k => k.trim())
+      .filter(k => k.length > 0);
+
+    if (keywords.length === 0) return;
+
+    try {
+      const res = await fetch("/api/roots/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(keywords)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        await fetchRootKeywords();
+        setRootsImportText("");
+        setShowRootsImport(false);
+      }
+    } catch (e) {
+      console.error("Failed to import root keywords:", e);
+    }
+  };
+
+  const scanRootKeywords = async (limit: number = 5) => {
+    setRootsLoading(true);
+    try {
+      const res = await fetch(`/api/roots/scan?limit=${limit}`, {
+        method: "POST"
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        await fetchRootKeywords();
+        setScanProgress({ scanned: data.scanned, total: rootKeywords.length });
+      }
+    } catch (e) {
+      console.error("Failed to scan root keywords:", e);
+    } finally {
+      setRootsLoading(false);
+    }
   };
 
   const currentTimeframe = TIMEFRAME_OPTIONS.find((t) => t.value === timeframe);
@@ -950,6 +1047,185 @@ export default function Home() {
               color: kgrItems.length > 0 ? "var(--accent-blue)" : "var(--text-secondary)"
             }}>
             🎯 KGR {kgrItems.length > 0 && `(${kgrItems.length})`}
+          </button>
+        </div>
+      )}
+
+      {/* Root Keywords Monitoring Panel */}
+      {rootsExpanded && (
+        <div className="mx-auto max-w-7xl px-3 pb-3 sm:px-4">
+          <div className="rounded-lg border" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
+            <div className="flex items-center justify-between border-b p-3" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🌱</span>
+                <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                  词根监控
+                </h2>
+                <span className="rounded-full px-2 py-0.5 text-xs"
+                  style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                  {rootKeywords.length}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                {rootKeywords.length > 0 && (
+                  <button onClick={() => scanRootKeywords(5)}
+                    disabled={rootsLoading}
+                    className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-50"
+                    style={{ background: "var(--accent-blue)", color: "#fff" }}
+                    title="扫描前5个词根">
+                    🔄 扫描
+                  </button>
+                )}
+                <button onClick={() => setRootsExpanded(false)}
+                  className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80"
+                  style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Import area */}
+            <div className="border-b p-3" style={{ borderColor: "var(--border)" }}>
+              <input type="text" placeholder="添加词根，按回车确认..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.currentTarget.value.trim()) {
+                    addRootKeyword(e.currentTarget.value.trim());
+                    e.currentTarget.value = "";
+                  }
+                }}
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
+                style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+
+              {showRootsImport && (
+                <div className="mt-3">
+                  <textarea
+                    value={rootsImportText}
+                    onChange={(e) => setRootsImportText(e.target.value)}
+                    placeholder="批量导入词根（每行一个）&#10;AI&#10;machine learning&#10;data science"
+                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
+                    style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)", minHeight: "120px" }}
+                    rows={5}
+                  />
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={importRootKeywords}
+                      disabled={!rootsImportText.trim()}
+                      className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-50"
+                      style={{ background: "var(--accent-blue)", color: "#fff" }}
+                    >
+                      导入 {rootsImportText.split('\n').filter(k => k.trim()).length} 个词根
+                    </button>
+                    <button
+                      onClick={() => { setShowRootsImport(false); setRootsImportText(""); }}
+                      className="rounded-lg px-3 py-1.5 text-xs transition-colors hover:opacity-80"
+                      style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Keywords list */}
+            <div className="max-h-[400px] overflow-y-auto">
+              {rootKeywords.length > 0 ? (
+                <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+                  {rootKeywords.map((root) => {
+                    const data = root.latestData;
+                    const statusConfig = {
+                      surging: { emoji: "🔥", color: "#ef4444" },
+                      rising: { emoji: "📈", color: "#34d399" },
+                      stable: { emoji: "➡️", color: "#fbbf24" },
+                      declining: { emoji: "📉", color: "#9ca3af" },
+                      unknown: { emoji: "⏳", color: "#d1d5db" }
+                    };
+                    const status = statusConfig[data?.status || "unknown"] || statusConfig.unknown;
+
+                    return (
+                      <div key={root.id} className="flex items-center justify-between p-3 hover:bg-opacity-50 transition-colors"
+                        style={{ background: "var(--bg-secondary)" }}>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                              {root.keyword}
+                            </span>
+                            {data?.changePercent !== null && (
+                              <span className="rounded px-1.5 py-0.5 text-xs"
+                                style={{
+                                  background: data.changePercent > 0 ? "rgba(52,211,153,0.15)" : "rgba(239,68,68,0.15)",
+                                  color: data.changePercent > 0 ? "#34d399" : "#ef4444"
+                                }}>
+                                  {data.changePercent > 0 ? "+" : ""}{data.changePercent.toFixed(1)}%
+                                </span>
+                            )}
+                            <span className="text-xs">{status.emoji}</span>
+                          </div>
+                          <div className="mt-1 flex items-center gap-3 text-xs" style={{ color: "var(--text-secondary)" }}>
+                            <span>趋势: {data?.trendValue ?? "--"}</span>
+                            {data?.relatedKeywords && data.relatedKeywords.length > 0 && (
+                              <span>相关词: {data.relatedKeywords.length}个</span>
+                            )}
+                            {data?.newKeywords && data.newKeywords.length > 0 && (
+                              <span style={{ color: "var(--accent-green)" }}>新发现: {data.newKeywords.length}个</span>
+                            )}
+                            {root.lastChecked && (
+                              <span>检查于: {new Date(root.lastChecked).toLocaleTimeString()}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={generateGTCompareUrl(root.keyword)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded px-2 py-1 text-xs"
+                            style={{ background: "rgba(66,133,244,0.15)", color: "#4285f4" }}
+                            title="在 Google Trends 中对比">
+                            GT对比
+                          </a>
+                          <button
+                            onClick={() => deleteRootKeyword(root.keyword)}
+                            className="text-xs hover:opacity-80"
+                            style={{ color: "var(--accent-red)" }}
+                            title="删除">
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+                  添加词根开始监控，或批量导入
+                </div>
+              )}
+            </div>
+
+            {/* Help text */}
+            <div className="border-t p-3 text-xs" style={{
+              borderColor: "var(--border)",
+              color: "var(--text-secondary)"
+            }}>
+              💡 词根监控会持续追踪关键词趋势和相关词变化。点击"扫描"更新数据，"GT对比"在 Google Trends 中查看详细对比。
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Root Keywords Monitoring - Collapsed Toggle */}
+      {!rootsExpanded && (
+        <div className="mx-auto max-w-7xl px-3 pb-3 sm:px-4">
+          <button onClick={() => setRootsExpanded(true)}
+            className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+            style={{
+              background: "var(--bg-card)",
+              borderColor: "var(--border)",
+              color: rootKeywords.length > 0 ? "var(--accent-blue)" : "var(--text-secondary)"
+            }}>
+            🌱 词根监控 {rootKeywords.length > 0 && `(${rootKeywords.length})`}
           </button>
         </div>
       )}

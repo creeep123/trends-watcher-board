@@ -380,3 +380,49 @@ export interface KGRWorkbenchState {
   isExpanded: boolean;
   lastUpdated: string;
 }
+
+// Root Keyword Monitoring types
+export interface RootKeyword {
+  id: string;
+  keyword: string;
+  category?: string;
+  priority: 'high' | 'medium' | 'low';
+  addedAt: string;
+
+  // 查询控制
+  lastChecked: string | null;
+  nextCheckTime: string | null;
+  checkFrequency: number; // 小时
+
+  // 最新数据
+  latestData: {
+    trendValue: number | null;
+    changePercent: number | null;
+    status: 'surging' | 'rising' | 'stable' | 'declining' | 'unknown';
+    relatedKeywords: string[];
+    newKeywords: string[];
+    timestamp: string | null;
+  };
+
+  // 历史快照
+  history: DailySnapshot[];
+}
+
+export interface DailySnapshot {
+  date: string;
+  trendValue: number;
+  relatedKeywords: string[];
+  topRising: string[];
+  timestamp: string;
+}
+
+export interface RootKeywordLibrary {
+  keywords: RootKeyword[];
+  lastUpdated: string;
+  settings: {
+    autoScanEnabled: boolean;
+    highPriorityFrequency: number;
+    normalPriorityFrequency: number;
+    lowPriorityFrequency: number;
+  };
+}
