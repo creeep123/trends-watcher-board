@@ -16,7 +16,7 @@ import type {
 } from "@/lib/types";
 import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS,
   getKGRInterpretation, getEKGRInterpretation, getKDROIInterpretation,
-  calculateEKGR, calculateKDROI } from "@/lib/types";
+  calculateEKGR, calculateKDROI, generateGTCompareUrl } from "@/lib/types";
 
 // --- Tag logic ---
 
@@ -1521,6 +1521,7 @@ function EnrichedDecisionPanel({
           <JumpLink href={semrushUrl(keyword)} label="Semrush" color="#ff642d" />
           <JumpLink href={allintitleUrl(keyword)} label="allintitle" color="#ea4335" />
           <JumpLink href={domainSearchUrl(keyword)} label="域名" color="#de5833" />
+          <JumpLink href={generateGTCompareUrl(keyword)} label="GT对比" color="#4285f4" />
         </div>
       </div>
     </div>
@@ -1548,6 +1549,11 @@ function DecisionPanel({ keyword, points, loading }: { keyword: string; points: 
         <JumpLink href={googleSearchUrl(keyword)} label="Google" color="#4285f4" />
         <JumpLink href={googleTrendsUrl(keyword)} label="Trends" color="#34a853" />
         <JumpLink href={semrushUrl(keyword)} label="Semrush" color="#ff642d" />
+      </div>
+      <div className="mt-2 flex gap-2">
+        <JumpLink href={allintitleUrl(keyword)} label="allintitle" color="#ea4335" />
+        <JumpLink href={domainSearchUrl(keyword)} label="域名" color="#de5833" />
+        <JumpLink href={generateGTCompareUrl(keyword)} label="GT对比" color="#4285f4" />
       </div>
     </div>
   );

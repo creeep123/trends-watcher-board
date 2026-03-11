@@ -102,6 +102,16 @@ export const GEO_OPTIONS = [
 
 export const DEFAULT_KEYWORDS = "AI, ai video, ai tool, LLM";
 
+// Google Trends 对比关键词（固定）
+export const GT_COMPARISON_KEYWORDS = ["gpts", "happy birthday image"] as const;
+
+// 生成 Google Trends 对比 URL
+export function generateGTCompareUrl(keyword: string, timeframe: string = "today 1-m"): string {
+  const allKeywords = [keyword, ...GT_COMPARISON_KEYWORDS];
+  const qParam = allKeywords.map(k => encodeURIComponent(k)).join(',');
+  return `https://trends.google.com/trends/explore?q=${qParam}&date=${encodeURIComponent(timeframe)}`;
+}
+
 // KGR Analysis interpretation functions
 export function getKGRInterpretation(kgr: number | null): KGRInterpretation {
   if (kgr === null) {
