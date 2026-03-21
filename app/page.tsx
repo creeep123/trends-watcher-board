@@ -10,6 +10,8 @@ import type {
   MultiGeoData,
   RedditPost,
   RedditKeyword,
+  HackerNewsPost,
+  HackerNewsResponse,
   EnrichData,
   EnrichResponse,
   KGRItem,
@@ -167,7 +169,7 @@ function googleSearchUrl(kw: string) {
   return `https://www.google.com/search?q=${encodeURIComponent(kw)}`;
 }
 function googleAiUrl(kw: string) {
-  return `https://www.google.com/search?q=${encodeURIComponent(`what is ${kw}, explain in both English and Chinese, just speak plainly`)}&udm=50`;
+  return `https://www.google.com/search?q=${encodeURIComponent(`what is "${kw}", explain in both English and Chinese, just speak plainly`)}&udm=50`;
 }
 function googleTrendsUrl(kw: string) {
   return `https://trends.google.com/trends/explore?q=${encodeURIComponent(kw)}&date=today%201-m`;
@@ -185,7 +187,7 @@ function domainSearchUrl(kw: string) {
 
 // --- Mobile tab type ---
 
-type MobileTab = "trending" | "queries" | "reddit" | "github";
+type MobileTab = "trending" | "queries" | "reddit" | "github" | "hn";
 
 // --- Main ---
 
@@ -214,6 +216,9 @@ export default function Home() {
   const [redditPosts, setRedditPosts] = useState<RedditPost[]>([]);
   const [redditKeywords, setRedditKeywords] = useState<RedditKeyword[]>([]);
   const [redditLoading, setRedditLoading] = useState(true);
+
+  const [hnPosts, setHnPosts] = useState<HackerNewsPost[]>([]);
+  const [hnLoading, setHnLoading] = useState(true);
 
   const [enrichMap, setEnrichMap] = useState<Record<string, EnrichData>>({});
   const [enrichLoading, setEnrichLoading] = useState(false);
@@ -285,9 +290,25 @@ export default function Home() {
     }
   }, []);
 
+  const fetchHackerNews = useCallback(async () => {
+    setHnLoading(true);
+    try {
+      const res = await fetch("/api/hackernews");
+      if (res.ok) {
+        const json = await res.json();
+        setHnPosts(json.posts || []);
+      }
+    } catch {
+      setHnPosts([]);
+    } finally {
+      setHnLoading(false);
+    }
+  }, []);
+
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchTrending(); }, [fetchTrending]);
   useEffect(() => { fetchReddit(); }, [fetchReddit]);
+  useEffect(() => { fetchHackerNews(); }, [fetchHackerNews]);
 
   // Load KGR workbench on mount
   useEffect(() => {
@@ -705,6 +726,7 @@ export default function Home() {
     { key: "trending", label: "Trending", icon: "🔥" },
     { key: "queries", label: "Queries", icon: "📊" },
     { key: "reddit", label: "Reddit", icon: "💬" },
+    { key: "hn", label: "HN", icon: "🍊" },
     { key: "github", label: "GitHub", icon: "💻" },
   ];
 
@@ -718,13 +740,22 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-3 py-3 sm:px-4 sm:py-4">
           {/* Title row */}
           <div className="flex items-center justify-between">
-            <h1 className="text-lg font-bold tracking-tight sm:text-xl">
-              <span style={{ color: "var(--accent-blue)" }}>Trends</span>{" "}
-              <span className="hidden sm:inline">Watcher Board</span>
-              <span className="sm:hidden">Board</span>
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-lg font-bold tracking-tight sm:text-xl">
+                <span style={{ color: "var(--accent-blue)" }}>Trends</span>{" "}
+                <span className="hidden sm:inline">Watcher Board</span>
+                <span className="sm:hidden">Board</span>
+              </h1>
+              <a
+                href="/batch-gt"
+                className="rounded-md px-2 py-1 text-xs font-medium transition-colors hover:opacity-80"
+                style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}
+              >
+                批量 GT
+              </a>
+            </div>
             <button
-              onClick={() => { fetchData(); fetchTrending(); fetchReddit(); }}
+              onClick={() => { fetchData(); fetchTrending(); fetchReddit(); fetchHackerNews(); }}
               disabled={loading}
               className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm"
               style={{
@@ -737,50 +768,8 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Filters */}
-          <div className="mt-2 flex gap-3 overflow-x-auto pb-1 sm:mt-3 sm:flex-wrap sm:overflow-visible sm:pb-0">
-            <div className="flex shrink-0 items-center gap-1.5">
-              <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>TIME</span>
-              <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: "var(--bg-secondary)" }}>
-                {TIMEFRAME_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setTimeframe(opt.value)}
-                    className="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
-                    style={{
-                      background: timeframe === opt.value ? "var(--accent-blue)" : "transparent",
-                      color: timeframe === opt.value ? "#fff" : "var(--text-secondary)",
-                    }}
-                    title={opt.description}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>GEO</span>
-              <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: "var(--bg-secondary)" }}>
-                {GEO_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setGeo(opt.value)}
-                    className="rounded-md px-2 py-1 text-xs font-medium transition-colors"
-                    style={{
-                      background: geo === opt.value ? "var(--accent-blue)" : "transparent",
-                      color: geo === opt.value ? "#fff" : "var(--text-secondary)",
-                    }}
-                  >
-                    <span className="sm:hidden">{opt.flag}</span>
-                    <span className="hidden sm:inline">{opt.flag} {opt.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
           {/* Keywords */}
-          <div className="mt-2 flex items-center gap-1.5 sm:mt-3 sm:gap-2">
+          <div className="mt-3 flex items-center gap-1.5 sm:mt-4 sm:gap-2">
             <span className="hidden text-xs font-medium sm:block" style={{ color: "var(--text-secondary)" }}>KEYWORDS</span>
             <input
               type="text"
@@ -1003,7 +992,7 @@ export default function Home() {
               borderColor: "var(--border)",
               color: "var(--text-secondary)"
             }}>
-              <div className="space-y-1.5">
+              <div className="space-y-3 sm:space-y-1.5">
                 <div className="flex items-start gap-2">
                   <span className="shrink-0">📊</span>
                   <div>
@@ -1036,9 +1025,118 @@ export default function Home() {
         </div>
       )}
 
-      {/* Toggle button when collapsed */}
-      {!kgrExpanded && (
-        <div className="mx-auto max-w-7xl px-3 pb-3 sm:px-4">
+      {/* Root Keywords Monitoring Panel */}
+      {rootsExpanded && (
+        <div className="mx-auto max-w-7xl px-3 py-3 sm:px-4">
+          <div className="rounded-lg border" style={{
+            background: "var(--bg-card)",
+            borderColor: "var(--border)"
+          }}>
+            <div className="border-b p-3" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🌱</span>
+                  <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                    词根监控
+                  </h2>
+                  <span className="rounded-full px-2 py-0.5 text-xs"
+                    style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                    {rootKeywords.length}
+                  </span>
+                </div>
+                <button onClick={() => setRootsExpanded(false)}
+                  className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80"
+                  style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Add keyword input */}
+            <div className="border-b p-3" style={{ borderColor: "var(--border)" }}>
+              <input type="text" placeholder="添加词根，按回车确认..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.currentTarget.value.trim()) {
+                    addRootKeyword(e.currentTarget.value.trim());
+                    e.currentTarget.value = "";
+                  }
+                }}
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
+                style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </div>
+
+            {/* Root keywords list */}
+            <div className="max-h-96 overflow-y-auto p-3">
+              {rootsLoading ? (
+                <div className="text-center py-4" style={{ color: "var(--text-secondary)" }}>加载中...</div>
+              ) : rootKeywords.length === 0 ? (
+                <div className="text-center py-4 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  暂无词根，请添加
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {rootKeywords.map((root) => (
+                    <div key={root.id} className="flex items-center justify-between rounded-lg border p-2 text-sm"
+                      style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium" style={{ color: "var(--text-primary)" }}>{root.keyword}</span>
+                        {root.category && (
+                          <span className="rounded px-1.5 py-0.5 text-xs"
+                            style={{ background: "var(--accent-blue)", color: "#fff" }}>
+                            {root.category}
+                          </span>
+                        )}
+                        <span className={`rounded px-1.5 py-0.5 text-xs ${
+                          root.priority === "high" ? "bg-red-100 text-red-700" :
+                          root.priority === "medium" ? "bg-yellow-100 text-yellow-700" :
+                          "bg-gray-100 text-gray-700"
+                        }`}>
+                          {root.priority === "high" ? "高" : root.priority === "medium" ? "中" : "低"}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => deleteRootKeyword(root.keyword)}
+                        className="rounded px-2 py-1 text-xs transition-colors hover:opacity-80"
+                        style={{ background: "var(--accent-red)", color: "#fff" }}>
+                        删除
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toggle buttons when collapsed - combined toolbar */}
+      {!kgrExpanded && !rootsExpanded && (
+        <div className="mx-auto max-w-7xl flex gap-2 px-3 pb-3 pt-4 sm:px-4">
+          <button onClick={() => setKgrExpanded(true)}
+            className="flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 sm:flex-none sm:min-w-0"
+            style={{
+              background: "var(--bg-card)",
+              borderColor: "var(--border)",
+              color: kgrItems.length > 0 ? "var(--accent-blue)" : "var(--text-secondary)"
+            }}>
+            🎯 KGR {kgrItems.length > 0 && `(${kgrItems.length})`}
+          </button>
+          <button onClick={() => setRootsExpanded(true)}
+            className="flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 sm:flex-none sm:min-w-0"
+            style={{
+              background: "var(--bg-card)",
+              borderColor: "var(--border)",
+              color: rootKeywords.length > 0 ? "var(--accent-blue)" : "var(--text-secondary)"
+            }}>
+            🌱 词根监控 {rootKeywords.length > 0 && `(${rootKeywords.length})`}
+          </button>
+        </div>
+      )}
+
+      {/* Toggle button when only KGR is collapsed */}
+      {!kgrExpanded && rootsExpanded && (
+        <div className="mx-auto max-w-7xl px-3 pb-3 pt-4 sm:px-4">
           <button onClick={() => setKgrExpanded(true)}
             className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
             style={{
@@ -1051,173 +1149,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* Root Keywords Monitoring Panel */}
-      {rootsExpanded && (
-        <div className="mx-auto max-w-7xl px-3 pb-3 sm:px-4">
-          <div className="rounded-lg border" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
-            <div className="flex items-center justify-between border-b p-3" style={{ borderColor: "var(--border)" }}>
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🌱</span>
-                <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-                  词根监控
-                </h2>
-                <span className="rounded-full px-2 py-0.5 text-xs"
-                  style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
-                  {rootKeywords.length}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                {rootKeywords.length > 0 && (
-                  <button onClick={() => scanRootKeywords(5)}
-                    disabled={rootsLoading}
-                    className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-50"
-                    style={{ background: "var(--accent-blue)", color: "#fff" }}
-                    title="扫描前5个词根">
-                    🔄 扫描
-                  </button>
-                )}
-                <button onClick={() => setRootsExpanded(false)}
-                  className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80"
-                  style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            {/* Import area */}
-            <div className="border-b p-3" style={{ borderColor: "var(--border)" }}>
-              <input type="text" placeholder="添加词根，按回车确认..."
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                    addRootKeyword(e.currentTarget.value.trim());
-                    e.currentTarget.value = "";
-                  }
-                }}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
-                style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
-              />
-
-              {showRootsImport && (
-                <div className="mt-3">
-                  <textarea
-                    value={rootsImportText}
-                    onChange={(e) => setRootsImportText(e.target.value)}
-                    placeholder="批量导入词根（每行一个）&#10;AI&#10;machine learning&#10;data science"
-                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
-                    style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)", minHeight: "120px" }}
-                    rows={5}
-                  />
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      onClick={importRootKeywords}
-                      disabled={!rootsImportText.trim()}
-                      className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-50"
-                      style={{ background: "var(--accent-blue)", color: "#fff" }}
-                    >
-                      导入 {rootsImportText.split('\n').filter(k => k.trim()).length} 个词根
-                    </button>
-                    <button
-                      onClick={() => { setShowRootsImport(false); setRootsImportText(""); }}
-                      className="rounded-lg px-3 py-1.5 text-xs transition-colors hover:opacity-80"
-                      style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}
-                    >
-                      取消
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Keywords list */}
-            <div className="max-h-[400px] overflow-y-auto">
-              {rootKeywords.length > 0 ? (
-                <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-                  {rootKeywords.map((root) => {
-                    const data = root.latestData;
-                    const statusConfig = {
-                      surging: { emoji: "🔥", color: "#ef4444" },
-                      rising: { emoji: "📈", color: "#34d399" },
-                      stable: { emoji: "➡️", color: "#fbbf24" },
-                      declining: { emoji: "📉", color: "#9ca3af" },
-                      unknown: { emoji: "⏳", color: "#d1d5db" }
-                    };
-                    const status = statusConfig[data?.status || "unknown"] || statusConfig.unknown;
-
-                    return (
-                      <div key={root.id} className="flex items-center justify-between p-3 hover:bg-opacity-50 transition-colors"
-                        style={{ background: "var(--bg-secondary)" }}>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                              {root.keyword}
-                            </span>
-                            {data?.changePercent !== null && (
-                              <span className="rounded px-1.5 py-0.5 text-xs"
-                                style={{
-                                  background: data.changePercent > 0 ? "rgba(52,211,153,0.15)" : "rgba(239,68,68,0.15)",
-                                  color: data.changePercent > 0 ? "#34d399" : "#ef4444"
-                                }}>
-                                  {data.changePercent > 0 ? "+" : ""}{data.changePercent.toFixed(1)}%
-                                </span>
-                            )}
-                            <span className="text-xs">{status.emoji}</span>
-                          </div>
-                          <div className="mt-1 flex items-center gap-3 text-xs" style={{ color: "var(--text-secondary)" }}>
-                            <span>趋势: {data?.trendValue ?? "--"}</span>
-                            {data?.relatedKeywords && data.relatedKeywords.length > 0 && (
-                              <span>相关词: {data.relatedKeywords.length}个</span>
-                            )}
-                            {data?.newKeywords && data.newKeywords.length > 0 && (
-                              <span style={{ color: "var(--accent-green)" }}>新发现: {data.newKeywords.length}个</span>
-                            )}
-                            {root.lastChecked && (
-                              <span>检查于: {new Date(root.lastChecked).toLocaleTimeString()}</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={generateGTCompareUrl(root.keyword)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="rounded px-2 py-1 text-xs"
-                            style={{ background: "rgba(66,133,244,0.15)", color: "#4285f4" }}
-                            title="在 Google Trends 中对比">
-                            GT对比
-                          </a>
-                          <button
-                            onClick={() => deleteRootKeyword(root.keyword)}
-                            className="text-xs hover:opacity-80"
-                            style={{ color: "var(--accent-red)" }}
-                            title="删除">
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="p-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
-                  添加词根开始监控，或批量导入
-                </div>
-              )}
-            </div>
-
-            {/* Help text */}
-            <div className="border-t p-3 text-xs" style={{
-              borderColor: "var(--border)",
-              color: "var(--text-secondary)"
-            }}>
-              💡 词根监控会持续追踪关键词趋势和相关词变化。点击"扫描"更新数据，"GT对比"在 Google Trends 中查看详细对比。
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Root Keywords Monitoring - Collapsed Toggle */}
-      {!rootsExpanded && (
-        <div className="mx-auto max-w-7xl px-3 pb-3 sm:px-4">
+      {/* Toggle button when only roots is collapsed */}
+      {kgrExpanded && !rootsExpanded && (
+        <div className="mx-auto max-w-7xl px-3 pb-3 pt-4 sm:px-4">
           <button onClick={() => setRootsExpanded(true)}
             className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
             style={{
@@ -1265,15 +1199,13 @@ export default function Home() {
           <div className="grid gap-4 sm:gap-6 lg:grid-cols-4">
             {/* --- Trending Now --- */}
             <section className={`${mobileTab !== "trending" ? "hidden" : ""} sm:block`}>
-              <div className="mb-2 flex items-center gap-2">
-                <span className="text-lg">🔥</span>
-                <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Trending Now</h2>
-                <div className="ml-auto flex gap-0.5 rounded-lg p-0.5" style={{ background: "var(--bg-secondary)" }}>
+              <SectionHeader title="Trending Now" icon="🔥" count={trendingItems.length}>
+                <div className="flex gap-0.5 rounded-md p-0.5" style={{ background: "var(--bg-secondary)" }}>
                   {TRENDING_GEOS.map((opt) => (
                     <button
                       key={opt.value}
                       onClick={() => setTrendingGeo(opt.value)}
-                      className="rounded-md px-2 py-0.5 text-xs font-medium transition-colors"
+                      className="rounded px-1.5 py-0.5 text-xs font-medium transition-colors"
                       style={{
                         background: trendingGeo === opt.value ? "var(--accent-blue)" : "transparent",
                         color: trendingGeo === opt.value ? "#fff" : "var(--text-secondary)",
@@ -1283,8 +1215,8 @@ export default function Home() {
                     </button>
                   ))}
                 </div>
-              </div>
-              <div className="space-y-1.5 lg:max-h-[calc(100vh-280px)] lg:overflow-y-auto">
+              </SectionHeader>
+              <div className="space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {trendingLoading ? (
                   Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="h-11 animate-pulse rounded-lg" style={{ background: "var(--bg-card)", opacity: 1 - i * 0.12 }} />
@@ -1310,8 +1242,19 @@ export default function Home() {
 
             {/* --- Related Queries --- */}
             <section className={`${mobileTab !== "queries" ? "hidden" : ""} sm:block`}>
-              <SectionHeader title="Related Queries" icon="📊" count={data.google.length} />
-              <div className="mt-2 space-y-1.5 lg:max-h-[calc(100vh-280px)] lg:overflow-y-auto">
+              <SectionHeader title="Related Queries" icon="📊" count={data.google.length}>
+                <CompactTimeSelector
+                  value={timeframe}
+                  onChange={setTimeframe}
+                  options={TIMEFRAME_OPTIONS}
+                />
+                <CompactGeoSelector
+                  value={geo}
+                  onChange={setGeo}
+                  options={GEO_OPTIONS}
+                />
+              </SectionHeader>
+              <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {sortedGoogle.length === 0 ? (
                   <EmptyState text="No Google Trends data" />
                 ) : (
@@ -1340,7 +1283,7 @@ export default function Home() {
             {/* --- Reddit Signals --- */}
             <section className={`${mobileTab !== "reddit" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="Reddit Signals" icon="💬" count={redditPosts.length} />
-              <div className="mt-2 space-y-1.5 lg:max-h-[calc(100vh-280px)] lg:overflow-y-auto">
+              <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {redditLoading ? (
                   Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="h-11 animate-pulse rounded-lg" style={{ background: "var(--bg-card)", opacity: 1 - i * 0.12 }} />
@@ -1379,10 +1322,28 @@ export default function Home() {
               </div>
             </section>
 
+            {/* --- HackerNews --- */}
+            <section className={`${mobileTab !== "hn" ? "hidden" : ""} sm:block`}>
+              <SectionHeader title="HackerNews" icon="🍊" count={hnPosts.length} />
+              <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+                {hnLoading ? (
+                  <div className="py-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+                    Loading...
+                  </div>
+                ) : hnPosts.length === 0 ? (
+                  <EmptyState text="No HackerNews posts available" />
+                ) : (
+                  hnPosts.map((post, i) => (
+                    <HackerNewsCard key={`hn-${i}`} post={post} index={i} />
+                  ))
+                )}
+              </div>
+            </section>
+
             {/* --- GitHub Trending --- */}
             <section className={`${mobileTab !== "github" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="GitHub Trending" icon="💻" count={data.github.length} />
-              <div className="mt-2 space-y-1.5 lg:max-h-[calc(100vh-280px)] lg:overflow-y-auto">
+              <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {data.github.length === 0 ? (
                   <EmptyState text="No GitHub projects trending" />
                 ) : (
@@ -1402,20 +1363,79 @@ export default function Home() {
       >
         Trends Watcher Board · #trends_watcher
       </footer>
+      <ScrollToTopButton />
     </div>
   );
 }
 
 // ===== Components =====
 
-function SectionHeader({ title, icon, count }: { title: string; icon: string; count: number }) {
+function SectionHeader({ title, icon, count, children }: { title: string; icon: string; count: number; children?: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-lg">{icon}</span>
-      <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{title}</h2>
-      <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}>
-        {count}
-      </span>
+    <div className="mb-2 flex items-center gap-2">
+      <div className="flex items-center gap-2">
+        <span className="text-lg">{icon}</span>
+        <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{title}</h2>
+        <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}>
+          {count}
+        </span>
+      </div>
+      {children && <div className="ml-auto flex gap-2">{children}</div>}
+    </div>
+  );
+}
+
+// Compact Time Selector for inline use
+function CompactTimeSelector({
+  value, onChange, options
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: readonly { label: string; value: string; description: string }[];
+}) {
+  return (
+    <div className="flex items-center gap-1 rounded-md p-0.5" style={{ background: "var(--bg-secondary)" }}>
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className="rounded px-1.5 py-0.5 text-xs font-medium transition-colors"
+          style={{
+            background: value === opt.value ? "var(--accent-blue)" : "transparent",
+            color: value === opt.value ? "#fff" : "var(--text-secondary)",
+          }}
+          title={opt.description}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Compact Geo Selector for inline use
+function CompactGeoSelector({
+  value, onChange, options
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: readonly { label: string; value: string; flag: string }[];
+}) {
+  return (
+    <div className="flex items-center gap-0.5 rounded-md p-0.5" style={{ background: "var(--bg-secondary)" }}>
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className="rounded px-1.5 py-0.5 text-xs font-medium transition-colors"
+          style={{
+            background: value === opt.value ? "var(--accent-blue)" : "transparent",
+            color: value === opt.value ? "#fff" : "var(--text-secondary)",
+          }}
+        >
+          {opt.flag} <span className="hidden sm:inline">{opt.label}</span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -1434,9 +1454,9 @@ function TrendingCard({
         background: isTech ? "rgba(79, 143, 247, 0.06)" : "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue)" : isTech ? "rgba(79, 143, 247, 0.3)" : "var(--border)",
       }}>
-      <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-3 text-left sm:items-center sm:gap-3 sm:p-2.5">
+      <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-4 text-left sm:items-center sm:gap-3 sm:p-2.5">
         <Rank n={index + 1} />
-        <span className="min-w-0 flex-1 text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        <span className={`min-w-0 flex-1 text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
         {onAddToKGR && (
           <button onClick={(e) => {
             e.stopPropagation();
@@ -1468,19 +1488,33 @@ function TrendingCard({
 function RedditCard({ post, index }: { post: RedditPost; index: number }) {
   const timeAgo = (dateStr: string) => {
     if (!dateStr) return "";
-    const diff = Date.now() - new Date(dateStr).getTime();
+    const date = new Date(dateStr);
+    // Check if date is valid
+    if (isNaN(date.getTime())) return "";
+    const diff = Date.now() - date.getTime();
     const hours = Math.floor(diff / 3600000);
     if (hours < 1) return "just now";
     if (hours < 24) return `${hours}h ago`;
     return `${Math.floor(hours / 24)}d ago`;
   };
 
+  const formatNumber = (n: number | undefined) => {
+    if (typeof n !== "number" || isNaN(n)) return "0";
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+    return n.toString();
+  };
+
+  // Safely get values with defaults
+  const subreddit = post.subreddit ?? "unknown";
+  const url = post.url ?? "#";
+  const title = post.title ?? "Untitled";
+
   return (
     <a
-      href={post.url}
+      href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex items-start gap-2.5 rounded-lg border p-3 transition-all sm:gap-3 sm:p-2.5"
+      className="group flex items-start gap-2.5 rounded-lg border p-4 transition-all sm:gap-3 sm:p-2.5"
       style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#ff4500"; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
@@ -1488,16 +1522,98 @@ function RedditCard({ post, index }: { post: RedditPost; index: number }) {
       <Rank n={index + 1} />
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>
-          {post.title}
+          {title}
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
           <span className="rounded px-1 py-0.5" style={{ background: "rgba(255, 69, 0, 0.1)", color: "#ff6b35" }}>
-            r/{post.subreddit}
+            r/{subreddit}
           </span>
+          {(post.ups !== undefined || post.num_comments !== undefined) && (
+            <>
+              {post.ups !== undefined && <span>↑ {formatNumber(post.ups)}</span>}
+              {post.num_comments !== undefined && <span>💬 {formatNumber(post.num_comments)}</span>}
+            </>
+          )}
           {post.published && <span>{timeAgo(post.published)}</span>}
         </div>
       </div>
       <ExternalIcon />
+    </a>
+  );
+}
+
+function HackerNewsCard({ post, index }: { post: HackerNewsPost; index: number }) {
+  const timeAgo = (dateStr: string) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    // Check if date is valid
+    if (isNaN(date.getTime())) return "";
+    const diff = Date.now() - date.getTime();
+    const hours = Math.floor(diff / 3600000);
+    if (hours < 1) return "just now";
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
+
+  const formatNumber = (n: number | undefined) => {
+    if (typeof n !== "number" || isNaN(n)) return "0";
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+    return n.toString();
+  };
+
+  // Safely get values with defaults
+  const points = post.points ?? 0;
+  const comments = post.comments ?? 0;
+  const domain = post.domain ?? "unknown";
+  const url = post.url ?? "#";
+  const title = post.title ?? "Untitled";
+  const hnDiscussUrl = `https://news.ycombinator.com/item?id=${post.id}`;
+  const hasExternalUrl = url && url !== hnDiscussUrl && domain !== "news.ycombinator.com";
+
+  return (
+    <a
+      href={hnDiscussUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group flex items-start gap-2.5 rounded-lg border p-4 transition-all sm:gap-3 sm:p-2.5"
+      style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#ff6600"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
+    >
+      <Rank n={index + 1} />
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <div className="text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>
+          {title}
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: "var(--text-secondary)" }}>
+          <span className="rounded px-1 py-0.5 max-w-[100px] truncate" style={{ background: "rgba(255, 102, 0, 0.1)", color: "#ff6600" }}>
+            {domain}
+          </span>
+          <span>🔥 {formatNumber(points + comments * 0.5)}</span>
+          <span>↑ {formatNumber(points)}</span>
+          <span>💬 {formatNumber(comments)}</span>
+          <span>{timeAgo(post.time)}</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        {hasExternalUrl ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded p-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+            style={{ color: "var(--text-secondary)" }}
+            title={`访问外部链接: ${url}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        ) : (
+          <ExternalIcon />
+        )}
+      </div>
     </a>
   );
 }
@@ -1520,7 +1636,7 @@ function KeywordCard({
   if (isGithub) {
     return (
       <a href={item.url} target="_blank" rel="noopener noreferrer"
-        className="group flex items-start gap-2.5 rounded-lg border p-3 transition-all sm:items-center sm:gap-3 sm:p-2.5"
+        className="group flex items-start gap-2.5 rounded-lg border p-4 transition-all sm:items-center sm:gap-3 sm:p-2.5"
         style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
         onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-purple)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}>
@@ -1545,7 +1661,7 @@ function KeywordCard({
   return (
     <div className="rounded-lg border transition-all"
       style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)" }}>
-      <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-3 text-left sm:items-center sm:gap-3 sm:p-2.5">
+      <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-4 text-left sm:items-center sm:gap-3 sm:p-2.5">
         {/* Score badge or rank */}
         {enrichLoading && !enrichData ? (
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full animate-pulse" style={{ background: "var(--bg-secondary)" }}>
@@ -1558,7 +1674,7 @@ function KeywordCard({
         ) : (
           <Rank n={index + 1} />
         )}
-        <span className="min-w-0 flex-1 text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        <span className={`min-w-0 flex-1 text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
         {onAddToKGR && (
           <button onClick={(e) => {
             e.stopPropagation();
@@ -1642,16 +1758,16 @@ function EnrichedDecisionPanel({
     : null;
 
   return (
-    <div className="border-t px-3 py-2.5" style={{ borderColor: "var(--border)" }}>
+    <div className="border-t px-4 py-3 sm:px-3 sm:py-2.5" style={{ borderColor: "var(--border)" }}>
       {/* 7-day trend chart */}
       <div className="mb-2.5">
         <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>7-day trend</span>
         {loading ? (
-          <div className="mt-1 h-14 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
+          <div className="mt-1 h-20 animate-pulse rounded sm:h-14" style={{ background: "var(--bg-secondary)" }} />
         ) : points.length > 0 ? (
           <MiniChart points={points} />
         ) : (
-          <div className="mt-1 flex h-14 items-center justify-center rounded text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+          <div className="mt-1 flex h-20 items-center justify-center rounded text-xs sm:h-14" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
             No trend data
           </div>
         )}
@@ -1659,7 +1775,7 @@ function EnrichedDecisionPanel({
 
       {/* === Score Breakdown === */}
       {enrichData && enrichData.score !== undefined && (
-        <div className="mb-3 rounded-lg p-2.5" style={{ background: "var(--bg-secondary)" }}>
+        <div className="mb-3 rounded-lg p-3 sm:p-2.5" style={{ background: "var(--bg-secondary)" }}>
           <div className="mb-2 flex items-center gap-2">
             <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>上站指数</span>
             <span className="rounded-full px-2 py-0.5 text-sm font-bold" style={{
@@ -1673,7 +1789,7 @@ function EnrichedDecisionPanel({
             )}
             {enrichData.score >= 75 && <span className="text-xs font-medium" style={{ color: "#34d399" }}>值得冲!</span>}
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-3 sm:gap-2">
             <ScoreDimension label="增长 30%" score={enrichData.growth_score || 0} />
             <ScoreDimension label="竞争 25%" score={enrichData.competition_score || 0} note={enrichData.competition_level !== "unknown" ? enrichData.competition_level : undefined} />
             <ScoreDimension label="新鲜 25%" score={enrichData.freshness_score ?? 0} note={enrichData.freshness_score === undefined ? "展开加载" : undefined} />
@@ -1689,9 +1805,9 @@ function EnrichedDecisionPanel({
         </div>
 
         {/* Freshness + Multi-geo row */}
-        <div className="mb-2 grid grid-cols-2 gap-2">
+        <div className="mb-2 grid grid-cols-2 gap-3 sm:gap-2">
           {/* Freshness */}
-          <div className="rounded-md p-2" style={{ background: "var(--bg-card)" }}>
+          <div className="rounded-md p-3 sm:p-2" style={{ background: "var(--bg-card)" }}>
             <div className="mb-1 text-xs" style={{ color: "var(--text-secondary)" }}>新鲜度</div>
             {freshnessLoading ? (
               <div className="h-4 w-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
@@ -1708,7 +1824,7 @@ function EnrichedDecisionPanel({
           </div>
 
           {/* Multi-geo */}
-          <div className="rounded-md p-2" style={{ background: "var(--bg-card)" }}>
+          <div className="rounded-md p-3 sm:p-2" style={{ background: "var(--bg-card)" }}>
             <div className="mb-1 text-xs" style={{ color: "var(--text-secondary)" }}>多国热度</div>
             {multiGeoLoading ? (
               <div className="h-4 w-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
@@ -1753,14 +1869,14 @@ function EnrichedDecisionPanel({
               onChange={(e) => setSupplyInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSupplySubmit(); }}
               placeholder="填入 allintitle 结果数"
-              className="min-w-0 flex-1 rounded border px-2 py-1 text-xs outline-none"
+              className="min-w-0 flex-1 rounded border px-3 py-2.5 text-base outline-none sm:px-2 sm:py-1 sm:text-xs"
               style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
             />
             <a
               href={allintitleUrl(keyword)}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded px-2 py-1 text-xs font-medium transition-opacity hover:opacity-80"
+              className="rounded px-3 py-2.5 text-sm font-medium transition-opacity hover:opacity-80 sm:px-2 sm:py-1 sm:text-xs"
               style={{ background: "rgba(66,133,244,0.15)", color: "#4285f4" }}
             >
               查 allintitle
@@ -1787,13 +1903,13 @@ function EnrichedDecisionPanel({
       </div>
 
       {/* Simplified Links - two-row layout for better spacing */}
-      <div className="space-y-2">
-        <div className="flex gap-2">
+      <div className="space-y-3 sm:space-y-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:gap-2">
           <JumpLink href={googleAiUrl(keyword)} label="G AI" color="#8b5cf6" />
           <JumpLink href={googleSearchUrl(keyword)} label="Google" color="#4285f4" />
           <JumpLink href={googleTrendsUrl(keyword)} label="Trends" color="#34a853" />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:gap-2">
           <JumpLink href={semrushUrl(keyword)} label="Semrush" color="#ff642d" />
           <JumpLink href={allintitleUrl(keyword)} label="allintitle" color="#ea4335" />
           <JumpLink href={domainSearchUrl(keyword)} label="域名" color="#de5833" />
@@ -1811,11 +1927,11 @@ function DecisionPanel({ keyword, points, loading }: { keyword: string; points: 
       <div className="mb-3">
         <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>7-day trend</span>
         {loading ? (
-          <div className="mt-1 h-14 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
+          <div className="mt-1 h-20 animate-pulse rounded sm:h-14" style={{ background: "var(--bg-secondary)" }} />
         ) : points.length > 0 ? (
           <MiniChart points={points} />
         ) : (
-          <div className="mt-1 flex h-14 items-center justify-center rounded text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+          <div className="mt-1 flex h-20 items-center justify-center rounded text-xs sm:h-14" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
             No trend data
           </div>
         )}
@@ -1912,7 +2028,7 @@ function MiniChart({ points }: { points: InterestPoint[] }) {
 function JumpLink({ href, label, color }: { href: string; label: string; color: string }) {
   return (
     <a href={href} target="_blank" rel="noopener noreferrer"
-      className="flex-1 rounded-md py-1.5 px-2.5 text-center text-xs font-medium transition-all hover:opacity-90 hover:scale-105"
+      className="flex-1 rounded-md py-2.5 px-3 text-center text-sm font-medium transition-all hover:opacity-90 hover:scale-105 sm:py-1.5 sm:px-2.5 sm:text-xs"
       style={{
         background: `${color}15`,
         color,
@@ -1925,10 +2041,44 @@ function JumpLink({ href, label, color }: { href: string; label: string; color: 
 
 function Rank({ n }: { n: number }) {
   return (
-    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-xs font-bold"
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-bold sm:h-5 sm:w-5"
       style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
       {n}
     </span>
+  );
+}
+
+// Scroll to top button for mobile
+function ScrollToTopButton() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setVisible(window.scrollY > 300);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  if (!visible) return null;
+
+  return (
+    <button
+      onClick={scrollToTop}
+      className="fixed bottom-6 right-4 sm:bottom-8 sm:right-8 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg hover:opacity-90 transition-opacity"
+      style={{
+        background: "var(--accent-blue)",
+        color: "#fff",
+        marginBottom: "80px",
+      }}
+      aria-label="回到顶部"
+    >
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7" />
+      </svg>
+    </button>
   );
 }
 
@@ -2052,10 +2202,6 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
       <td className="p-2 text-right">
         {loading ? (
           <span className="animate-pulse text-xs">获取中...</span>
-        ) : item.allintitleCount !== null ? (
-          <div>
-            <span className="font-mono text-xs">{item.allintitleCount.toLocaleString()}</span>
-          </div>
         ) : showAllintitleManual ? (
           <div className="flex items-center justify-end gap-1">
             <input
@@ -2083,6 +2229,32 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
             >
               G
             </a>
+            <button
+              onClick={() => {
+                setShowAllintitleManual(false);
+                setAllintitleInput("");
+              }}
+              className="text-xs"
+              style={{ color: "var(--text-secondary)" }}
+              title="取消编辑"
+            >
+              ✕
+            </button>
+          </div>
+        ) : item.allintitleCount !== null ? (
+          <div className="flex items-center justify-end gap-1">
+            <span className="font-mono text-xs">{item.allintitleCount.toLocaleString()}</span>
+            <button
+              onClick={() => {
+                setShowAllintitleManual(true);
+                setAllintitleInput(String(item.allintitleCount));
+              }}
+              className="text-xs"
+              style={{ color: "var(--text-secondary)" }}
+              title="编辑数值"
+            >
+              ✏️
+            </button>
           </div>
         ) : (
           <div className="flex items-center justify-end gap-1">
@@ -2106,7 +2278,7 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
       </td>
 
       {/* Search Volume */}
-      <td className="p-2">
+      <td className="p-2 text-right">
         <input type="text" value={volumeInput}
           onChange={(e) => setVolumeInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleVolumeSubmit(); }}
@@ -2122,7 +2294,7 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
       </td>
 
       {/* KD */}
-      <td className="p-2">
+      <td className="p-2 text-right">
         <input type="text" value={kdInput}
           onChange={(e) => setKdInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleKdSubmit(); }}

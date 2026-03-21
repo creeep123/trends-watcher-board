@@ -36,6 +36,25 @@ export interface RedditPost {
   url: string;
   subreddit: string;
   published: string;
+  ups?: number;       // 点赞数
+  num_comments?: number;  // 评论数
+  score?: number;     // 综合热度 (ups + num_comments * 2)
+}
+
+export interface HackerNewsPost {
+  id: number;
+  title: string;
+  url: string;
+  domain: string;
+  points: number;
+  comments: number;
+  time: string;
+  score?: number;     // 综合热度 (points + comments * 0.5)
+}
+
+export interface HackerNewsResponse {
+  posts: HackerNewsPost[];
+  timestamp: string;
 }
 
 export interface RedditKeyword {
@@ -100,7 +119,7 @@ export const GEO_OPTIONS = [
   { label: "DE", value: "DE", flag: "🇩🇪" },
 ] as const;
 
-export const DEFAULT_KEYWORDS = "AI, ai video, ai tool, LLM";
+export const DEFAULT_KEYWORDS = "AI, LLM, maker, generator, creator, filter";
 
 // Google Trends 对比关键词（固定）
 export const GT_COMPARISON_KEYWORDS = ["gpts", "happy birthday image"] as const;
