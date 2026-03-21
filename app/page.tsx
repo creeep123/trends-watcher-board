@@ -1372,7 +1372,7 @@ export default function Home() {
 
 function SectionHeader({ title, icon, count, children }: { title: string; icon: string; count: number; children?: React.ReactNode }) {
   return (
-    <div className="mb-2 flex items-center gap-2">
+    <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
       <div className="flex items-center gap-2">
         <span className="text-lg">{icon}</span>
         <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{title}</h2>
@@ -1380,7 +1380,7 @@ function SectionHeader({ title, icon, count, children }: { title: string; icon: 
           {count}
         </span>
       </div>
-      {children && <div className="ml-auto flex gap-2">{children}</div>}
+      {children && <div className="flex flex-wrap gap-2 sm:ml-auto">{children}</div>}
     </div>
   );
 }
