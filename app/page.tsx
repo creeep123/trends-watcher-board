@@ -1214,11 +1214,6 @@ export default function Home() {
             <span>{currentGeo?.flag || "🌍"} {currentGeo?.label || "Global"} · {currentTimeframe?.description}</span>
             <span className="hidden sm:inline">·</span>
             <span className="hidden sm:inline">Updated {new Date(data.timestamp).toLocaleTimeString()}</span>
-            {data._stale && (
-              <span className="rounded px-1.5 py-0.5 text-[10px] font-medium" style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>
-                缓存数据 · Google 限频中
-              </span>
-            )}
           </div>
         )}
 
@@ -1310,9 +1305,23 @@ export default function Home() {
                   options={GEO_OPTIONS}
                 />
               </SectionHeader>
+
+              {/* Google 限频提示 */}
+              {data._stale && sortedGoogle.length === 0 && (
+                <div className="mb-3 rounded-md border p-3 text-xs" style={{ borderColor: "rgba(251,191,36,0.3)", background: "rgba(251,191,36,0.1)", color: "#fbbf24" }}>
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm">⚠️</span>
+                    <div>
+                      <div className="font-medium">Google Trends 暂时不可用</div>
+                      <div style={{ color: "var(--text-secondary)" }}>Google 正在限频，请稍后再试或点击刷新按钮重试</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {sortedGoogle.length === 0 ? (
-                  <EmptyState text="No Google Trends data" />
+                  <EmptyState text={data._stale ? "Google Trends 暂无数据（限频中）" : "No Google Trends data"} />
                 ) : (
                   sortedGoogle.map((item, i) => (
                     <KeywordCard
