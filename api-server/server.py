@@ -145,7 +145,7 @@ def fetch_related_queries(keyword: str, timeframe: str, geo: str, use_proxy: boo
             _rate_limit_pytrends()  # Rate limit before pytrends request
 
             # Build kwargs for TrendReq
-            kwargs = {"hl": "en-US", "tz": 360, "timeout": (10, 25)}
+            kwargs = {"hl": "en-US", "tz": 360, "timeout": (5, 15)}
             if proxy_url:
                 # Convert http://IP:PORT to proxies dict format
                 kwargs["proxies"] = {"https": proxy_url, "http": proxy_url}
@@ -225,7 +225,7 @@ def fetch_related_queries(keyword: str, timeframe: str, geo: str, use_proxy: boo
 
     # If rate limited, try with proxies
     if rate_limited:
-        proxies = proxy_manager.get_proxies(count=5)
+        proxies = proxy_manager.get_proxies(count=2)  # Reduced from 5 to 2
         print(f"[proxy] Trying {len(proxies)} proxies after rate limit")
 
         for i, proxy in enumerate(proxies, 1):
