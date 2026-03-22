@@ -257,12 +257,12 @@ def get_trends(
 
     key = f"trends|{_cache_key(keyword_list, timeframe, geo)}"
 
-    # Only check cache if not bypassing
-    if not bypassCache:
-        cached = _get_cached(key)
-        if cached:
-            return cached
+    # Always try cache first for speed
+    cached = _get_cached(key)
+    if cached and not bypassCache:
+        return cached
 
+    # If bypassing cache or no cache, try fetching
     # Fetch for each keyword (sequential, 2s delay between to avoid 429)
     all_items: list[dict] = []
     seen_names: set[str] = set()
@@ -272,6 +272,26 @@ def get_trends(
         for item in results:
             if item["name"].lower() not in seen_names:
                 seen_names.add(item["name"].lower())
+                all_items.append(item)
+        if kw != keyword_list[-1]:
+            time.sleep(2)
+
+    # If no data and we have cached data (even stale), return it
+    if len(all_items) == 0 and cached:
+        print("[trends] No fresh data, returning stale cache")
+        return {**cached, "_stale": True}
+
+    # If bypassCache or got fresh data, update cache
+    response = {
+        "google": all_items,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "params": {"timeframe": timeframe, "geo": geo},
+        "_stale": False,
+        "_cached": False,
+    }
+
+    setCache(key, response)
+    return response
                 all_items.append(item)
         if kw != keyword_list[-1]:
             time.sleep(2)
