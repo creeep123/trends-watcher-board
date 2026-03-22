@@ -292,31 +292,6 @@ def get_trends(
 
     setCache(key, response)
     return response
-                all_items.append(item)
-        if kw != keyword_list[-1]:
-            time.sleep(2)
-
-    response = {
-        "google": all_items,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "params": {
-            "keywords": keyword_list,
-            "timeframe": timeframe,
-            "geo": geo,
-        },
-    }
-
-    # Stale fallback: if pytrends returned empty, try returning old data
-    if _is_empty_response(response):
-        stale = _get_stale(key)
-        if stale:
-            print(f"[cache] trends: pytrends empty, serving stale data")
-            stale["_stale"] = True
-            return stale
-        # Don't cache empty responses — let next request try again
-        print(f"[cache] trends: pytrends empty, no stale data available")
-        response["_stale"] = True
-        return response
 
     _set_cache(key, response)
     return response
@@ -739,15 +714,15 @@ def get_reddit(
     all_posts: list[dict] = []
     seen_titles: set[str] = set()
 
-    # Fetch from all subreddits (RSS is more reliable)
-    for sub in REDDIT_SUB_NAMES:
+    # Fetch from top 8 subreddits to avoid timeout (20 would take 6+ seconds)
+    for sub in REDDIT_SUB_NAMES[:8]:
         posts = _fetch_subreddit_rss(sub, sort=sort, limit=15)
         for p in posts:
             key = p["title"].lower().strip()
             if key not in seen_titles:
                 seen_titles.add(key)
                 all_posts.append(p)
-        time.sleep(0.3)  # Rate limit between subreddits
+        time.sleep(0.2)  # Rate limit between subreddits
 
     # 按热度分数排序
     all_posts.sort(key=lambda p: p.get("score", 50), reverse=True)
