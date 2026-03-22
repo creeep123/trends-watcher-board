@@ -1248,17 +1248,8 @@ export default function Home() {
           </div>
         )}
 
-        {loading && (
-          <div className="grid gap-4 sm:gap-6 lg:grid-cols-4">
-            <SkeletonSection />
-            <div className="hidden lg:block"><SkeletonSection /></div>
-            <div className="hidden lg:block"><SkeletonSection /></div>
-            <div className="hidden lg:block"><SkeletonSection /></div>
-          </div>
-        )}
-
-        {data && !loading && (
-          <div className="grid gap-4 sm:gap-6 lg:grid-cols-4">
+        {/* Main content always visible, each section handles its own loading state */}
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-4">
             {/* --- Trending Now --- */}
             <section className={`${mobileTab !== "trending" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="Trending Now" icon="🔥" count={trendingItems.length}>
@@ -1304,7 +1295,7 @@ export default function Home() {
 
             {/* --- Related Queries --- */}
             <section className={`${mobileTab !== "queries" ? "hidden" : ""} sm:block`}>
-              <SectionHeader title="Related Queries" icon="📊" count={data.google.length}>
+              <SectionHeader title="Related Queries" icon="📊" count={data?.google?.length || 0}>
                 <button
                   onClick={() => setForceRefresh(true)}
                   disabled={loading}
@@ -1331,7 +1322,7 @@ export default function Home() {
               </SectionHeader>
 
               {/* Google 限频提示 */}
-              {data._stale && sortedGoogle.length === 0 && (
+              {data?._stale && sortedGoogle.length === 0 && (
                 <div className="mb-3 rounded-md border p-3 text-xs" style={{ borderColor: "rgba(251,191,36,0.3)", background: "rgba(251,191,36,0.1)", color: "#fbbf24" }}>
                   <div className="flex items-start gap-2">
                     <span className="text-sm">⚠️</span>
@@ -1357,7 +1348,7 @@ export default function Home() {
                     </div>
                   </div>
                 ) : sortedGoogle.length === 0 ? (
-                  <EmptyState text={data._stale ? "Google Trends 暂无数据（限频中）" : "No Google Trends data"} />
+                  <EmptyState text={data?._stale ? "Google Trends 暂无数据（限频中）" : "No Google Trends data"} />
                 ) : (
                   sortedGoogle.map((item, i) => (
                     <KeywordCard
@@ -1487,9 +1478,9 @@ export default function Home() {
 
             {/* --- GitHub Trending --- */}
             <section className={`${mobileTab !== "github" ? "hidden" : ""} sm:block`}>
-              <SectionHeader title="GitHub Trending" icon="💻" count={data.github.length} />
+              <SectionHeader title="GitHub Trending" icon="💻" count={data?.github?.length || 0} />
               <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
-                {data.github.length === 0 ? (
+                {!data?.github || data.github.length === 0 ? (
                   <EmptyState text="No GitHub projects trending" />
                 ) : (
                   data.github.map((item, i) => (
@@ -1499,7 +1490,6 @@ export default function Home() {
               </div>
             </section>
           </div>
-        )}
       </main>
 
       <footer
