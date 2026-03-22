@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   try {
     const params = new URLSearchParams({ keyword, geo });
     const res = await fetch(`${API_BASE}/api/interest?${params}`, {
-      signal: AbortSignal.timeout(25000),
+      signal: AbortSignal.timeout(60000),
     });
     if (!res.ok) {
       return NextResponse.json({ keyword, points: [] }, { status: 200 });

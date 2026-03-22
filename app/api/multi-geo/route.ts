@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   try {
     const params = new URLSearchParams({ keyword, geos });
     const res = await fetch(`${API_BASE}/api/multi-geo?${params}`, {
-      signal: AbortSignal.timeout(25000),
+      signal: AbortSignal.timeout(60000),
     });
     if (!res.ok) {
       return NextResponse.json({ keyword, found_in: [], total_geos: 0 }, { status: 200 });
