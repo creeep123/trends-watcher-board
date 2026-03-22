@@ -610,11 +610,11 @@ REDDIT_ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
 
 
 def _fetch_subreddit_rss(subreddit: str, sort: str = "hot", limit: int = 15) -> list[dict]:
-    """Fetch posts from a subreddit via Reddit JSON API."""
+    """Fetch posts from a subreddit via RSS (more reliable than JSON API)."""
     posts = []
     try:
-        # Use JSON API instead of RSS to get upvotes and comments
-        url = f"https://www.reddit.com/r/{subreddit}/{sort}.json?limit={limit}"
+        # Use RSS instead of JSON to avoid 403 errors
+        url = f"https://www.reddit.com/r/{subreddit}/{sort}/.rss?limit={limit}"
         if sort == "top":
             url += "&t=day"
 
@@ -623,31 +623,29 @@ def _fetch_subreddit_rss(subreddit: str, sort: str = "hot", limit: int = 15) -> 
             print(f"[Reddit] {subreddit} returned {resp.status_code}")
             return posts
 
-        data = resp.json()
-        for child in data.get("data", {}).get("children", []):
-            post_data = child.get("data", {})
-            title = post_data.get("title", "").strip()
+        root = ET.fromstring(resp.text)
+        for entry in root.findall(".//a:entry", REDDIT_ATOM_NS):
+            title_el = entry.find("a:title", REDDIT_ATOM_NS)
+            link_el = entry.find("a:link", REDDIT_ATOM_NS)
+            published_el = entry.find("a:published", REDDIT_ATOM_NS)
 
-            # Skip meta posts
-            if title.startswith("[D]") or title.startswith("[P]") or "megathread" in title.lower():
-                continue
+            if title_el is not None and title_el.text:
+                title = title_el.text.strip()
+                # Skip meta posts
+                if title.startswith("[D]") or title.startswith("[P]") or "megathread" in title.lower():
+                    continue
 
-            # Convert Unix timestamp to ISO format
-            created_utc = post_data.get("created_utc", 0)
-            from datetime import datetime, timezone
-            published = datetime.fromtimestamp(created_utc, tz=timezone.utc).isoformat()
-
-            posts.append({
-                "title": title,
-                "url": f"https://www.reddit.com{post_data.get('permalink', '')}",
-                "subreddit": subreddit,
-                "ups": post_data.get("ups", 0),
-                "num_comments": post_data.get("num_comments", 0),
-                "score": post_data.get("score", REDDIT_SUB_HEAT.get(subreddit, 50)),
-                "published": published,
-            })
+                posts.append({
+                    "title": title,
+                    "url": link_el.get("href", "") if link_el is not None else "",
+                    "subreddit": subreddit,
+                    "ups": 0,  # RSS doesn't provide upvotes
+                    "num_comments": 0,  # RSS doesn't provide comment count
+                    "score": REDDIT_SUB_HEAT.get(subreddit, 50),
+                    "published": published_el.text.strip() if published_el is not None and published_el.text else "",
+                })
     except Exception as e:
-        print(f"[Reddit] JSON error for r/{subreddit}: {e}")
+        print(f"[Reddit] RSS error for r/{subreddit}: {e}")
     return posts
 
 
@@ -721,6 +719,7 @@ def get_reddit(
     all_posts: list[dict] = []
     seen_titles: set[str] = set()
 
+    # Fetch from all subreddits (RSS is more reliable)
     for sub in REDDIT_SUB_NAMES:
         posts = _fetch_subreddit_rss(sub, sort=sort, limit=15)
         for p in posts:
