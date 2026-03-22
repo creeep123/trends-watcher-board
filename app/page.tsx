@@ -1902,19 +1902,15 @@ function EnrichedDecisionPanel({
         </div>
       </div>
 
-      {/* Simplified Links - two-row layout for better spacing */}
-      <div className="space-y-3 sm:space-y-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:gap-2">
-          <JumpLink href={googleAiUrl(keyword)} label="G AI" color="#8b5cf6" />
-          <JumpLink href={googleSearchUrl(keyword)} label="Google" color="#4285f4" />
-          <JumpLink href={googleTrendsUrl(keyword)} label="Trends" color="#34a853" />
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:gap-2">
-          <JumpLink href={semrushUrl(keyword)} label="Semrush" color="#ff642d" />
-          <JumpLink href={allintitleUrl(keyword)} label="allintitle" color="#ea4335" />
-          <JumpLink href={domainSearchUrl(keyword)} label="域名" color="#de5833" />
-          <JumpLink href={generateGTCompareUrl(keyword)} label="GT对比" color="#4285f4" />
-        </div>
+      {/* Simplified Links - grid layout for mobile, row for desktop */}
+      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 sm:gap-2">
+        <JumpLink href={googleAiUrl(keyword)} label="AI" color="#8b5cf6" />
+        <JumpLink href={googleSearchUrl(keyword)} label="G" color="#4285f4" />
+        <JumpLink href={googleTrendsUrl(keyword)} label="GT" color="#34a853" />
+        <JumpLink href={semrushUrl(keyword)} label="Sem" color="#ff642d" />
+        <JumpLink href={allintitleUrl(keyword)} label="allint" color="#ea4335" />
+        <JumpLink href={domainSearchUrl(keyword)} label="域" color="#de5833" />
+        <JumpLink href={generateGTCompareUrl(keyword)} label="vs gpts" color="#4285f4" />
       </div>
     </div>
   );
@@ -1936,16 +1932,14 @@ function DecisionPanel({ keyword, points, loading }: { keyword: string; points: 
           </div>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2">
-        <JumpLink href={googleAiUrl(keyword)} label="G AI" color="#8b5cf6" />
-        <JumpLink href={googleSearchUrl(keyword)} label="Google" color="#4285f4" />
-        <JumpLink href={googleTrendsUrl(keyword)} label="Trends" color="#34a853" />
-        <JumpLink href={semrushUrl(keyword)} label="Semrush" color="#ff642d" />
-      </div>
-      <div className="mt-2 flex gap-2">
-        <JumpLink href={allintitleUrl(keyword)} label="allintitle" color="#ea4335" />
-        <JumpLink href={domainSearchUrl(keyword)} label="域名" color="#de5833" />
-        <JumpLink href={generateGTCompareUrl(keyword)} label="GT对比" color="#4285f4" />
+      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 sm:gap-2">
+        <JumpLink href={googleAiUrl(keyword)} label="AI" color="#8b5cf6" />
+        <JumpLink href={googleSearchUrl(keyword)} label="G" color="#4285f4" />
+        <JumpLink href={googleTrendsUrl(keyword)} label="GT" color="#34a853" />
+        <JumpLink href={semrushUrl(keyword)} label="Sem" color="#ff642d" />
+        <JumpLink href={allintitleUrl(keyword)} label="allint" color="#ea4335" />
+        <JumpLink href={domainSearchUrl(keyword)} label="域" color="#de5833" />
+        <JumpLink href={generateGTCompareUrl(keyword)} label="vs gpts" color="#4285f4" />
       </div>
     </div>
   );
@@ -2028,7 +2022,7 @@ function MiniChart({ points }: { points: InterestPoint[] }) {
 function JumpLink({ href, label, color }: { href: string; label: string; color: string }) {
   return (
     <a href={href} target="_blank" rel="noopener noreferrer"
-      className="flex-1 rounded-md py-2.5 px-3 text-center text-sm font-medium transition-all hover:opacity-90 hover:scale-105 sm:py-1.5 sm:px-2.5 sm:text-xs"
+      className="flex-1 rounded-md py-1.5 px-1.5 text-center text-xs font-medium transition-opacity sm:py-1.5 sm:px-2.5 sm:text-xs hover:opacity-90 active:scale-95"
       style={{
         background: `${color}15`,
         color,
