@@ -12,15 +12,20 @@ export async function GET(request: NextRequest) {
   const geo = searchParams.get("geo") || "";
   const keywordsParam = searchParams.get("keywords") || "AI,ai video,ai tool,LLM";
   const keywords = keywordsParam.split(",").map((k) => k.trim()).filter(Boolean);
+  const bypassCache = searchParams.get("bypassCache") === "true";
 
   const cacheKey = `trends:${keywords.join(",")}:${timeframe}:${geo}`;
-  const cached = getCached<TrendsResponse>(cacheKey);
-  if (cached) {
-    return NextResponse.json(cached);
+
+  // Only check cache if not bypassing
+  if (!bypassCache) {
+    const cached = getCached<TrendsResponse>(cacheKey);
+    if (cached) {
+      return NextResponse.json({ ...cached, _cached: true });
+    }
   }
 
   const [googleResult, github] = await Promise.all([
-    fetchGoogleTrends(timeframe, geo, keywords),
+    fetchGoogleTrends(timeframe, geo, keywords, bypassCache),
     fetchGithubTrends(),
   ]);
 
@@ -30,6 +35,7 @@ export async function GET(request: NextRequest) {
     timestamp: new Date().toISOString(),
     params: { timeframe, geo },
     _stale: googleResult._stale || false,
+    _cached: false,
   };
 
   setCache(cacheKey, response);

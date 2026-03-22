@@ -38,7 +38,8 @@ CACHE_TTL_MAP = {
     "freshness": 14400,  # 4h — freshness doesn't shift fast
     "interest":  7200,   # 2h — 7-day chart, hourly data
     "multigeo":  21600,  # 6h — multi-country check is heavy
-    "reddit":    1800,   # 30min — RSS-based, low cost
+    "reddit":    1800,   # 30min — JSON API, low cost
+    "hackernews": 1800,  # 30min — JSON API, low cost
     "enrich":    3600,   # 1h — composite scoring
     "allintitle": 7200,  # 2h — competition changes slowly
 }
@@ -202,15 +203,19 @@ def get_trends(
     keywords: str = Query(default="AI,ai video,ai tool,LLM", description="Comma-separated keyword roots"),
     timeframe: str = Query(default="now 1-d", description="pytrends timeframe"),
     geo: str = Query(default="", description="Country code, empty = global"),
+    bypassCache: bool = Query(default=False, description="Bypass cache and force refresh"),
 ):
     keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
     if not keyword_list:
         keyword_list = ["AI"]
 
     key = f"trends|{_cache_key(keyword_list, timeframe, geo)}"
-    cached = _get_cached(key)
-    if cached:
-        return cached
+
+    # Only check cache if not bypassing
+    if not bypassCache:
+        cached = _get_cached(key)
+        if cached:
+            return cached
 
     # Fetch for each keyword (sequential, 2s delay between to avoid 429)
     all_items: list[dict] = []
@@ -524,15 +529,37 @@ def _geo_to_pn(geo: str) -> str:
 # --- Reddit signals ---
 
 REDDIT_SUBREDDITS = [
-    "artificial",
-    "MachineLearning",
-    "ChatGPT",
-    "LocalLLaMA",
-    "singularity",
-    "StableDiffusion",
-    "OpenAI",
+    # AI 模型 & 工具 (热度最高)
+    ("artificial", 100),
+    ("MachineLearning", 95),
+    ("ChatGPT", 100),
+    ("LocalLLaMA", 95),
+    ("OpenAI", 100),
+    ("singularity", 90),
+
+    # AI 图像/视频
+    ("StableDiffusion", 85),
+    ("midjourney", 90),
+    ("CharacterAI", 85),
+    ("comfyui", 80),
+
+    # AI 开发
+    ("localai", 75),
+    ("Ollama", 85),
+    ("langchain", 80),
+    ("Anthropic", 85),
+
+    # 需求发现 - SaaS/产品相关
+    ("SaaS", 90),
+    ("Entrepreneur", 85),
+    ("SideProject", 80),
+    ("MicroSaaS", 75),
+    ("lowlevel", 70),
 ]
-REDDIT_UA = "trends-watcher-bot/1.0 (contact: dev@example.com)"
+
+REDDIT_SUB_NAMES = [s[0] for s in REDDIT_SUBREDDITS]
+REDDIT_SUB_HEAT = {s[0]: s[1] for s in REDDIT_SUBREDDITS}
+REDDIT_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 REDDIT_ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
 
 
@@ -562,6 +589,9 @@ def _fetch_subreddit_rss(subreddit: str, sort: str = "hot", limit: int = 15) -> 
                     "title": title,
                     "url": link_el.get("href", "") if link_el is not None else "",
                     "subreddit": subreddit,
+                    "ups": None,  # RSS doesn't provide upvotes
+                    "num_comments": None,  # RSS doesn't provide comment count
+                    "score": REDDIT_SUB_HEAT.get(subreddit, 50),  # Use subreddit heat as fallback
                     "published": published_el.text.strip() if published_el is not None and published_el.text else "",
                 })
     except Exception as e:
@@ -639,7 +669,7 @@ def get_reddit(
     all_posts: list[dict] = []
     seen_titles: set[str] = set()
 
-    for sub in REDDIT_SUBREDDITS:
+    for sub in REDDIT_SUB_NAMES:
         posts = _fetch_subreddit_rss(sub, sort=sort, limit=15)
         for p in posts:
             key = p["title"].lower().strip()
@@ -648,15 +678,101 @@ def get_reddit(
                 all_posts.append(p)
         time.sleep(0.3)  # Rate limit between subreddits
 
+    # 按热度分数排序
+    all_posts.sort(key=lambda p: p.get("score", 50), reverse=True)
+
     # Extract keywords via LLM
     keywords = _extract_reddit_keywords(all_posts)
 
     response = {
         "posts": all_posts[:50],  # Cap at 50 posts
         "keywords": keywords,
-        "subreddits": REDDIT_SUBREDDITS,
+        "subreddits": REDDIT_SUB_NAMES,
         "sort": sort,
         "total_posts": len(all_posts),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    _set_cache(cache_key, response)
+    return response
+
+
+# --- HackerNews ---
+
+HN_API_BASE = "https://hacker-news.firebaseio.com/v0"
+
+
+def _extract_domain(url: str) -> str:
+    """Extract domain from URL."""
+    if not url or url.startswith("HN:"):
+        return "news.ycombinator.com"
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        return parsed.netloc or "unknown"
+    except:
+        return "unknown"
+
+
+@app.get("/api/hackernews")
+def get_hackernews():
+    """Fetch top stories from HackerNews API."""
+    cache_key = "hackernews|top"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    posts: list[dict] = []
+
+    try:
+        # Get top story IDs
+        resp = http_requests.get(f"{HN_API_BASE}/topstories.json", timeout=10)
+        if resp.status_code != 200:
+            print(f"[HN] topstories returned {resp.status_code}")
+            return {"posts": [], "timestamp": datetime.now(timezone.utc).isoformat()}
+
+        story_ids = resp.json()[:50]  # Top 50 stories
+
+        # Fetch details for each story
+        for story_id in story_ids:
+            try:
+                story_resp = http_requests.get(f"{HN_API_BASE}/item/{story_id}.json", timeout=5)
+                if story_resp.status_code == 200:
+                    story = story_resp.json()
+                    title = story.get("title", "")
+                    if not title:
+                        continue
+
+                    url = story.get("url", "")
+                    if not url:
+                        # HN internal link, use HN discuss page
+                        url = f"https://news.ycombinator.com/item?id={story_id}"
+
+                    points = story.get("score", 0)
+                    comments = story.get("descendants", 0)
+                    score = points + comments * 0.5  # 综合热度
+
+                    posts.append({
+                        "id": story_id,
+                        "title": title,
+                        "url": url,
+                        "domain": _extract_domain(url),
+                        "points": points,
+                        "comments": comments,
+                        "score": score,
+                        "time": datetime.fromtimestamp(story.get("time", 0), tz=timezone.utc).isoformat(),
+                    })
+            except Exception as e:
+                print(f"[HN] Error fetching story {story_id}: {e}")
+                continue
+
+        # Sort by score
+        posts.sort(key=lambda p: p.get("score", 0), reverse=True)
+
+    except Exception as e:
+        print(f"[HN] Error: {e}")
+
+    response = {
+        "posts": posts,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     _set_cache(cache_key, response)
@@ -909,7 +1025,7 @@ def _warmup_once():
         if not _get_cached(cache_key):
             all_posts: list[dict] = []
             seen_titles: set[str] = set()
-            for sub in REDDIT_SUBREDDITS:
+            for sub in REDDIT_SUB_NAMES:
                 posts = _fetch_subreddit_rss(sub, sort="hot", limit=15)
                 for p in posts:
                     k = p["title"].lower().strip()
@@ -917,9 +1033,10 @@ def _warmup_once():
                         seen_titles.add(k)
                         all_posts.append(p)
                 time.sleep(0.3)
+            all_posts.sort(key=lambda p: p.get("score", 50), reverse=True)
             kws = _extract_reddit_keywords(all_posts)
             result = {
-                "posts": all_posts[:50], "keywords": kws, "subreddits": REDDIT_SUBREDDITS,
+                "posts": all_posts[:50], "keywords": kws, "subreddits": REDDIT_SUB_NAMES,
                 "sort": "hot", "total_posts": len(all_posts),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }

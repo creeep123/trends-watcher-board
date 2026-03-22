@@ -13,7 +13,8 @@ export interface GoogleTrendsResult {
 export async function fetchGoogleTrends(
   timeframe: string,
   geo: string,
-  keywords: string[]
+  keywords: string[],
+  bypassCache: boolean = false
 ): Promise<GoogleTrendsResult> {
   try {
     const params = new URLSearchParams({
@@ -21,6 +22,10 @@ export async function fetchGoogleTrends(
       timeframe,
       geo,
     });
+
+    if (bypassCache) {
+      params.set('bypassCache', 'true');
+    }
 
     const res = await fetch(`${API_BASE}/api/trends?${params}`, {
       signal: AbortSignal.timeout(25000),

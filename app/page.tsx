@@ -199,6 +199,7 @@ export default function Home() {
   const [data, setData] = useState<TrendsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [forceRefresh, setForceRefresh] = useState(false);
 
   const [trendingGeo, setTrendingGeo] = useState("US");
   const [trendingItems, setTrendingItems] = useState<TrendingItem[]>([]);
@@ -242,11 +243,14 @@ export default function Home() {
   const [showRootsImport, setShowRootsImport] = useState(false);
   const [scanProgress, setScanProgress] = useState({ scanned: 0, total: 0 });
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bypassCache = false) => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({ timeframe, geo, keywords });
+      if (bypassCache) {
+        params.set('bypassCache', 'true');
+      }
       const res = await fetch(`/api/trends?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: TrendsResponse = await res.json();
@@ -305,19 +309,58 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    if (forceRefresh) {
+      fetchData(true);
+      setForceRefresh(false);
+    } else {
+      fetchData();
+    }
+  }, [fetchData, forceRefresh]);
   useEffect(() => { fetchTrending(); }, [fetchTrending]);
   useEffect(() => { fetchReddit(); }, [fetchReddit]);
   useEffect(() => { fetchHackerNews(); }, [fetchHackerNews]);
 
-  // Load KGR workbench on mount
+  // Load KGR workbench on mount - try Supabase first, fallback to localStorage
   useEffect(() => {
-    setKgrItems(loadKGRWorkbench());
+    const loadKGRFromSupabase = async () => {
+      try {
+        const res = await fetch('/api/kgr-workbench');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.items && Array.isArray(data.items)) {
+            setKgrItems(data.items);
+            // Also update localStorage as backup
+            saveKGRWorkbench(data.items);
+            return;
+          }
+        }
+      } catch (error) {
+        console.log('[KGR] Failed to load from Supabase, using localStorage');
+      }
+      // Fallback to localStorage
+      setKgrItems(loadKGRWorkbench());
+    };
+
+    loadKGRFromSupabase();
   }, []);
 
-  // Save KGR workbench on change
+  // Save KGR workbench on change - localStorage immediately, sync to Supabase in background
   useEffect(() => {
+    // Always save to localStorage immediately
     saveKGRWorkbench(kgrItems);
+
+    // Sync to Supabase in background (don't await, let it happen asynchronously)
+    if (kgrItems.length > 0) {
+      fetch('/api/kgr-workbench', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: kgrItems }),
+      }).catch((error) => {
+        // Silent fail - localStorage is the source of truth for offline
+        console.log('[KGR] Background sync failed:', error);
+      });
+    }
   }, [kgrItems]);
 
   // Fetch enrich scores when google data is available
@@ -1243,6 +1286,19 @@ export default function Home() {
             {/* --- Related Queries --- */}
             <section className={`${mobileTab !== "queries" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="Related Queries" icon="📊" count={data.google.length}>
+                <button
+                  onClick={() => setForceRefresh(true)}
+                  disabled={loading}
+                  className="rounded-md px-2.5 py-1 text-xs font-medium transition-opacity disabled:opacity-50"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-secondary)",
+                    border: "1px solid var(--border-color)"
+                  }}
+                  title="强制刷新（绕过缓存）"
+                >
+                  {loading ? "刷新中..." : "🔄 刷新"}
+                </button>
                 <CompactTimeSelector
                   value={timeframe}
                   onChange={setTimeframe}
