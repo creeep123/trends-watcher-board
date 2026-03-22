@@ -200,7 +200,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forceRefresh, setForceRefresh] = useState(false);
-  const [fetchStatus, setFetchStatus] = useState<string>("正在连接 Google Trends...");
 
   const [trendingGeo, setTrendingGeo] = useState("US");
   const [trendingItems, setTrendingItems] = useState<TrendingItem[]>([]);
@@ -247,47 +246,24 @@ export default function Home() {
   const fetchData = useCallback(async (bypassCache = false) => {
     setLoading(true);
     setError(null);
-    setFetchStatus("正在连接 Google Trends...");
     try {
       const params = new URLSearchParams({ timeframe, geo, keywords });
       if (bypassCache) {
         params.set('bypassCache', 'true');
-        setFetchStatus("强制刷新中...");
       }
 
-      // Simulate progress updates
-      const progressTimer = setTimeout(() => {
-        if (loading) {
-          setFetchStatus("遇到限频，正在切换代理...");
-        }
-      }, 3000);
-
       const res = await fetch(`/api/trends?${params}`);
-      clearTimeout(progressTimer);
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: TrendsResponse = await res.json();
 
-      // Update status based on response
-      if (json._stale) {
-        setFetchStatus("暂时使用缓存数据（限频中）");
-      } else if (bypassCache) {
-        setFetchStatus("刷新成功");
-      }
-
       setData(json);
     } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : "Failed to fetch";
-      setError(errorMsg);
-      if (errorMsg.includes('timeout') || errorMsg.includes('aborted')) {
-        setFetchStatus("请求超时，正在尝试代理...");
-      } else {
-        setFetchStatus("获取失败");
-      }
+      setError(e instanceof Error ? e.message : "Failed to fetch");
     } finally {
       setLoading(false);
     }
-  }, [timeframe, geo, keywords, loading]);
+  }, [timeframe, geo, keywords]);
 
   const fetchTrending = useCallback(async () => {
     setTrendingLoading(true);
@@ -1352,9 +1328,11 @@ export default function Home() {
                     <div className="mb-2 flex justify-center">
                       <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
                     </div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{fetchStatus}</div>
+                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                      正在获取 Google Trends 数据...
+                    </div>
                     <div className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                      如果遇到限频，可能需要 10-15 秒尝试代理
+                      如果遇到限频，会自动尝试代理（最多 15 秒）
                     </div>
                   </div>
                 ) : sortedGoogle.length === 0 ? (
