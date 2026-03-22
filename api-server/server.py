@@ -24,6 +24,7 @@ import requests as http_requests
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pytrends.request import TrendReq
+from proxy_manager import get_proxy_manager
 
 OPENROUTER_API_KEY = os.environ.get(
     "OPENROUTER_API_KEY",
@@ -131,69 +132,114 @@ app.add_middleware(
 )
 
 
-def fetch_related_queries(keyword: str, timeframe: str, geo: str) -> list[dict]:
+def fetch_related_queries(keyword: str, timeframe: str, geo: str, use_proxy: bool = False) -> list[dict]:
     """Fetch rising + top related queries for a single keyword."""
     items = []
+    proxy_manager = get_proxy_manager()
+    rate_limited = False
 
-    try:
-        _rate_limit_pytrends()  # Rate limit before pytrends request
-        pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
-        pytrends.build_payload([keyword], cat=0, timeframe=timeframe, geo=geo, gprop="")
-        related = pytrends.related_queries()
+    def try_fetch(proxy_url: Optional[str] = None) -> bool:
+        """Try to fetch with optional proxy. Returns True if successful."""
+        nonlocal items
+        try:
+            _rate_limit_pytrends()  # Rate limit before pytrends request
 
-        if keyword not in related or related[keyword] is None:
-            return items
+            # Build kwargs for TrendReq
+            kwargs = {"hl": "en-US", "tz": 360, "timeout": (10, 25)}
+            if proxy_url:
+                # Convert http://IP:PORT to proxies dict format
+                kwargs["proxies"] = {"https": proxy_url, "http": proxy_url}
+                print(f"[pytrends] Trying proxy {proxy_url} for '{keyword}'")
 
-        rising = related[keyword].get("rising")
-        top = related[keyword].get("top")
+            pytrends = TrendReq(**kwargs)
+            pytrends.build_payload([keyword], cat=0, timeframe=timeframe, geo=geo, gprop="")
+            related = pytrends.related_queries()
 
-        seen = set()
+            if keyword not in related or related[keyword] is None:
+                return False
 
-        # Rising queries first
-        if rising is not None and not rising.empty:
-            for _, row in rising.head(15).iterrows():
-                name = row.get("query", "")
-                if not name or name.lower() == keyword.lower():
-                    continue
-                if name.lower() in seen:
-                    continue
-                seen.add(name.lower())
+            rising = related[keyword].get("rising")
+            top = related[keyword].get("top")
 
-                value = row.get("value", 0)
-                growth = f"+{value}%" if isinstance(value, (int, float)) else str(value)
+            seen = set()
 
-                items.append({
-                    "name": name,
-                    "value": growth,
-                    "source": "Google Trends (Rising)",
-                    "url": f"https://www.google.com/search?q={quote_plus(name)}&udm=50",
-                })
+            # Rising queries first
+            if rising is not None and not rising.empty:
+                for _, row in rising.head(15).iterrows():
+                    name = row.get("query", "")
+                    if not name or name.lower() == keyword.lower():
+                        continue
+                    if name.lower() in seen:
+                        continue
+                    seen.add(name.lower())
 
-        # Top queries to fill up
-        if top is not None and not top.empty and len(items) < 15:
-            needed = 15 - len(items)
-            for _, row in top.head(needed * 2).iterrows():
-                if len(items) >= 15:
-                    break
-                name = row.get("query", "")
-                if not name or name.lower() == keyword.lower():
-                    continue
-                if name.lower() in seen:
-                    continue
-                seen.add(name.lower())
+                    value = row.get("value", 0)
+                    growth = f"+{value}%" if isinstance(value, (int, float)) else str(value)
 
-                value = row.get("value", 0)
-                popularity = f"{int(value)}%" if isinstance(value, (int, float)) else str(value)
+                    items.append({
+                        "name": name,
+                        "value": growth,
+                        "source": "Google Trends (Rising)",
+                        "url": f"https://www.google.com/search?q={quote_plus(name)}&udm=50",
+                    })
 
-                items.append({
-                    "name": name,
-                    "value": popularity,
-                    "source": "Google Trends (Top)",
-                    "url": f"https://www.google.com/search?q={quote_plus(name)}&udm=50",
-                })
+            # Top queries to fill up
+            if top is not None and not top.empty and len(items) < 15:
+                needed = 15 - len(items)
+                for _, row in top.head(needed * 2).iterrows():
+                    if len(items) >= 15:
+                        break
+                    name = row.get("query", "")
+                    if not name or name.lower() == keyword.lower():
+                        continue
+                    if name.lower() in seen:
+                        continue
+                    seen.add(name.lower())
 
-    except Exception as e:
-        print(f"[pytrends] Error for '{keyword}': {e}")
+                    value = row.get("value", 0)
+                    popularity = f"{int(value)}%" if isinstance(value, (int, float)) else str(value)
+
+                    items.append({
+                        "name": name,
+                        "value": popularity,
+                        "source": "Google Trends (Top)",
+                        "url": f"https://www.google.com/search?q={quote_plus(name)}&udm=50",
+                    })
+
+            return len(items) > 0
+
+        except Exception as e:
+            error_msg = str(e)
+            if "429" in error_msg:
+                print(f"[pytrends] Rate limited for '{keyword}'")
+                return "rate_limited"  # Special return value for 429
+            print(f"[pytrends] Error for '{keyword}': {e}")
+            return False
+
+    # First try: direct connection
+    result = try_fetch()
+    if result is True:
+        return items
+    elif result == "rate_limited":
+        rate_limited = True
+
+    # If rate limited, try with proxies
+    if rate_limited:
+        proxies = proxy_manager.get_proxies(count=5)
+        print(f"[proxy] Trying {len(proxies)} proxies after rate limit")
+
+        for i, proxy in enumerate(proxies, 1):
+            result = try_fetch(proxy_url=proxy)
+            if result is True:
+                proxy_manager.mark_success(proxy)
+                print(f"[proxy] Proxy {proxy} succeeded (attempt {i}/{len(proxies)})")
+                return items
+            elif result == "rate_limited":
+                proxy_manager.mark_failed(proxy)
+                continue
+            else:
+                proxy_manager.mark_failed(proxy)
+                continue
 
     return items
 
@@ -1367,3 +1413,23 @@ def health():
         ttl = _ttl_for(key)
         cache_stats[key[:40]] = {"age_s": age, "ttl_s": ttl, "fresh": age < ttl}
     return {"status": "ok", "cache_entries": len(_cache), "cache": cache_stats}
+
+
+@app.get("/api/proxies/status")
+def get_proxy_status():
+    """Get proxy pool status."""
+    proxy_manager = get_proxy_manager()
+    return proxy_manager.get_status()
+
+
+@app.post("/api/proxies/refresh")
+def refresh_proxies():
+    """Manually refresh proxy list from GitHub."""
+    proxy_manager = get_proxy_manager()
+    added = proxy_manager.refresh_list()
+    status = proxy_manager.get_status()
+    return {
+        "added": added,
+        "total": status["total"],
+        "message": f"Added {added} new proxies"
+    }
