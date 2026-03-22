@@ -290,9 +290,6 @@ def get_trends(
         "_cached": False,
     }
 
-    setCache(key, response)
-    return response
-
     _set_cache(key, response)
     return response
 
