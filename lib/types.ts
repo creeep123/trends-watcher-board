@@ -57,6 +57,19 @@ export interface HackerNewsResponse {
   timestamp: string;
 }
 
+export interface TwitterPost {
+  title: string;
+  url: string;
+  username: string;
+  published: string;
+}
+
+export interface TwitterResponse {
+  tweets: TwitterPost[];
+  total: number;
+  timestamp: string;
+}
+
 export interface RedditKeyword {
   keyword: string;
   context: string;

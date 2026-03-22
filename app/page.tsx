@@ -12,6 +12,7 @@ import type {
   RedditKeyword,
   HackerNewsPost,
   HackerNewsResponse,
+  TwitterPost,
   EnrichData,
   EnrichResponse,
   KGRItem,
@@ -187,7 +188,7 @@ function domainSearchUrl(kw: string) {
 
 // --- Mobile tab type ---
 
-type MobileTab = "trending" | "queries" | "reddit" | "github" | "hn";
+type MobileTab = "trending" | "queries" | "reddit" | "github" | "hn" | "twitter";
 
 // --- Main ---
 
@@ -220,6 +221,9 @@ export default function Home() {
 
   const [hnPosts, setHnPosts] = useState<HackerNewsPost[]>([]);
   const [hnLoading, setHnLoading] = useState(true);
+
+  const [twitterPosts, setTwitterPosts] = useState<TwitterPost[]>([]);
+  const [twitterLoading, setTwitterLoading] = useState(true);
 
   const [enrichMap, setEnrichMap] = useState<Record<string, EnrichData>>({});
   const [enrichLoading, setEnrichLoading] = useState(false);
@@ -312,6 +316,21 @@ export default function Home() {
     }
   }, []);
 
+  const fetchTwitter = useCallback(async () => {
+    setTwitterLoading(true);
+    try {
+      const res = await fetch("/api/twitter");
+      if (res.ok) {
+        const json = await res.json();
+        setTwitterPosts(json.tweets || []);
+      }
+    } catch {
+      setTwitterPosts([]);
+    } finally {
+      setTwitterLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (forceRefresh) {
       fetchData(true);
@@ -323,6 +342,7 @@ export default function Home() {
   useEffect(() => { fetchTrending(); }, [fetchTrending]);
   useEffect(() => { fetchReddit(); }, [fetchReddit]);
   useEffect(() => { fetchHackerNews(); }, [fetchHackerNews]);
+  useEffect(() => { fetchTwitter(); }, [fetchTwitter]);
 
   // Load KGR workbench on mount - try Supabase first, fallback to localStorage
   useEffect(() => {
@@ -773,6 +793,7 @@ export default function Home() {
     { key: "queries", label: "Queries", icon: "📊" },
     { key: "reddit", label: "Reddit", icon: "💬" },
     { key: "hn", label: "HN", icon: "🍊" },
+    { key: "twitter", label: "X", icon: "𝕏" },
     { key: "github", label: "GitHub", icon: "💻" },
   ];
 
@@ -1415,6 +1436,50 @@ export default function Home() {
                 ) : (
                   hnPosts.map((post, i) => (
                     <HackerNewsCard key={`hn-${i}`} post={post} index={i} />
+                  ))
+                )}
+              </div>
+            </section>
+
+            {/* --- X/Twitter --- */}
+            <section className={`${mobileTab !== "twitter" ? "hidden" : ""} sm:block`}>
+              <SectionHeader title="X / Twitter" icon="𝕏" count={twitterPosts.length} />
+              <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+                {twitterLoading ? (
+                  <div className="py-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+                    Loading...
+                  </div>
+                ) : twitterPosts.length === 0 ? (
+                  <EmptyState text="No tweets available" />
+                ) : (
+                  twitterPosts.map((tweet, i) => (
+                    <div
+                      key={`tw-${i}`}
+                      className="group rounded-lg border p-3 transition-colors hover:border-blue-500/50"
+                      style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--bg-secondary)" }}>
+                          <span className="text-sm">𝕏</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-1 flex items-center gap-2">
+                            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                              @{tweet.username}
+                            </span>
+                          </div>
+                          <a
+                            href={tweet.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block text-sm font-medium leading-snug transition-colors hover:text-blue-500"
+                            style={{ color: "var(--text-primary)" }}
+                          >
+                            {tweet.title}
+                          </a>
+                        </div>
+                      </div>
+                    </div>
                   ))
                 )}
               </div>

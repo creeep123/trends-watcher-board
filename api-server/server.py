@@ -610,38 +610,44 @@ REDDIT_ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
 
 
 def _fetch_subreddit_rss(subreddit: str, sort: str = "hot", limit: int = 15) -> list[dict]:
-    """Fetch posts from a subreddit via RSS (Atom feed)."""
+    """Fetch posts from a subreddit via Reddit JSON API."""
     posts = []
     try:
-        url = f"https://www.reddit.com/r/{subreddit}/{sort}/.rss?limit={limit}"
+        # Use JSON API instead of RSS to get upvotes and comments
+        url = f"https://www.reddit.com/r/{subreddit}/{sort}.json?limit={limit}"
         if sort == "top":
             url += "&t=day"
+
         resp = http_requests.get(url, timeout=10, headers={"User-Agent": REDDIT_UA})
         if resp.status_code != 200:
             print(f"[Reddit] {subreddit} returned {resp.status_code}")
             return posts
 
-        root = ET.fromstring(resp.text)
-        for entry in root.findall(".//a:entry", REDDIT_ATOM_NS):
-            title_el = entry.find("a:title", REDDIT_ATOM_NS)
-            link_el = entry.find("a:link", REDDIT_ATOM_NS)
-            published_el = entry.find("a:published", REDDIT_ATOM_NS)
-            if title_el is not None and title_el.text:
-                title = title_el.text.strip()
-                # Skip meta posts
-                if title.startswith("[D]") or title.startswith("[P]") or "megathread" in title.lower():
-                    continue
-                posts.append({
-                    "title": title,
-                    "url": link_el.get("href", "") if link_el is not None else "",
-                    "subreddit": subreddit,
-                    "ups": None,  # RSS doesn't provide upvotes
-                    "num_comments": None,  # RSS doesn't provide comment count
-                    "score": REDDIT_SUB_HEAT.get(subreddit, 50),  # Use subreddit heat as fallback
-                    "published": published_el.text.strip() if published_el is not None and published_el.text else "",
-                })
+        data = resp.json()
+        for child in data.get("data", {}).get("children", []):
+            post_data = child.get("data", {})
+            title = post_data.get("title", "").strip()
+
+            # Skip meta posts
+            if title.startswith("[D]") or title.startswith("[P]") or "megathread" in title.lower():
+                continue
+
+            # Convert Unix timestamp to ISO format
+            created_utc = post_data.get("created_utc", 0)
+            from datetime import datetime, timezone
+            published = datetime.fromtimestamp(created_utc, tz=timezone.utc).isoformat()
+
+            posts.append({
+                "title": title,
+                "url": f"https://www.reddit.com{post_data.get('permalink', '')}",
+                "subreddit": subreddit,
+                "ups": post_data.get("ups", 0),
+                "num_comments": post_data.get("num_comments", 0),
+                "score": post_data.get("score", REDDIT_SUB_HEAT.get(subreddit, 50)),
+                "published": published,
+            })
     except Exception as e:
-        print(f"[Reddit] RSS error for r/{subreddit}: {e}")
+        print(f"[Reddit] JSON error for r/{subreddit}: {e}")
     return posts
 
 
@@ -738,6 +744,104 @@ def get_reddit(
         "total_posts": len(all_posts),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+    _set_cache(cache_key, response)
+    return response
+
+
+# --- X/Twitter Signals ---
+
+TWITTER_ACCOUNTS = [
+    # AI/ML researchers and companies
+    "OpenAI", "AnthropicAI", "GoogleDeepMind",
+    "nvidia", "HuggingFace",
+    "sama", "ylecun", "AndrewNgYates",
+
+    # Tech news
+    "verge", "techcrunch", "wired",
+    "Stratechery",
+
+    # Indie hackers
+    "levelsio", "pg", "naval",
+]
+
+TWITTER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+
+@app.get("/api/twitter")
+def get_twitter():
+    """Fetch latest tweets from tech/AI accounts via RSS."""
+    cache_key = "twitter|latest"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    all_tweets: list[dict] = []
+
+    for username in TWITTER_ACCOUNTS[:5]:  # Limit to 5 accounts for now
+        try:
+            # Use twitrss.me for RSS feed
+            url = f"https://twitrss.me/twitter_user_to_rss/?user={username}"
+            resp = http_requests.get(url, timeout=10, headers={"User-Agent": TWITTER_UA})
+
+            if resp.status_code != 200:
+                print(f"[Twitter] @{username} returned {resp.status_code}")
+                continue
+
+            root = ET.fromstring(resp.text)
+
+            for item in root.findall(".//item"):
+                title_el = item.find("title")
+                link_el = item.find("link")
+                pub_date_el = item.find("pubDate")
+
+                if title_el is not None and title_el.text:
+                    title = title_el.text.strip()
+
+                    # Clean up title (remove "username: " prefix if present)
+                    if title.startswith(f"{username}: "):
+                        title = title[len(f"{username}: "):]
+
+                    # Skip retweets
+                    if title.startswith("RT "):
+                        continue
+
+                    # Parse publication date
+                    published = ""
+                    if pub_date_el is not None and pub_date_el.text:
+                        try:
+                            from datetime import datetime
+                            import email.utils
+                            timestamp = email.utils.parsedate_to_datetime(pub_date_el.text)
+                            published = timestamp.isoformat()
+                        except:
+                            pass
+
+                    all_tweets.append({
+                        "title": title[:280],  # Max tweet length
+                        "url": link_el.text if link_el is not None else "",
+                        "username": username,
+                        "published": published,
+                    })
+
+                    # Get top 3 tweets per account
+                    if len([t for t in all_tweets if t["username"] == username]) >= 3:
+                        break
+
+            time.sleep(0.5)  # Rate limit
+
+        except Exception as e:
+            print(f"[Twitter] Error fetching @{username}: {e}")
+            continue
+
+    # Sort by recent (if we have dates)
+    all_tweets.sort(key=lambda t: t.get("published", ""), reverse=True)
+
+    response = {
+        "tweets": all_tweets[:30],  # Cap at 30 tweets
+        "total": len(all_tweets),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
     _set_cache(cache_key, response)
     return response
 
