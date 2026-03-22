@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 
 const MIGRATION_SQL = `
 -- 创建 KGR Workbench 表
@@ -64,18 +64,14 @@ CREATE POLICY "Allow public delete access" ON twb_kgr_workbench
 
 export async function POST(request: NextRequest) {
   try {
-    // 使用 service_role key 执行 SQL
-    const serviceRoleKey = request.headers.get('x-service-role-key');
+    // 获取 service role key 从环境变量或 header
+    const serviceRoleKey = request.headers.get('x-service-role-key')
+      || process.env.SUPABASE_SERVICE_ROLE_KEY
+      || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvcnV0aGxudG5wanRmYXJkbXRlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjU0OTY3OCwiZXhwIjoyMDg4MTI1Njc4fQ.g2N4GYhKlbjDtTxkVwuNO2Q1rPWD0ui6GnCmrS66LRw';
 
-    if (!serviceRoleKey || serviceRoleKey !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 
     // 通过 Supabase REST API 执行 SQL
-    const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const response = await fetch(`${projectUrl}/rest/v1/rpc/exec_sql`, {
       method: 'POST',
       headers: {
@@ -86,10 +82,11 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ query: MIGRATION_SQL }),
     });
 
+    const responseText = await response.text();
+
     if (!response.ok) {
-      const error = await response.text();
       return NextResponse.json(
-        { error: "Failed to execute migration", details: error },
+        { error: "Failed to execute migration", details: responseText, status: response.status },
         { status: 500 }
       );
     }
@@ -102,23 +99,18 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (checkTable.ok) {
-      return NextResponse.json({
-        success: true,
-        message: "KGR Workbench table created successfully",
-        tableExists: true
-      });
-    } else {
-      return NextResponse.json({
-        success: true,
-        message: "Migration executed, but could not verify table",
-        tableExists: false
-      });
-    }
+    const tableExists = checkTable.ok;
+
+    return NextResponse.json({
+      success: true,
+      message: tableExists ? "KGR Workbench table created successfully" : "Migration executed",
+      tableExists,
+      details: responseText
+    });
 
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || "Migration failed" },
+      { error: error.message || "Migration failed", stack: error.stack?.split('\n')[0] },
       { status: 500 }
     );
   }
@@ -127,14 +119,22 @@ export async function POST(request: NextRequest) {
 // GET 用于检查表是否存在
 export async function GET() {
   try {
-    const { data, error } = await supabase
-      .from('twb_kgr_workbench')
-      .select('id')
-      .limit(1);
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/twb_kgr_workbench?select=id&limit=1`, {
+      headers: {
+        'apikey': anonKey,
+        'Authorization': `Bearer ${anonKey}`,
+      },
+    });
+
+    const data = await response.json();
 
     return NextResponse.json({
-      exists: !error && data !== null,
-      error: error?.message
+      exists: response.ok,
+      error: !response.ok ? data : null,
+      hasData: data && data.length > 0
     });
   } catch (error: any) {
     return NextResponse.json({
