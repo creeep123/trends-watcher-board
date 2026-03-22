@@ -1,0 +1,795 @@
+
+> trends-watcher-board@1.0.0 dev
+> next dev
+
+ ⚠ Port 3000 is in use by an unknown process, using available port 3002 instead.
+   ▲ Next.js 15.5.12
+   - Local:        http://localhost:3002
+   - Network:      http://10.16.0.17:3002
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 1472ms
+[?25h
+mpiling / ...
+ ✓ Compiled / in 1325ms (531 modules)
+ GET / 200 in 1760ms
+ ○ Compiling /api/hackernews ...
+ ✓ Compiled /api/hackernews in 3s (819 modules)
+ GET / 200 in 3856ms
+ GET /api/roots 404 in 454ms
+pytrends API error: 404
+pytrends API error: 404
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 4223ms
+ GET /api/trending?geo=US 200 in 4313ms
+ GET /api/reddit?sort=hot 200 in 4410ms
+ GET /api/hackernews 200 in 4496ms
+ GET / 200 in 93ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 135ms
+ GET /api/roots 404 in 331ms
+pytrends API error: 404
+ GET /api/trends?keywords=AI 200 in 2351ms
+ GET /api/trending?geo=US 200 in 3095ms
+ GET /api/reddit?sort=hot 200 in 3098ms
+ GET /api/hackernews 200 in 3098ms
+ GET / 200 in 427ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 143ms
+ GET /api/trending-search?query=AI&category=tech 404 in 489ms
+ GET /api/roots 404 in 304ms
+ GET /api/hackernews 200 in 594ms
+ GET /api/reddit?sort=hot 200 in 597ms
+ GET /api/trending?geo=US 200 in 601ms
+ GET / 200 in 167ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 90ms
+ GET /api/roots 404 in 154ms
+ GET /api/hackernews 200 in 966ms
+ GET /api/hackernews 200 in 995ms
+ GET /api/trending?geo=US 200 in 1000ms
+ GET /api/reddit?sort=hot 200 in 1001ms
+ GET / 200 in 211ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 227ms
+ GET /api/roots 404 in 588ms
+ GET /api/reddit?subreddit=technology&limit=10 200 in 3183ms
+ GET /api/reddit?sort=hot 200 in 3188ms
+ GET /api/hackernews 200 in 3186ms
+ GET /api/trending?geo=US 200 in 3189ms
+ GET / 200 in 188ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 87ms
+ GET /api/roots 404 in 241ms
+ GET /api/trending?geo=US 200 in 878ms
+ GET /api/reddit?sort=hot 200 in 2065ms
+ GET /api/hackernews 200 in 2098ms
+ GET / 200 in 63ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 50ms
+ GET /api/roots 404 in 116ms
+ GET /api/trending?geo=US 200 in 2608ms
+ GET /api/reddit?sort=hot 200 in 2733ms
+ GET /api/hackernews 200 in 2776ms
+ GET / 200 in 69ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 49ms
+ GET /api/roots 404 in 145ms
+ GET /api/trending?geo=US 200 in 2640ms
+ GET /api/reddit?sort=hot 200 in 2709ms
+ GET /api/hackernews 200 in 2785ms
+ GET / 200 in 75ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 78ms
+ GET /api/roots 404 in 95ms
+ GET /api/trending?geo=US 200 in 2596ms
+ GET /api/hackernews 200 in 2598ms
+ GET /api/reddit?sort=hot 200 in 2678ms
+ GET / 200 in 61ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 47ms
+ GET /api/roots 404 in 125ms
+ GET /api/trending?geo=US 200 in 2601ms
+ GET /api/reddit?sort=hot 200 in 2604ms
+ GET /api/hackernews 200 in 2685ms
+ GET / 200 in 100ms
+ ○ Compiling /api/sync-sheets ...
+ ✓ Compiled /api/sync-sheets in 13s (1945 modules)
+ GET /api/roots 404 in 15295ms
+ GET /api/trending?geo=US 200 in 18395ms
+ GET /api/reddit?sort=hot 200 in 18476ms
+ GET /api/hackernews 200 in 18481ms
+pytrends API error: 404
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 18654ms
+ GET /api/sync-sheets 200 in 20956ms
+ GET / 200 in 107ms
+ GET / 200 in 148ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 34ms
+ GET /api/roots 404 in 118ms
+ GET /api/trending?geo=US 200 in 919ms
+ GET /api/reddit?sort=hot 200 in 2752ms
+ GET /api/hackernews 200 in 2786ms
+ GET / 200 in 114ms
+ GET / 200 in 73ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 143ms
+ GET /api/trending?geo=US 200 in 167ms
+ GET /api/reddit?sort=hot 200 in 167ms
+ GET /api/hackernews 200 in 166ms
+ GET /api/roots 404 in 145ms
+ GET / 200 in 113ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 252ms
+ GET /api/hackernews 200 in 253ms
+ GET /api/reddit?sort=hot 200 in 253ms
+ GET /api/trending?geo=US 200 in 253ms
+ GET /api/roots 404 in 228ms
+ GET / 200 in 249ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 184ms
+ GET /api/roots 404 in 943ms
+ GET /api/trending?geo=US 200 in 5846ms
+ GET /api/reddit?sort=hot 200 in 6046ms
+ GET /api/hackernews 200 in 6182ms
+pytrends API error: 404
+ GET /api/trends?keywords=AI 200 in 6218ms
+ GET / 200 in 124ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 26ms
+ GET /api/roots 404 in 196ms
+ GET /api/hackernews 200 in 847ms
+ GET /api/reddit?sort=hot 200 in 894ms
+ GET /api/hackernews 200 in 894ms
+ GET /api/trending?geo=US 200 in 895ms
+ GET / 200 in 226ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 133ms
+ GET /api/roots 404 in 293ms
+ GET /api/reddit?subreddit=technology&limit=10 200 in 3928ms
+ GET /api/trending?geo=US 200 in 3921ms
+ GET /api/reddit?sort=hot 200 in 3916ms
+ GET /api/hackernews 200 in 3915ms
+ GET / 200 in 265ms
+ GET /api/hackernews 200 in 192ms
+ GET /api/trending?geo=US 200 in 196ms
+ GET /api/reddit?sort=hot 200 in 196ms
+ GET /api/roots 404 in 167ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 198ms
+ GET / 200 in 180ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 99ms
+ GET /api/reddit?sort=hot 200 in 231ms
+ GET /api/roots 404 in 212ms
+ GET /api/hackernews 200 in 232ms
+ GET /api/trending?geo=US 200 in 238ms
+ GET / 200 in 118ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 169ms
+ GET /api/roots 404 in 189ms
+ GET /api/hackernews 200 in 213ms
+ GET /api/trending?geo=US 200 in 213ms
+ GET /api/reddit?sort=hot 200 in 213ms
+ GET / 200 in 229ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 190ms
+ GET /api/trending?geo=US 200 in 220ms
+ GET /api/reddit?sort=hot 200 in 220ms
+ GET /api/roots 404 in 192ms
+ GET /api/hackernews 200 in 222ms
+ GET / 200 in 136ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 121ms
+ GET /api/reddit?sort=hot 200 in 203ms
+ GET /api/trending?geo=US 200 in 208ms
+ GET /api/roots 404 in 160ms
+ GET /api/hackernews 200 in 200ms
+ GET / 200 in 114ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 146ms
+ GET /api/hackernews 200 in 280ms
+ GET /api/roots 404 in 257ms
+ GET /api/trending?geo=US 200 in 306ms
+ GET /api/reddit?sort=hot 200 in 284ms
+ GET / 200 in 154ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 116ms
+ GET /api/roots 404 in 375ms
+ GET /api/trending?geo=US 200 in 2928ms
+ GET /api/hackernews 200 in 2922ms
+ GET /api/reddit?sort=hot 200 in 2923ms
+ GET / 200 in 161ms
+ GET / 200 in 330ms
+ GET / 200 in 88ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 151ms
+ GET /api/roots 404 in 290ms
+ GET /api/hackernews 200 in 370ms
+ GET /api/reddit?sort=hot 200 in 371ms
+ GET /api/trending?geo=US 200 in 371ms
+ GET / 200 in 64ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 71ms
+ GET /api/trending?geo=US 200 in 190ms
+ GET /api/reddit?sort=hot 200 in 189ms
+ GET /api/hackernews 200 in 189ms
+ GET /api/roots 404 in 177ms
+ GET / 200 in 173ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 179ms
+ GET /api/hackernews 200 in 307ms
+ GET /api/reddit?sort=hot 200 in 308ms
+ GET /api/roots 404 in 255ms
+ GET /api/trending?geo=US 200 in 309ms
+ GET / 200 in 272ms
+ GET /api/trends?keywords=AI 200 in 71ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 166ms
+ GET /api/hackernews 200 in 255ms
+ GET /api/reddit?sort=hot 200 in 255ms
+ GET /api/trending?geo=US 200 in 262ms
+ GET /api/roots 404 in 231ms
+ GET / 200 in 99ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 63ms
+ GET /api/roots 404 in 227ms
+ GET /api/hackernews 200 in 6658ms
+ GET /api/hackernews 200 in 6685ms
+ GET /api/trending?geo=US 200 in 6685ms
+ GET /api/reddit?sort=hot 200 in 6685ms
+ GET / 200 in 216ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 163ms
+ GET /api/roots 404 in 174ms
+ GET /api/reddit?subreddit=technology&limit=10 200 in 1195ms
+ GET /api/reddit?sort=hot 200 in 1221ms
+ GET /api/trending?geo=US 200 in 1224ms
+ GET /api/hackernews 200 in 1224ms
+ GET / 200 in 178ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 59ms
+ GET /api/reddit?sort=hot 200 in 193ms
+ GET /api/hackernews 200 in 193ms
+ GET /api/trending?geo=US 200 in 193ms
+ GET /api/roots 404 in 169ms
+ GET / 200 in 120ms
+ GET /api/hackernews 200 in 134ms
+ GET /api/trending?geo=US 200 in 157ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 157ms
+ GET /api/reddit?sort=hot 200 in 138ms
+ GET / 200 in 266ms
+ GET / 200 in 462ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 107ms
+ GET /api/hackernews 200 in 160ms
+ GET /api/roots 404 in 141ms
+ GET /api/reddit?sort=hot 200 in 168ms
+ GET /api/trending?geo=US 200 in 169ms
+ GET / 200 in 142ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 107ms
+ GET /api/roots 404 in 157ms
+ GET /api/reddit?sort=hot 200 in 180ms
+ GET /api/trending?geo=US 200 in 189ms
+ GET /api/hackernews 200 in 175ms
+ GET / 200 in 159ms
+ GET /api/hackernews 200 in 102ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 126ms
+ GET /api/trending?geo=US 200 in 102ms
+ GET /api/reddit?sort=hot 200 in 102ms
+ GET / 200 in 132ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 240ms
+ GET /api/reddit?sort=hot 200 in 501ms
+ GET /api/trending?geo=US 200 in 502ms
+ GET /api/hackernews 200 in 500ms
+ GET /api/roots 404 in 433ms
+ GET / 200 in 247ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 60ms
+ GET /api/roots 404 in 188ms
+ GET /api/trending?geo=US 200 in 3035ms
+ GET /api/hackernews 200 in 2996ms
+ GET /api/reddit?sort=hot 200 in 2999ms
+ GET / 200 in 93ms
+ GET / 200 in 477ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 89ms
+ GET /api/hackernews 200 in 153ms
+ GET /api/reddit?sort=hot 200 in 153ms
+ GET /api/roots 404 in 147ms
+ GET /api/trending?geo=US 200 in 157ms
+ GET / 200 in 83ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 219ms
+ GET /api/hackernews 200 in 378ms
+ GET /api/roots 404 in 359ms
+ GET /api/trending?geo=US 200 in 386ms
+ GET /api/reddit?sort=hot 200 in 386ms
+ ✓ Compiled in 1239ms (532 modules)
+ ✓ Compiled in 1076ms (532 modules)
+ ✓ Compiled in 1215ms (532 modules)
+ ✓ Compiled in 889ms (532 modules)
+ ✓ Compiled in 1901ms (313 modules)
+ ✓ Compiled in 1071ms (532 modules)
+ ✓ Compiled in 995ms (532 modules)
+ ✓ Compiled in 529ms (532 modules)
+ ✓ Compiled in 315ms (532 modules)
+ ✓ Compiled in 511ms (532 modules)
+ ✓ Compiled in 291ms (532 modules)
+ ✓ Compiled in 508ms (532 modules)
+ ✓ Compiled in 405ms (532 modules)
+ ⨯ ./app/page.tsx
+Error:   [31mx[0m Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+      ,-[[36;1;4m/root/claude_workspace/trends-watcher-board/app/page.tsx[0m:1931:1]
+ [2m1928[0m |         <div className="flex flex-col gap-3 sm:flex-row sm:gap-2">
+ [2m1929[0m |     </div>
+ [2m1930[0m |   );
+ [2m1931[0m | }
+      : [35;1m^[0m
+ [2m1932[0m | 
+ [2m1933[0m | // Original simple DecisionPanel for TrendingCard
+ [2m1934[0m | function DecisionPanel({ keyword, points, loading }: { keyword: string; points: InterestPoint[]; loading: boolean }) {
+      `----
+  [31mx[0m Expected '</', got ':'
+      ,-[[36;1;4m/root/claude_workspace/trends-watcher-board/app/page.tsx[0m:1934:1]
+ [2m1931[0m | }
+ [2m1932[0m | 
+ [2m1933[0m | // Original simple DecisionPanel for TrendingCard
+ [2m1934[0m | function DecisionPanel({ keyword, points, loading }: { keyword: string; points: InterestPoint[]; loading: boolean }) {
+      : [35;1m                                                              ^[0m
+ [2m1935[0m |   return (
+ [2m1936[0m |     <div className="border-t px-3 py-3" style={{ borderColor: "var(--border)" }}>
+ [2m1937[0m |       <div className="mb-3">
+      `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/page.tsx
+ ⨯ ./app/page.tsx
+Error:   [31mx[0m Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+      ,-[[36;1;4m/root/claude_workspace/trends-watcher-board/app/page.tsx[0m:1931:1]
+ [2m1928[0m |         <div className="flex flex-col gap-3 sm:flex-row sm:gap-2">
+ [2m1929[0m |     </div>
+ [2m1930[0m |   );
+ [2m1931[0m | }
+      : [35;1m^[0m
+ [2m1932[0m | 
+ [2m1933[0m | // Original simple DecisionPanel for TrendingCard
+ [2m1934[0m | function DecisionPanel({ keyword, points, loading }: { keyword: string; points: InterestPoint[]; loading: boolean }) {
+      `----
+  [31mx[0m Expected '</', got ':'
+      ,-[[36;1;4m/root/claude_workspace/trends-watcher-board/app/page.tsx[0m:1934:1]
+ [2m1931[0m | }
+ [2m1932[0m | 
+ [2m1933[0m | // Original simple DecisionPanel for TrendingCard
+ [2m1934[0m | function DecisionPanel({ keyword, points, loading }: { keyword: string; points: InterestPoint[]; loading: boolean }) {
+      : [35;1m                                                              ^[0m
+ [2m1935[0m |   return (
+ [2m1936[0m |     <div className="border-t px-3 py-3" style={{ borderColor: "var(--border)" }}>
+ [2m1937[0m |       <div className="mb-3">
+      `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/page.tsx
+ ✓ Compiled in 1353ms (532 modules)
+ GET / 200 in 828ms
+ ○ Compiling /api/hackernews ...
+ ✓ Compiled /api/hackernews in 6.3s (819 modules)
+ GET / 200 in 8923ms
+ GET /api/trending?geo=US 200 in 549ms
+ GET /api/reddit?sort=hot 200 in 549ms
+ GET /api/roots 404 in 511ms
+ GET /api/hackernews 200 in 551ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 581ms
+ GET / 200 in 196ms
+ GET /api/trending?geo=US 200 in 371ms
+ GET /api/hackernews 200 in 398ms
+ GET /api/roots 404 in 409ms
+ GET /api/trends?keywords=AI 200 in 4103ms
+ GET /api/reddit?sort=hot 200 in 3920ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 3921ms
+ GET / 200 in 253ms
+ GET /api/hackernews 200 in 103ms
+ GET /api/hackernews 200 in 649ms
+ GET /api/trending?geo=US 200 in 649ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 659ms
+ GET /api/reddit?sort=hot 200 in 650ms
+ GET /api/roots 404 in 643ms
+ GET / 200 in 129ms
+ GET /api/reddit?subreddit=technology&limit=10 200 in 32ms
+ GET /api/roots 404 in 468ms
+ GET /api/hackernews 200 in 504ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 508ms
+ GET /api/trending?geo=US 200 in 505ms
+ GET /api/reddit?sort=hot 200 in 504ms
+ GET / 200 in 92ms
+ GET /api/roots 404 in 430ms
+ GET /api/hackernews 200 in 458ms
+ GET /api/reddit?sort=hot 200 in 465ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 478ms
+ GET /api/trending?geo=US 200 in 466ms
+ GET / 200 in 95ms
+ GET /api/trending?geo=US 200 in 112ms
+ GET /api/hackernews 200 in 110ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 119ms
+ GET /api/reddit?sort=hot 200 in 111ms
+ GET / 200 in 172ms
+ GET /api/reddit?sort=hot 200 in 146ms
+ GET /api/hackernews 200 in 146ms
+ GET /api/roots 404 in 136ms
+ GET /api/trending?geo=US 200 in 148ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 148ms
+ GET / 200 in 495ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 95ms
+ GET /api/hackernews 200 in 54ms
+ GET /api/reddit?sort=hot 200 in 55ms
+ GET /api/trending?geo=US 200 in 55ms
+ GET / 200 in 158ms
+ GET /api/hackernews 200 in 431ms
+ GET /api/trending?geo=US 200 in 433ms
+ GET /api/roots 404 in 425ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 443ms
+ GET /api/reddit?sort=hot 200 in 441ms
+ GET / 200 in 74ms
+ GET /api/reddit?sort=hot 200 in 115ms
+ GET /api/roots 404 in 110ms
+ GET /api/hackernews 200 in 126ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 190ms
+ GET /api/trending?geo=US 200 in 189ms
+ GET / 200 in 123ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 105ms
+ GET /api/trending?geo=US 200 in 241ms
+ GET /api/reddit?sort=hot 200 in 260ms
+ GET /api/hackernews 200 in 294ms
+ GET /api/roots 404 in 573ms
+ ○ Compiling /api/enrich ...
+ ✓ Compiled /api/enrich in 718ms (821 modules)
+ GET / 200 in 1129ms
+ GET /api/hackernews 200 in 893ms
+ GET /api/roots 404 in 878ms
+ GET /api/trends?timeframe=now+1-d&geo=&keywords=AI%2C+ai+video%2C+ai+tool%2C+LLM 200 in 928ms
+ GET /api/reddit?sort=hot 200 in 895ms
+ GET /api/trending?geo=US 200 in 898ms
+Google Trends fetch error: Error [TimeoutError]: The operation was aborted due to timeout
+    at async fetchGoogleTrends (lib/googleTrends.ts:25:17)
+    at async GET (app/api/trends/route.ts:22:34)
+  23 |     });
+  24 |
+> 25 |     const res = await fetch(`${API_BASE}/api/trends?${params}`, {
+     |                 ^
+  26 |       signal: AbortSignal.timeout(25000),
+  27 |     });
+  28 | {
+  code: 23,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+Google Trends fetch error: Error [TimeoutError]: The operation was aborted due to timeout
+    at async fetchGoogleTrends (lib/googleTrends.ts:25:17)
+    at async GET (app/api/trends/route.ts:22:34)
+  23 |     });
+  24 |
+> 25 |     const res = await fetch(`${API_BASE}/api/trends?${params}`, {
+     |                 ^
+  26 |       signal: AbortSignal.timeout(25000),
+  27 |     });
+  28 | {
+  code: 23,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+Google Trends fetch error: Error [TimeoutError]: The operation was aborted due to timeout
+    at async fetchGoogleTrends (lib/googleTrends.ts:25:17)
+    at async GET (app/api/trends/route.ts:22:34)
+  23 |     });
+  24 |
+> 25 |     const res = await fetch(`${API_BASE}/api/trends?${params}`, {
+     |                 ^
+  26 |       signal: AbortSignal.timeout(25000),
+  27 |     });
+  28 | {
+  code: 23,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+Google Trends fetch error: Error [TimeoutError]: The operation was aborted due to timeout
+    at async fetchGoogleTrends (lib/googleTrends.ts:25:17)
+    at async GET (app/api/trends/route.ts:22:34)
+  23 |     });
+  24 |
+> 25 |     const res = await fetch(`${API_BASE}/api/trends?${params}`, {
+     |                 ^
+  26 |       signal: AbortSignal.timeout(25000),
+  27 |     });
+  28 | {
+  code: 23,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+Google Trends fetch error: Error [TimeoutError]: The operation was aborted due to timeout
+    at async fetchGoogleTrends (lib/googleTrends.ts:25:17)
+    at async GET (app/api/trends/route.ts:22:34)
+  23 |     });
+  24 |
+> 25 |     const res = await fetch(`${API_BASE}/api/trends?${params}`, {
+     |                 ^
+  26 |       signal: AbortSignal.timeout(25000),
+  27 |     });
+  28 | {
+  code: 23,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+Google Trends fetch error: Error [TimeoutError]: The operation was aborted due to timeout
+    at async fetchGoogleTrends (lib/googleTrends.ts:25:17)
+    at async GET (app/api/trends/route.ts:22:34)
+  23 |     });
+  24 |
+> 25 |     const res = await fetch(`${API_BASE}/api/trends?${params}`, {
+     |                 ^
+  26 |       signal: AbortSignal.timeout(25000),
+  27 |     });
+  28 | {
+  code: 23,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+Google Trends fetch error: Error [TimeoutError]: The operation was aborted due to timeout
+    at async fetchGoogleTrends (lib/googleTrends.ts:25:17)
+    at async GET (app/api/trends/route.ts:22:34)
+  23 |     });
+  24 |
+> 25 |     const res = await fetch(`${API_BASE}/api/trends?${params}`, {
+     |                 ^
+  26 |       signal: AbortSignal.timeout(25000),
+  27 |     });
+  28 | {
+  code: 23,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+Google Trends fetch error: Error [TimeoutError]: The operation was aborted due to timeout
+    at async fetchGoogleTrends (lib/googleTrends.ts:25:17)
+    at async GET (app/api/trends/route.ts:22:34)
+  23 |     });
+  24 |
+> 25 |     const res = await fetch(`${API_BASE}/api/trends?${params}`, {
+     |                 ^
+  26 |       signal: AbortSignal.timeout(25000),
+  27 |     });
+  28 | {
+  code: 23,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+Google Trends fetch error: Error [TimeoutError]: The operation was aborted due to timeout
+    at async fetchGoogleTrends (lib/googleTrends.ts:25:17)
+    at async GET (app/api/trends/route.ts:22:34)
+  23 |     });
+  24 |
+> 25 |     const res = await fetch(`${API_BASE}/api/trends?${params}`, {
+     |                 ^
+  26 |       signal: AbortSignal.timeout(25000),
+  27 |     });
+  28 | {
+  code: 23,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+Google Trends fetch error: Error [TimeoutError]: The operation was aborted due to timeout
+    at async fetchGoogleTrends (lib/googleTrends.ts:25:17)
+    at async GET (app/api/trends/route.ts:22:34)
+  23 |     });
+  24 |
+> 25 |     const res = await fetch(`${API_BASE}/api/trends?${params}`, {
+     |                 ^
+  26 |       signal: AbortSignal.timeout(25000),
+  27 |     });
+  28 | {
+  code: 23,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+[?25h
