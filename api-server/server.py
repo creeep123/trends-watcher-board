@@ -781,7 +781,7 @@ def get_twitter():
         try:
             # Use twitrss.me for RSS feed
             url = f"https://twitrss.me/twitter_user_to_rss/?user={username}"
-            resp = http_requests.get(url, timeout=10, headers={"User-Agent": TWITTER_UA})
+            resp = http_requests.get(url, timeout=5, headers={"User-Agent": TWITTER_UA})
 
             if resp.status_code != 200:
                 print(f"[Twitter] @{username} returned {resp.status_code}")
@@ -809,7 +809,6 @@ def get_twitter():
                     published = ""
                     if pub_date_el is not None and pub_date_el.text:
                         try:
-                            from datetime import datetime
                             import email.utils
                             timestamp = email.utils.parsedate_to_datetime(pub_date_el.text)
                             published = timestamp.isoformat()
@@ -827,7 +826,7 @@ def get_twitter():
                     if len([t for t in all_tweets if t["username"] == username]) >= 3:
                         break
 
-            time.sleep(0.5)  # Rate limit
+            time.sleep(0.3)  # Rate limit
 
         except Exception as e:
             print(f"[Twitter] Error fetching @{username}: {e}")
