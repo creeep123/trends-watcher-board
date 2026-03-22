@@ -287,12 +287,17 @@ export default function Home() {
   const fetchReddit = useCallback(async () => {
     setRedditLoading(true);
     try {
+      // Temporarily disable due to timeout issues
+      setRedditPosts([]);
+      setRedditKeywords([]);
+      /*
       const res = await fetch("/api/reddit?sort=hot");
       if (res.ok) {
         const json = await res.json();
         setRedditPosts(json.posts || []);
         setRedditKeywords(json.keywords || []);
       }
+      */
     } catch {
       setRedditPosts([]);
       setRedditKeywords([]);
@@ -319,11 +324,15 @@ export default function Home() {
   const fetchTwitter = useCallback(async () => {
     setTwitterLoading(true);
     try {
+      // Temporarily disable due to timeout issues
+      setTwitterPosts([]);
+      /*
       const res = await fetch("/api/twitter");
       if (res.ok) {
         const json = await res.json();
         setTwitterPosts(json.tweets || []);
       }
+      */
     } catch {
       setTwitterPosts([]);
     } finally {
