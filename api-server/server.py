@@ -919,12 +919,22 @@ def get_technews():
                     if title_el is not None and title_el.text:
                         title = title_el.text.strip()
 
+                        # Parse publication date
+                        published = ""
+                        if pub_date_el is not None and pub_date_el.text:
+                            try:
+                                import email.utils
+                                timestamp = email.utils.parsedate_to_datetime(pub_date_el.text)
+                                published = timestamp.isoformat()
+                            except:
+                                pass
+
                         all_articles.append({
                             "title": title[:200],
                             "url": link_el.text if link_el is not None else "",
                             "source": source["name"],
                             "author": creator_el.text if creator_el is not None and creator_el.text else source["name"],
-                            "published": "",
+                            "published": published,
                         })
 
                         # Get top 5 articles per source
