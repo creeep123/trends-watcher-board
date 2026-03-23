@@ -71,6 +71,22 @@ export interface TechNewsResponse {
   timestamp: string;
 }
 
+export interface TikTokVideo {
+  id: string;
+  title: string;
+  author: string;
+  thumbnail?: string;
+  playCount: number;
+  likeCount: number;
+  url: string;
+  keyword: string;
+}
+
+export interface TikTokResponse {
+  videos: TikTokVideo[];
+  timestamp: string;
+}
+
 export interface RedditKeyword {
   keyword: string;
   context: string;
