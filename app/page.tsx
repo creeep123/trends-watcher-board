@@ -1343,12 +1343,13 @@ export default function Home() {
                     <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                       正在获取 Google Trends 数据...
                     </div>
-                    <div className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                      如果遇到限频，会自动尝试代理（最多 15 秒）
-                    </div>
                   </div>
                 ) : sortedGoogle.length === 0 ? (
-                  <EmptyState text={data?._stale ? "Google Trends 暂无数据（限频中）" : "No Google Trends data"} />
+                  <EmptyState text={
+                    data?._stale ? "Google Trends 暂时不可用（限频中）" :
+                    data?._status ? `Google Trends 错误: ${data._status}` :
+                    "No Google Trends data"
+                  } />
                 ) : (
                   sortedGoogle.map((item, i) => (
                     <KeywordCard

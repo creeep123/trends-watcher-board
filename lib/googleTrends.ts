@@ -44,21 +44,18 @@ export async function fetchGoogleTrends(
     // Map backend status to user-friendly messages
     let statusMessage: string | undefined;
     if (data._stale) {
-      statusMessage = "暂时使用缓存数据（限频中）";
-    } else if (data._proxyAttempts && data._proxyAttempts > 0) {
-      statusMessage = `使用代理获取成功（尝试 ${data._proxyAttempts} 个代理）`;
+      statusMessage = "暂时使用缓存数据";
     }
 
     return {
       google: data.google || [],
       _stale: data._stale,
       _status: statusMessage || data._status,
-      _proxyAttempts: data._proxyAttempts
     };
   } catch (e) {
     console.error("Google Trends fetch error:", e);
     const errorMsg = e instanceof Error && e.name === 'AbortError'
-      ? "请求超时（代理尝试中）"
+      ? "请求超时"
       : "网络错误";
     return { google: [], _status: errorMsg };
   }

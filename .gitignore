@@ -8,3 +8,4 @@ package-lock.json
 .vercel
 api-server/venv/
 api-server/__pycache__/
+api-server/proxy_manager_v2.py

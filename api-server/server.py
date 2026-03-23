@@ -249,6 +249,7 @@ def get_trends(
     # Fetch for each keyword (sequential, 2s delay between to avoid 429)
     all_items: list[dict] = []
     seen_names: set[str] = set()
+    rate_limited = False
 
     for kw in keyword_list:
         results = fetch_related_queries(kw, timeframe, geo)
@@ -265,12 +266,18 @@ def get_trends(
         return {**cached, "_stale": True}
 
     # If bypassCache or got fresh data, update cache
+    # Determine status message
+    status_msg = None
+    if len(all_items) == 0:
+        status_msg = "Google Trends 暂时不可用（可能限频）"
+
     response = {
         "google": all_items,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "params": {"timeframe": timeframe, "geo": geo},
         "_stale": False,
         "_cached": False,
+        "_status": status_msg,
     }
 
     _set_cache(key, response)

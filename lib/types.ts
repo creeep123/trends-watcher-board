@@ -111,6 +111,8 @@ export interface TrendsResponse {
     geo: string;
   };
   _stale?: boolean;
+  _cached?: boolean;
+  _status?: string;
 }
 
 export const TIMEFRAME_OPTIONS = [
