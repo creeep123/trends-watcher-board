@@ -19,11 +19,13 @@ from typing import Optional
 from urllib.parse import quote_plus
 
 from pydantic import BaseModel
+import asyncio
 
 import requests as http_requests
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pytrends.request import TrendReq
+from TikTokApi import TikTokApi
 
 OPENROUTER_API_KEY = os.environ.get(
     "OPENROUTER_API_KEY",
@@ -40,6 +42,7 @@ CACHE_TTL_MAP = {
     "multigeo":  21600,  # 6h — multi-country check is heavy
     "reddit":    1800,   # 30min — JSON API, low cost
     "hackernews": 1800,  # 30min — JSON API, low cost
+    "tiktok":    1800,   # 30min — TikTok videos
     "enrich":    3600,   # 1h — composite scoring
     "allintitle": 7200,  # 2h — competition changes slowly
 }
@@ -1028,6 +1031,81 @@ def get_hackernews():
     }
     _set_cache(cache_key, response)
     return response
+
+
+# --- TikTok Videos ---
+TIKTOK_KEYWORDS = ["AI", "LLM", "maker", "generator", "creator", "filter"]
+
+
+@app.get("/api/tiktok")
+async def get_tiktok_videos():
+    """Fetch trending TikTok videos for specified hashtags."""
+    cache_key = "tiktok|videos"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    videos = []
+    ms_token = os.environ.get("TIKTOK_MS_TOKEN", None)
+
+    if not ms_token:
+        print("[TikTok] TIKTOK_MS_TOKEN not set")
+        return {"videos": [], "timestamp": datetime.now(timezone.utc).isoformat()}
+
+    try:
+        async with TikTokApi() as api:
+            await api.create_sessions(
+                ms_tokens=[ms_token],
+                num_sessions=1,
+                sleep_after=3,
+                browser="chromium"
+            )
+
+            for keyword in TIKTOK_KEYWORDS:
+                try:
+                    tag = api.hashtag(name=keyword)
+                    async for video in tag.videos(count=5):
+                        thumbnail = ""
+                        if hasattr(video, 'cover') and video.cover:
+                            thumbnail = video.cover
+                        elif hasattr(video, 'thumbnail') and video.thumbnail:
+                            thumbnail = video.thumbnail
+
+                        videos.append({
+                            "id": video.id,
+                            "title": video.desc or "",
+                            "author": video.author.username if video.author else "",
+                            "thumbnail": thumbnail,
+                            "playCount": video.stats.play_count,
+                            "likeCount": video.stats.digg_count,
+                            "url": f"https://tiktok.com/@{video.author.username}/video/{video.id}",
+                            "keyword": keyword
+                        })
+                except Exception as e:
+                    print(f"[TikTok] Error fetching #{keyword}: {e}")
+                    continue
+
+            # Deduplicate by video ID
+            seen = set()
+            unique_videos = []
+            for v in videos:
+                if v["id"] not in seen:
+                    seen.add(v["id"])
+                    unique_videos.append(v)
+
+            response = {
+                "videos": unique_videos,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            _set_cache(cache_key, response)
+            return response
+
+    except Exception as e:
+        print(f"[TikTok] API error: {e}")
+        stale = _get_stale(cache_key)
+        if stale:
+            return stale
+        return {"videos": [], "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 # --- Enrich: scoring system ---
