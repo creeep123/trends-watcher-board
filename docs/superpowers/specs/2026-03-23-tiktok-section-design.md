@@ -265,7 +265,13 @@ useEffect(() => {
 
 **Mobile Tab Configuration (app/page.tsx):**
 
-Add to MOBILE_TABS array (line 791):
+First, update MobileTab type definition (around line 191):
+
+```typescript
+type MobileTab = "trending" | "queries" | "reddit" | "github" | "hn" | "technews" | "tiktok";
+```
+
+Then add to MOBILE_TABS array (line 791):
 
 ```typescript
 const MOBILE_TABS: { key: MobileTab; label: string; icon: string }[] = [
