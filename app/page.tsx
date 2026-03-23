@@ -1476,36 +1476,43 @@ export default function Home() {
                       className="group rounded-lg border p-3 transition-colors hover:border-blue-500/50"
                       style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--bg-secondary)" }}>
-                          <span className="text-xs">📰</span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="mb-1 flex items-center gap-2">
-                            <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{
-                              color: "var(--text-primary)",
-                              background: article.source === "TechCrunch" ? "#0a9e01"
-                                     : article.source === "The Verge" ? "#e5127d"
-                                     : "#ff4e00"
-                            }}>
-                              {article.source}
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{
+                            color: "var(--text-primary)",
+                            background: article.source === "TechCrunch" ? "#0a9e01"
+                                   : article.source === "The Verge" ? "#e5127d"
+                                   : "#ff4e00"
+                          }}>
+                            {article.source}
+                          </span>
+                          {article.author && article.author !== article.source && (
+                            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                              · {article.author}
                             </span>
-                            {article.author && article.author !== article.source && (
-                              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                                · {article.author}
-                              </span>
-                            )}
-                          </div>
-                          <a
-                            href={article.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block text-sm font-medium leading-snug transition-colors hover:text-blue-500"
-                            style={{ color: "var(--text-primary)" }}
-                          >
-                            {article.title}
-                          </a>
+                          )}
+                          {article.published && (
+                            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                              🕒 {(() => {
+                                const date = new Date(article.published);
+                                const diff = Date.now() - date.getTime();
+                                const hours = Math.floor(diff / 3600000);
+                                if (hours < 1) return "just now";
+                                if (hours < 24) return `${hours}h ago`;
+                                return `${Math.floor(hours / 24)}d ago`;
+                              })()}
+                            </span>
+                          )}
                         </div>
+                        <a
+                          href={article.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-sm font-medium leading-snug transition-colors hover:text-blue-500"
+                          style={{ color: "var(--text-primary)" }}
+                        >
+                          {article.title}
+                        </a>
                       </div>
                     </div>
                   ))
@@ -1584,22 +1591,42 @@ function CompactTimeSelector({
   options: readonly { label: string; value: string; description: string }[];
 }) {
   return (
-    <div className="flex items-center gap-1 rounded-md p-0.5" style={{ background: "var(--bg-secondary)" }}>
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          className="rounded px-1.5 py-0.5 text-xs font-medium transition-colors"
-          style={{
-            background: value === opt.value ? "var(--accent-blue)" : "transparent",
-            color: value === opt.value ? "#fff" : "var(--text-secondary)",
-          }}
-          title={opt.description}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
+    <>
+      {/* Mobile: button group */}
+      <div className="flex items-center gap-1 rounded-md p-0.5 sm:hidden" style={{ background: "var(--bg-secondary)" }}>
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className="rounded px-1.5 py-0.5 text-xs font-medium transition-colors"
+            style={{
+              background: value === opt.value ? "var(--accent-blue)" : "transparent",
+              color: value === opt.value ? "#fff" : "var(--text-secondary)",
+            }}
+            title={opt.description}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      {/* Desktop: dropdown */}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="hidden rounded-md border px-2 py-1 text-xs font-medium sm:block"
+        style={{
+          background: "var(--bg-secondary)",
+          borderColor: "var(--border)",
+          color: "var(--text-primary)",
+        }}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </>
   );
 }
 
@@ -1612,21 +1639,41 @@ function CompactGeoSelector({
   options: readonly { label: string; value: string; flag: string }[];
 }) {
   return (
-    <div className="flex items-center gap-0.5 rounded-md p-0.5" style={{ background: "var(--bg-secondary)" }}>
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          className="rounded px-1.5 py-0.5 text-xs font-medium transition-colors"
-          style={{
-            background: value === opt.value ? "var(--accent-blue)" : "transparent",
-            color: value === opt.value ? "#fff" : "var(--text-secondary)",
-          }}
-        >
-          {opt.flag} <span className="hidden sm:inline">{opt.label}</span>
-        </button>
-      ))}
-    </div>
+    <>
+      {/* Mobile: button group */}
+      <div className="flex items-center gap-0.5 rounded-md p-0.5 sm:hidden" style={{ background: "var(--bg-secondary)" }}>
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className="rounded px-1.5 py-0.5 text-xs font-medium transition-colors"
+            style={{
+              background: value === opt.value ? "var(--accent-blue)" : "transparent",
+              color: value === opt.value ? "#fff" : "var(--text-secondary)",
+            }}
+          >
+            {opt.flag} <span className="hidden sm:inline">{opt.label}</span>
+          </button>
+        ))}
+      </div>
+      {/* Desktop: dropdown */}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="hidden rounded-md border px-2 py-1 text-xs font-medium sm:block"
+        style={{
+          background: "var(--bg-secondary)",
+          borderColor: "var(--border)",
+          color: "var(--text-primary)",
+        }}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.flag} {opt.label}
+          </option>
+        ))}
+      </select>
+    </>
   );
 }
 
@@ -1724,7 +1771,7 @@ function RedditCard({ post, index }: { post: RedditPost; index: number }) {
               {post.num_comments !== undefined && <span>💬 {formatNumber(post.num_comments)}</span>}
             </>
           )}
-          {post.published && <span>{timeAgo(post.published)}</span>}
+          {post.published && <span>🕒 {timeAgo(post.published)}</span>}
         </div>
       </div>
       <ExternalIcon />
