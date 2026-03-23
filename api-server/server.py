@@ -881,10 +881,20 @@ def get_technews():
 
                         # Parse publication date
                         published = ""
+                        date_to_parse = None
+
+                        # Try published first, then updated
                         if published_el is not None and published_el.text:
+                            date_to_parse = published_el.text
+                        else:
+                            updated_el = entry.find("a:updated", TECHNEWS_ATOM_NS)
+                            if updated_el is not None and updated_el.text:
+                                date_to_parse = updated_el.text
+
+                        if date_to_parse:
                             try:
                                 import email.utils
-                                timestamp = email.utils.parsedate_to_datetime(published_el.text)
+                                timestamp = email.utils.parsedate_to_datetime(date_to_parse)
                                 published = timestamp.isoformat()
                             except:
                                 pass
