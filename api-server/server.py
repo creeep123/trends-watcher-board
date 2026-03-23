@@ -867,6 +867,10 @@ def get_technews():
                     title_el = entry.find("a:title", TECHNEWS_ATOM_NS)
                     link_el = entry.find("a:link", TECHNEWS_ATOM_NS)
                     published_el = entry.find("a:published", TECHNEWS_ATOM_NS)
+                    # Also try without namespace prefix (some feeds use default namespace)
+                    published_el_no_ns = entry.find("published")
+                    updated_el = entry.find("a:updated", TECHNEWS_ATOM_NS)
+                    updated_el_no_ns = entry.find("updated")
                     author_el = entry.find("a:author", TECHNEWS_ATOM_NS)
 
                     if title_el is not None and title_el.text:
@@ -883,13 +887,15 @@ def get_technews():
                         published = ""
                         date_to_parse = None
 
-                        # Try published first, then updated
+                        # Try published first (with and without namespace), then updated
                         if published_el is not None and published_el.text:
                             date_to_parse = published_el.text
-                        else:
-                            updated_el = entry.find("a:updated", TECHNEWS_ATOM_NS)
-                            if updated_el is not None and updated_el.text:
-                                date_to_parse = updated_el.text
+                        elif published_el_no_ns is not None and published_el_no_ns.text:
+                            date_to_parse = published_el_no_ns.text
+                        elif updated_el is not None and updated_el.text:
+                            date_to_parse = updated_el.text
+                        elif updated_el_no_ns is not None and updated_el_no_ns.text:
+                            date_to_parse = updated_el_no_ns.text
 
                         if date_to_parse:
                             try:
