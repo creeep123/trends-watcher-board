@@ -1345,11 +1345,15 @@ export default function Home() {
                     </div>
                   </div>
                 ) : sortedGoogle.length === 0 ? (
-                  <EmptyState text={
-                    data?._stale ? "Google Trends 暂时不可用（限频中）" :
-                    data?._status ? `Google Trends 错误: ${data._status}` :
-                    "No Google Trends data"
-                  } />
+                  <EmptyState
+                    text={
+                      data?._stale ? "Google Trends 暂时不可用（限频中）" :
+                      data?._status ? `Google Trends 错误: ${data._status}` :
+                      "No Google Trends data"
+                    }
+                    actionLink={`https://trends.google.com/trends/explore?q=${encodeURIComponent(keywords)}&date=${timeframe}${geo ? `&geo=${geo}` : ''}`}
+                    actionText="在 Google Trends 查看 →"
+                  />
                 ) : (
                   sortedGoogle.map((item, i) => (
                     <KeywordCard
@@ -2230,10 +2234,21 @@ function ExternalIcon() {
   );
 }
 
-function EmptyState({ text }: { text: string }) {
+function EmptyState({ text, actionLink, actionText }: { text: string; actionLink?: string; actionText?: string }) {
   return (
     <div className="rounded-lg border border-dashed p-6 text-center text-sm sm:p-8" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-      {text}
+      <div>{text}</div>
+      {actionLink && (
+        <a
+          href={actionLink}
+          target="_blank"
+          rel="noopener"
+          className="mt-3 inline-block rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+          style={{ background: "var(--accent-blue)", color: "#fff" }}
+        >
+          {actionText || "在 Google Trends 查看 →"}
+        </a>
+      )}
     </div>
   );
 }
