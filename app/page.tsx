@@ -13,6 +13,8 @@ import type {
   HackerNewsPost,
   HackerNewsResponse,
   TechNewsPost,
+  TikTokVideo,
+  TikTokResponse,
   EnrichData,
   EnrichResponse,
   KGRItem,
@@ -188,7 +190,7 @@ function domainSearchUrl(kw: string) {
 
 // --- Mobile tab type ---
 
-type MobileTab = "trending" | "queries" | "reddit" | "github" | "hn" | "technews";
+type MobileTab = "trending" | "queries" | "reddit" | "github" | "hn" | "technews" | "tiktok";
 
 // --- Main ---
 
@@ -224,6 +226,9 @@ export default function Home() {
 
   const [techNewsPosts, setTechNewsPosts] = useState<TechNewsPost[]>([]);
   const [techNewsLoading, setTechNewsLoading] = useState(true);
+
+  const [tiktokVideos, setTiktokVideos] = useState<TikTokVideo[]>([]);
+  const [tiktokLoading, setTiktokLoading] = useState(true);
 
   const [enrichMap, setEnrichMap] = useState<Record<string, EnrichData>>({});
   const [enrichLoading, setEnrichLoading] = useState(false);
@@ -331,6 +336,21 @@ export default function Home() {
     }
   }, []);
 
+  const fetchTikTok = useCallback(async () => {
+    setTiktokLoading(true);
+    try {
+      const res = await fetch("/api/tiktok");
+      if (res.ok) {
+        const json = await res.json();
+        setTiktokVideos(json.videos || []);
+      }
+    } catch {
+      setTiktokVideos([]);
+    } finally {
+      setTiktokLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (forceRefresh) {
       fetchData(true);
@@ -343,6 +363,7 @@ export default function Home() {
   useEffect(() => { fetchReddit(); }, [fetchReddit]);
   useEffect(() => { fetchHackerNews(); }, [fetchHackerNews]);
   useEffect(() => { fetchTechNews(); }, [fetchTechNews]);
+  useEffect(() => { fetchTikTok(); }, [fetchTikTok]);
 
   // Load KGR workbench on mount - try Supabase first, fallback to localStorage
   useEffect(() => {
@@ -794,6 +815,7 @@ export default function Home() {
     { key: "reddit", label: "Reddit", icon: "💬" },
     { key: "hn", label: "HN", icon: "🍊" },
     { key: "technews", label: "Tech", icon: "📰" },
+    { key: "tiktok", label: "TikTok", icon: "🎬" },
     { key: "github", label: "GitHub", icon: "💻" },
   ];
 
@@ -822,7 +844,7 @@ export default function Home() {
               </a>
             </div>
             <button
-              onClick={() => { fetchData(); fetchTrending(); fetchReddit(); fetchHackerNews(); fetchTechNews(); }}
+              onClick={() => { fetchData(); fetchTrending(); fetchReddit(); fetchHackerNews(); fetchTechNews(); fetchTikTok(); }}
               disabled={loading}
               className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm"
               style={{
@@ -1491,6 +1513,24 @@ export default function Home() {
               </div>
             </section>
 
+            {/* --- TikTok --- */}
+            <section className={`${mobileTab !== "tiktok" ? "hidden" : ""} sm:block`}>
+              <SectionHeader title="TikTok" icon="🎬" count={tiktokVideos.length} />
+              <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+                {tiktokLoading ? (
+                  <div className="py-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+                    Loading...
+                  </div>
+                ) : tiktokVideos.length === 0 ? (
+                  <EmptyState text="No TikTok videos available" />
+                ) : (
+                  tiktokVideos.map((video, i) => (
+                    <TikTokCard key={`tt-${i}`} video={video} index={i} />
+                  ))
+                )}
+              </div>
+            </section>
+
             {/* --- GitHub Trending --- */}
             <section className={`${mobileTab !== "github" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="GitHub Trending" icon="💻" count={data?.github?.length || 0} />
@@ -1765,6 +1805,66 @@ function HackerNewsCard({ post, index }: { post: HackerNewsPost; index: number }
         )}
       </div>
     </a>
+  );
+}
+
+function TikTokCard({ video, index }: { video: TikTokVideo; index: number }) {
+  const formatCount = (count: number): string => {
+    if (count >= 1000000) {
+      return `${(count / 1000000).toFixed(1)}M`;
+    }
+    if (count >= 1000) {
+      return `${(count / 1000).toFixed(1)}K`;
+    }
+    return count.toString();
+  };
+
+  return (
+    <div
+      className="group rounded-lg border p-3 transition-colors hover:border-pink-500/50"
+      style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--bg-secondary)" }}>
+          <span className="text-xs">🎬</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{
+              color: "white",
+              background: "#000"
+            }}>
+              #{video.keyword}
+            </span>
+            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+              @{video.author}
+            </span>
+          </div>
+          <a
+            href={video.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-sm font-medium leading-snug transition-colors hover:text-pink-500"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {video.title || "(No title)"}
+          </a>
+          <div className="mt-1 flex items-center gap-3 text-xs" style={{ color: "var(--text-secondary)" }}>
+            <span>▶ {formatCount(video.playCount)}</span>
+            <span>❤️ {formatCount(video.likeCount)}</span>
+          </div>
+        </div>
+        <a
+          href={video.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 transition-colors hover:text-pink-500"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          <ExternalIcon />
+        </a>
+      </div>
+    </div>
   );
 }
 
