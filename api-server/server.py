@@ -826,6 +826,127 @@ def get_twitter():
     return response
 
 
+# --- Tech News (replacing Twitter) ---
+
+TECH_NEWS_SOURCES = [
+    {"name": "TechCrunch", "url": "https://techcrunch.com/feed/", "rss_format": "rss"},
+    {"name": "The Verge", "url": "https://www.theverge.com/rss/index.xml", "rss_format": "atom"},
+    {"name": "Ars Technica", "url": "https://feeds.arstechnica.com/arstechnica/index", "rss_format": "rss"},
+]
+
+TECHNEWS_ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
+
+
+@app.get("/api/technews")
+def get_technews():
+    """Fetch latest tech news from major publications via RSS."""
+    cache_key = "technews|latest"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    all_articles: list[dict] = []
+
+    for source in TECH_NEWS_SOURCES:
+        try:
+            resp = http_requests.get(source["url"], timeout=10, headers={"User-Agent": REDDIT_UA})
+
+            if resp.status_code != 200:
+                print(f"[TechNews] {source['name']} returned {resp.status_code}")
+                continue
+
+            root = ET.fromstring(resp.text)
+
+            # Handle both RSS and Atom formats
+            if source["rss_format"] == "atom":
+                entries = root.findall("./a:entry", TECHNEWS_ATOM_NS)
+                for entry in entries:
+                    title_el = entry.find("a:title", TECHNEWS_ATOM_NS)
+                    link_el = entry.find("a:link", TECHNEWS_ATOM_NS)
+                    published_el = entry.find("a:published", TECHNEWS_ATOM_NS)
+                    author_el = entry.find("a:author", TECHNEWS_ATOM_NS)
+
+                    if title_el is not None and title_el.text:
+                        title = title_el.text.strip()
+
+                        # Get URL from link attribute or element
+                        url = ""
+                        if link_el is not None:
+                            url = link_el.get("href", "")
+                            if not url and link_el.text:
+                                url = link_el.text
+
+                        # Parse publication date
+                        published = ""
+                        if published_el is not None and published_el.text:
+                            try:
+                                import email.utils
+                                timestamp = email.utils.parsedate_to_datetime(published_el.text)
+                                published = timestamp.isoformat()
+                            except:
+                                pass
+
+                        # Get author name
+                        author = source["name"]
+                        if author_el is not None:
+                            name_el = author_el.find("a:name", TECHNEWS_ATOM_NS)
+                            if name_el is not None and name_el.text:
+                                author = name_el.text
+
+                        all_articles.append({
+                            "title": title[:200],
+                            "url": url,
+                            "source": source["name"],
+                            "author": author,
+                            "published": published,
+                        })
+
+                        # Get top 5 articles per source
+                        if len([a for a in all_articles if a["source"] == source["name"]]) >= 5:
+                            break
+
+            else:  # RSS format
+                items = root.findall("./channel/item") or root.findall("./item")
+                for item in items:
+                    title_el = item.find("title")
+                    link_el = item.find("link")
+                    pub_date_el = item.find("pubDate")
+                    creator_el = item.find("{http://purl.org/dc/elements/1.1/}creator")
+
+                    if title_el is not None and title_el.text:
+                        title = title_el.text.strip()
+
+                        all_articles.append({
+                            "title": title[:200],
+                            "url": link_el.text if link_el is not None else "",
+                            "source": source["name"],
+                            "author": creator_el.text if creator_el is not None and creator_el.text else source["name"],
+                            "published": "",
+                        })
+
+                        # Get top 5 articles per source
+                        if len([a for a in all_articles if a["source"] == source["name"]]) >= 5:
+                            break
+
+            time.sleep(0.3)  # Rate limit between sources
+
+        except Exception as e:
+            print(f"[TechNews] Error fetching {source['name']}: {e}")
+            continue
+
+    # Sort by source and return
+    all_articles.sort(key=lambda a: (a["source"], a.get("published", "")), reverse=True)
+
+    response = {
+        "articles": all_articles[:20],  # Cap at 20 articles total
+        "total": len(all_articles),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    _set_cache(cache_key, response)
+    return response
+
+
 # --- HackerNews ---
 
 HN_API_BASE = "https://hacker-news.firebaseio.com/v0"

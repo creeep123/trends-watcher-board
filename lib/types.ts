@@ -57,15 +57,16 @@ export interface HackerNewsResponse {
   timestamp: string;
 }
 
-export interface TwitterPost {
+export interface TechNewsPost {
   title: string;
   url: string;
-  username: string;
+  source: string;
+  author: string;
   published: string;
 }
 
-export interface TwitterResponse {
-  tweets: TwitterPost[];
+export interface TechNewsResponse {
+  articles: TechNewsPost[];
   total: number;
   timestamp: string;
 }
