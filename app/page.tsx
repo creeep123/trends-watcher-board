@@ -252,6 +252,18 @@ export default function Home() {
   const [showRootsImport, setShowRootsImport] = useState(false);
   const [scanProgress, setScanProgress] = useState({ scanned: 0, total: 0 });
 
+  // Helper function to format timestamps
+  const timeAgo = (timestamp: string) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return "";
+    const diff = Date.now() - date.getTime();
+    const hours = Math.floor(diff / 3600000);
+    if (hours < 1) return "刚刚";
+    if (hours < 24) return `${hours}小时前`;
+    return `${Math.floor(hours / 24)}天前`;
+  };
+
   const fetchData = useCallback(async (bypassCache = false) => {
     setLoading(true);
     setError(null);
