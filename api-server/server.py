@@ -246,6 +246,14 @@ def get_trends(
     # Always try cache first for speed
     cached = _get_cached(key)
     if cached and not bypassCache:
+        print(f"[trends] CACHE HIT: {key}")
+        cached["_cached"] = True  # Update cached flag
+        return cached
+    else:
+        if cached:
+            print(f"[trends] CACHE BYPASSED: {key}")
+        else:
+            print(f"[trends] CACHE MISS: {key}")
         return cached
 
     # If bypassing cache or no cache, try fetching
@@ -1078,18 +1086,26 @@ async def get_tiktok_videos():
         print("[TikTok] TIKTOK_MS_TOKEN not set")
         return {"videos": [], "timestamp": datetime.now(timezone.utc).isoformat()}
 
+    print(f"[TikTok] Token found: {ms_token[:20]}... (length: {len(ms_token)})")
+    print(f"[TikTok] Starting TikTok API for keywords: {TIKTOK_KEYWORDS}")
+
     try:
         async with TikTokApi() as api:
+            print("[TikTok] Creating sessions...")
             await api.create_sessions(
                 ms_tokens=[ms_token],
                 num_sessions=1,
                 sleep_after=3,
-                browser="chromium"
+                browser="chromium",
+                headless=True  # Keep headless for server environment
             )
+            print("[TikTok] Sessions created successfully")
 
             for keyword in TIKTOK_KEYWORDS:
                 try:
+                    print(f"[TikTok] Fetching videos for #{keyword}...")
                     tag = api.hashtag(name=keyword)
+                    count = 0
                     async for video in tag.videos(count=5):
                         thumbnail = ""
                         if hasattr(video, 'cover') and video.cover:
@@ -1107,8 +1123,10 @@ async def get_tiktok_videos():
                             "url": f"https://tiktok.com/@{video.author.username}/video/{video.id}",
                             "keyword": keyword
                         })
+                        count += 1
+                    print(f"[TikTok] Fetched {count} videos for #{keyword}")
                 except Exception as e:
-                    print(f"[TikTok] Error fetching #{keyword}: {e}")
+                    print(f"[TikTok] Error fetching #{keyword}: {type(e).__name__}: {e}")
                     continue
 
             # Deduplicate by video ID
@@ -1324,10 +1342,11 @@ def enrich_keywords(req: EnrichRequest):
 
 # --- Background warmup ---
 
-WARMUP_KEYWORDS = ["AI", "ai video", "ai tool", "LLM"]
+# Warmup keywords should match frontend DEFAULT_KEYWORDS
+WARMUP_KEYWORDS = ["AI", "LLM", "maker", "generator", "creator", "filter"]
 WARMUP_TIMEFRAME = "now 1-d"
 WARMUP_TRENDING_GEOS = ["US", "ID", "BR"]
-WARMUP_INTERVAL = 7200  # 2 hours
+WARMUP_INTERVAL = 3600  # 1 hour - refresh trends data more frequently
 
 _warmup_timer: Optional[threading.Timer] = None
 
@@ -1400,31 +1419,44 @@ def _warmup_once():
     except Exception as e:
         print(f"[warmup] reddit error: {e}")
 
-    # 3. Warm up related queries for default keywords (pytrends, may be rate-limited)
-    try:
-        key = f"trends|{_cache_key(WARMUP_KEYWORDS, WARMUP_TIMEFRAME, '')}"
-        if not _get_cached(key):
-            all_items: list[dict] = []
-            seen_names: set[str] = set()
-            for kw in WARMUP_KEYWORDS:
-                results = fetch_related_queries(kw, WARMUP_TIMEFRAME, "")
-                for item in results:
-                    if item["name"].lower() not in seen_names:
-                        seen_names.add(item["name"].lower())
-                        all_items.append(item)
-                time.sleep(2)  # Longer delay to avoid rate limiting
-            response = {
-                "google": all_items,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "params": {"keywords": WARMUP_KEYWORDS, "timeframe": WARMUP_TIMEFRAME, "geo": ""},
-            }
-            if all_items:  # Only cache non-empty
+    # 3. Warm up related queries for common keyword/timeframe/geo combinations
+    # Only warm up most common combinations to avoid excessive warmup time
+    common_combinations = [
+        {"keywords": WARMUP_KEYWORDS, "timeframe": "now 1-d", "geo": "", "desc": "default global 1d"},
+        {"keywords": WARMUP_KEYWORDS, "timeframe": "now 1-d", "geo": "US", "desc": "US 1d"},
+    ]
+
+    for combo in common_combinations:
+        try:
+            key = f"trends|{_cache_key(combo['keywords'], combo['timeframe'], combo['geo'])}"
+            print(f"[warmup] trends {combo['desc']}: cache key = {key}")
+            if not _get_cached(key):
+                print(f"[warmup] trends {combo['desc']}: fetching...")
+                all_items: list[dict] = []
+                seen_names: set[str] = set()
+                for kw in combo["keywords"]:
+                    results = fetch_related_queries(kw, combo["timeframe"], combo["geo"])
+                    for item in results:
+                        if item["name"].lower() not in seen_names:
+                            seen_names.add(item["name"].lower())
+                            all_items.append(item)
+                    time.sleep(2)  # Longer delay to avoid rate limiting
+                response = {
+                    "google": all_items,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "params": {"keywords": combo["keywords"], "timeframe": combo["timeframe"], "geo": combo["geo"]},
+                    "_stale": False,
+                    "_cached": False,
+                    "_status": "Google Trends 暂时不可用（可能限频）" if len(all_items) == 0 else None,
+                }
+                # Always cache to avoid repeated failed requests
                 _set_cache(key, response)
-                print(f"[warmup] trends: {len(all_items)} items cached")
-            else:
-                print("[warmup] trends: pytrends returned empty (rate limited?)")
-    except Exception as e:
-        print(f"[warmup] trends error: {e}")
+                if len(all_items) > 0:
+                    print(f"[warmup] trends {combo['desc']}: {len(all_items)} items cached")
+                else:
+                    print(f"[warmup] trends {combo['desc']}: cached empty response (will retry in {WARMUP_INTERVAL}s)")
+        except Exception as e:
+            print(f"[warmup] trends {combo['desc']} error: {e}")
 
     print(f"[warmup] Done at {datetime.now(timezone.utc).isoformat()}")
 

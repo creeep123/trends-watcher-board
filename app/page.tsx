@@ -1327,10 +1327,15 @@ export default function Home() {
                     color: "var(--text-secondary)",
                     border: "1px solid var(--border-color)"
                   }}
-                  title="强制刷新（绕过缓存）"
+                  title="强制刷新（绕过缓存，获取最新数据）"
                 >
                   {loading ? "刷新中..." : "🔄 刷新"}
                 </button>
+                {data?.timestamp && (
+                  <span className="hidden rounded-md px-2 py-1 text-xs sm:inline-block" style={{ color: "var(--text-secondary)" }}>
+                    🕒 {timeAgo(data.timestamp)}
+                  </span>
+                )}
                 <CompactTimeSelector
                   value={timeframe}
                   onChange={setTimeframe}
@@ -1373,7 +1378,11 @@ export default function Home() {
                       data?._status ? `Google Trends 错误: ${data._status}` :
                       "No Google Trends data"
                     }
-                    actionLink={`https://trends.google.com/trends/explore?q=${encodeURIComponent(keywords)}&date=${timeframe}${geo ? `&geo=${geo}` : ''}`}
+                    actionLink={(function() {
+                      const keywordsArray = keywords.split(',').map(k => k.trim());
+                      const qParam = keywordsArray.map(k => encodeURIComponent(k)).join(',');
+                      return `https://trends.google.com/trends/explore?q=${qParam}&date=${encodeURIComponent(timeframe)}${geo ? `&geo=${geo}` : ''}`;
+                    })()}
                     actionText="在 Google Trends 查看 →"
                   />
                 ) : (
