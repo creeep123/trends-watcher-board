@@ -587,8 +587,9 @@ export default function Home() {
         const updated = { ...item, ...updates };
 
         // Recalculate KGR if we have the data
+        // KGR = allintitleCount / searchVolume
         if (updated.searchVolume && updated.allintitleCount && updated.allintitleCount > 0) {
-          updated.kgr = updated.searchVolume / updated.allintitleCount;
+          updated.kgr = updated.allintitleCount / updated.searchVolume;
           if (updated.kgr < 0.025) updated.kgrStatus = 'good';
           else if (updated.kgr < 1) updated.kgrStatus = 'medium';
           else updated.kgrStatus = 'bad';

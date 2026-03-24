@@ -313,51 +313,23 @@ export function calculateEKGR(
   if (!searchVolume || !allintitleCount || !kd || kd === 0 || allintitleCount === 0) {
     return null;
   }
-  return (searchVolume * 0.6) / (allintitleCount * Math.sqrt(kd));
+  // EKGR = (allintitleCount * (1 + KD/100)) / searchVolume
+  return (allintitleCount * (1 + kd / 100)) / searchVolume;
 }
 
 // Calculate backlink cost based on tiered pricing model
 export function calculateBacklinkCost(kd: number): number {
-  // Estimate number of backlinks needed based on KD
-  // Assuming KD 0-100 maps to approximately 0-500 backlinks needed
-  const estimatedLinks = Math.floor(kd * 5); // KD 100 = 500 links
+  // Fixed: 10 backlinks needed (as per requirements)
+  const requiredLinks = 10;
 
   let cost = 0;
-  let linksProcessed = 0;
-  const linkCost = 100;
+  const baseCost = 100; // $100 per link for first 10
 
-  // First 10 links: $100 each
-  const tier1 = Math.min(estimatedLinks, 10);
-  cost += tier1 * linkCost;
-  linksProcessed += tier1;
+  // First 10 links: $100 each = $1,000 total
+  cost = requiredLinks * baseCost;
 
-  if (linksProcessed >= estimatedLinks) return cost;
-
-  // Links 11-50: Cost increases by 1% per additional link
-  const tier2Max = Math.min(estimatedLinks, 50);
-  const tier2Links = tier2Max - 10;
-  for (let i = 1; i <= tier2Links; i++) {
-    cost += linkCost * (1 + i * 0.01);
-  }
-  linksProcessed += tier2Links;
-
-  if (linksProcessed >= estimatedLinks) return cost;
-
-  // Links 51-200: Cost increases by 1.5% per additional link
-  const tier3Max = Math.min(estimatedLinks, 200);
-  const tier3Links = tier3Max - 50;
-  for (let i = 1; i <= tier3Links; i++) {
-    cost += linkCost * (1 + 40 * 0.01 + i * 0.015);
-  }
-  linksProcessed += tier3Links;
-
-  if (linksProcessed >= estimatedLinks) return cost;
-
-  // Links 201+: Cost increases by 2% per additional link
-  const tier4Links = estimatedLinks - 200;
-  for (let i = 1; i <= tier4Links; i++) {
-    cost += linkCost * (1 + 40 * 0.01 + 150 * 0.015 + i * 0.02);
-  }
+  // Note: Higher tiers (11-50, 51-200, 200+) not used since we only need 10 links
+  // But keeping the function structure in case requirements change
 
   return cost;
 }
@@ -371,13 +343,17 @@ export function calculateKDROI(
     return null;
   }
 
-  const revenuePerClick = 0.1; // $0.1 per click
-  const estimatedRevenue = searchVolume * revenuePerClick;
-  const backlinkCost = calculateBacklinkCost(kd);
+  // Assumptions:
+  // - Required backlinks: 10 (fixed)
+  // - Investment cost: $1,000 (10 × $100)
+  // - Revenue per click: $0.1
+  // - Can capture 100% of clicks
 
-  if (backlinkCost === 0) return null;
+  const monthlyRevenue = searchVolume * 0.1; // $0.1 per click
+  const annualRevenue = monthlyRevenue * 12;
+  const investmentCost = 1000; // $1,000 for 10 backlinks
 
-  const roi = ((estimatedRevenue - backlinkCost) / backlinkCost) * 100;
+  const roi = ((annualRevenue - investmentCost) / investmentCost) * 100;
   return roi;
 }
 
@@ -390,11 +366,11 @@ export interface KGRItem {
   searchVolumeTimestamp: string | null;  // When entered
   kd: number | null;  // Keyword Difficulty (0-100), from Ahrefs/Semrush
   kdTimestamp: string | null;  // When KD was entered
-  kgr: number | null;  // Calculated: searchVolume / allintitleCount
+  kgr: number | null;  // Calculated: allintitleCount / searchVolume
   kgrStatus: 'good' | 'medium' | 'bad' | null;  // <0.025 good, 0.025-1 medium, >1 bad
-  ekgr: number | null;  // Enhanced KGR: (searchVolume * 0.6) / (allintitleCount * sqrt(KD))
+  ekgr: number | null;  // Enhanced KGR: (allintitleCount * (1 + KD/100)) / searchVolume
   ekgrStatus: 'good' | 'medium' | 'bad' | null;  // >20 good, 10-20 medium, <10 bad
-  kdroi: number | null;  // Keyword Difficulty ROI: (revenue - cost) / cost
+  kdroi: number | null;  // Keyword Difficulty ROI: (annualRevenue - $1000) / $1000 * 100
   kdroiStatus: 'good' | 'medium' | 'bad' | null;  // >200% good, 100-200% medium, <100% bad
   addedAt: string;  // ISO timestamp when added to workbench
 }
