@@ -175,29 +175,21 @@ export function getKGRInterpretation(kgr: number | null): KGRInterpretation {
     };
   }
 
-  if (kgr < 0.025) {
+  if (kgr < 0.25) {
     return {
-      label: "黄金关键词",
+      label: "低竞争",
       emoji: "🏆",
       color: "#34d399",
       bg: "rgba(52,211,153,0.15)",
-      description: "KGR < 0.025，低竞争高价值，强烈推荐"
-    };
-  } else if (kgr < 0.1) {
-    return {
-      label: "优质机会",
-      emoji: "✅",
-      color: "#4ade80",
-      bg: "rgba(74,222,128,0.15)",
-      description: "KGR 0.025-0.1，竞争较低，值得考虑"
+      description: "KGR < 0.25，低竞争高价值，强烈推荐"
     };
   } else if (kgr < 1) {
     return {
-      label: "一般竞争",
+      label: "中等竞争",
       emoji: "⚠️",
       color: "#fbbf24",
       bg: "rgba(251,191,36,0.15)",
-      description: "KGR 0.1-1，竞争适中，需谨慎"
+      description: "KGR 0.25-1，竞争适中，需谨慎"
     };
   } else {
     return {
@@ -222,37 +214,29 @@ export function getEKGRInterpretation(ekgr: number | null): EKGRInterpretation {
     };
   }
 
-  if (ekgr > 20) {
+  if (ekgr < 0.25) {
     return {
-      label: "极优机会",
+      label: "低竞争",
       emoji: "🏆",
       color: "#34d399",
       bg: "rgba(52,211,153,0.15)",
-      description: "EKGR > 20，考虑竞争后的优质机会"
+      description: "EKGR < 0.25，考虑竞争后的优质机会"
     };
-  } else if (ekgr > 10) {
+  } else if (ekgr < 1) {
     return {
-      label: "优质机会",
-      emoji: "✅",
-      color: "#4ade80",
-      bg: "rgba(74,222,128,0.15)",
-      description: "EKGR 10-20，竞争调整后仍有价值"
-    };
-  } else if (ekgr > 5) {
-    return {
-      label: "可考虑",
+      label: "中等竞争",
       emoji: "⚠️",
       color: "#fbbf24",
       bg: "rgba(251,191,36,0.15)",
-      description: "EKGR 5-10，需要权衡竞争因素"
+      description: "EKGR 0.25-1，需要权衡竞争因素"
     };
   } else {
     return {
-      label: "不建议",
+      label: "高竞争",
       emoji: "❌",
       color: "#f87171",
       bg: "rgba(248,113,113,0.15)",
-      description: "EKGR < 5，竞争压力大，风险高"
+      description: "EKGR > 1，竞争压力大，风险高"
     };
   }
 }
@@ -269,37 +253,21 @@ export function getKDROIInterpretation(kdroi: number | null): KDROIInterpretatio
     };
   }
 
-  if (kdroi > 200) {
+  if (kdroi > 100) {
     return {
-      label: "极高回报",
+      label: "高回报",
       emoji: "🏆",
       color: "#34d399",
       bg: "rgba(52,211,153,0.15)",
-      description: "ROI > 200%，投资回报极高"
-    };
-  } else if (kdroi > 100) {
-    return {
-      label: "高回报",
-      emoji: "✅",
-      color: "#4ade80",
-      bg: "rgba(74,222,128,0.15)",
-      description: "ROI 100-200%，投资回报良好"
-    };
-  } else if (kdroi > 0) {
-    return {
-      label: "一般回报",
-      emoji: "⚠️",
-      color: "#fbbf24",
-      bg: "rgba(251,191,36,0.15)",
-      description: "ROI 0-100%，有一定回报但不高"
+      description: "ROI > 100%，投资回报良好"
     };
   } else {
     return {
-      label: "亏损风险",
+      label: "低回报",
       emoji: "❌",
       color: "#f87171",
       bg: "rgba(248,113,113,0.15)",
-      description: "ROI < 0%，预期收益无法覆盖成本"
+      description: "ROI ≤ 100%，回报不足以覆盖成本"
     };
   }
 }
@@ -367,11 +335,11 @@ export interface KGRItem {
   kd: number | null;  // Keyword Difficulty (0-100), from Ahrefs/Semrush
   kdTimestamp: string | null;  // When KD was entered
   kgr: number | null;  // Calculated: allintitleCount / searchVolume
-  kgrStatus: 'good' | 'medium' | 'bad' | null;  // <0.025 good, 0.025-1 medium, >1 bad
+  kgrStatus: 'good' | 'medium' | 'bad' | null;  // <0.25 good, 0.25-1 medium, >1 bad
   ekgr: number | null;  // Enhanced KGR: (allintitleCount * (1 + KD/100)) / searchVolume
-  ekgrStatus: 'good' | 'medium' | 'bad' | null;  // >20 good, 10-20 medium, <10 bad
+  ekgrStatus: 'good' | 'medium' | 'bad' | null;  // <0.25 good, 0.25-1 medium, >1 bad
   kdroi: number | null;  // Keyword Difficulty ROI: (annualRevenue - $1000) / $1000 * 100
-  kdroiStatus: 'good' | 'medium' | 'bad' | null;  // >200% good, 100-200% medium, <100% bad
+  kdroiStatus: 'good' | 'medium' | 'bad' | null;  // >100% good, ≤100% bad
   addedAt: string;  // ISO timestamp when added to workbench
 }
 
