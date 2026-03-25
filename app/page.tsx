@@ -271,9 +271,16 @@ export default function Home() {
       const res = await fetch(`/api/trends?${params}`);
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json: TrendsResponse = await res.json();
+      const json: TrendsResponse & { enrich?: Record<string, EnrichData> } = await res.json();
 
       setData(json);
+
+      // Set enrich data from response (if available)
+      if (json.enrich && Object.keys(json.enrich).length > 0) {
+        setEnrichMap(json.enrich);
+        setEnrichLoading(false);
+      }
+
       // 保存到 localStorage
       try {
         localStorage.setItem('trends_cache', JSON.stringify(json));
@@ -430,6 +437,16 @@ export default function Home() {
 
   useEffect(() => {
     if (!data || data.google.length === 0) return;
+
+    // Check if enrich data is already in the response (from backend cache)
+    const enrichData = (data as any).enrich as Record<string, EnrichData> | undefined;
+    if (enrichData && Object.keys(enrichData).length > 0) {
+      setEnrichMap(enrichData);
+      setEnrichLoading(false);
+      return;
+    }
+
+    // Fallback: fetch enrich data for old cache without enrich
     setEnrichLoading(true);
 
     // Select top 10 keywords by surge value (not by position)
@@ -590,7 +607,7 @@ export default function Home() {
         // KGR = allintitleCount / searchVolume
         if (updated.searchVolume && updated.allintitleCount && updated.allintitleCount > 0) {
           updated.kgr = updated.allintitleCount / updated.searchVolume;
-          if (updated.kgr < 0.025) updated.kgrStatus = 'good';
+          if (updated.kgr < 0.25) updated.kgrStatus = 'good';
           else if (updated.kgr < 1) updated.kgrStatus = 'medium';
           else updated.kgrStatus = 'bad';
         } else {
@@ -601,8 +618,8 @@ export default function Home() {
         // Calculate EKGR
         updated.ekgr = calculateEKGR(updated.searchVolume, updated.allintitleCount, updated.kd);
         if (updated.ekgr !== null) {
-          if (updated.ekgr > 20) updated.ekgrStatus = 'good';
-          else if (updated.ekgr > 10) updated.ekgrStatus = 'medium';
+          if (updated.ekgr < 0.25) updated.ekgrStatus = 'good';
+          else if (updated.ekgr < 1) updated.ekgrStatus = 'medium';
           else updated.ekgrStatus = 'bad';
         } else {
           updated.ekgrStatus = null;
@@ -611,8 +628,7 @@ export default function Home() {
         // Calculate KDROI
         updated.kdroi = calculateKDROI(updated.searchVolume, updated.kd);
         if (updated.kdroi !== null) {
-          if (updated.kdroi > 200) updated.kdroiStatus = 'good';
-          else if (updated.kdroi > 100) updated.kdroiStatus = 'medium';
+          if (updated.kdroi > 100) updated.kdroiStatus = 'good';
           else updated.kdroiStatus = 'bad';
         } else {
           updated.kdroiStatus = null;

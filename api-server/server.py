@@ -249,12 +249,12 @@ def get_trends(
         print(f"[trends] CACHE HIT: {key}")
         cached["_cached"] = True  # Update cached flag
         return cached
+
+    # Log cache status
+    if cached:
+        print(f"[trends] CACHE BYPASSED: {key}")
     else:
-        if cached:
-            print(f"[trends] CACHE BYPASSED: {key}")
-        else:
-            print(f"[trends] CACHE MISS: {key}")
-        return cached
+        print(f"[trends] CACHE MISS: {key}")
 
     # If bypassing cache or no cache, try fetching
     # Fetch for each keyword (sequential, 2s delay between to avoid 429)
@@ -276,6 +276,31 @@ def get_trends(
         print("[trends] No fresh data, returning stale cache")
         return {**cached, "_stale": True}
 
+    # Compute enrich data for top 10 keywords (by surge value)
+    enrich_data: dict[str, dict] = {}
+    if len(all_items) > 0:
+        # Sort by surge value to get top 10
+        def get_numeric_value(val: str) -> int:
+            if val == "Breakout":
+                return 10000
+            cleaned = val.replace("+", "").replace("%", "").replace(",", "").strip()
+            try:
+                return int(cleaned)
+            except (ValueError, TypeError):
+                return 0
+
+        sorted_by_value = sorted(all_items, key=lambda x: get_numeric_value(x["value"]), reverse=True)
+        top_keywords = sorted_by_value[:10]
+
+        # Compute enrich for each top keyword
+        for item in top_keywords:
+            try:
+                enrich = _enrich_single(item["name"], item["value"])
+                enrich_data[item["name"]] = enrich
+            except Exception as e:
+                print(f"[trends] Failed to enrich '{item['name']}': {e}")
+                # Continue with other keywords even if one fails
+
     # If bypassCache or got fresh data, update cache
     # Determine status message
     status_msg = None
@@ -284,6 +309,7 @@ def get_trends(
 
     response = {
         "google": all_items,
+        "enrich": enrich_data,  # Include enrich data in response
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "params": {"timeframe": timeframe, "geo": geo},
         "_stale": False,
