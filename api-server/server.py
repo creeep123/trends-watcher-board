@@ -245,6 +245,8 @@ def get_trends(
 
     # Always try cache first for speed
     cached = _get_cached(key)
+    stale = _get_stale(key)  # Get stale cache as fallback
+
     if cached and not bypassCache:
         print(f"[trends] CACHE HIT: {key}")
         cached["_cached"] = True  # Update cached flag
@@ -271,10 +273,24 @@ def get_trends(
         if kw != keyword_list[-1]:
             time.sleep(2)
 
-    # If no data and we have cached data (even stale), return it
-    if len(all_items) == 0 and cached:
-        print("[trends] No fresh data, returning stale cache")
-        return {**cached, "_stale": True}
+    # If no data (rate limited), return stale cache if available
+    if len(all_items) == 0:
+        if stale:
+            print("[trends] Rate limited, returning stale cache")
+            return {**stale, "_stale": True, "_status": "Google Trends 暂时不可用（可能限频）"}
+        else:
+            print("[trends] No data available and no stale cache")
+            status_msg = "Google Trends 暂时不可用（可能限频）"
+            response = {
+                "google": [],
+                "enrich": {},
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "params": {"timeframe": timeframe, "geo": geo},
+                "_stale": False,
+                "_cached": False,
+                "_status": status_msg,
+            }
+            return response
 
     # Compute enrich data for top 10 keywords (by surge value)
     enrich_data: dict[str, dict] = {}
@@ -301,12 +317,7 @@ def get_trends(
                 print(f"[trends] Failed to enrich '{item['name']}': {e}")
                 # Continue with other keywords even if one fails
 
-    # If bypassCache or got fresh data, update cache
-    # Determine status message
-    status_msg = None
-    if len(all_items) == 0:
-        status_msg = "Google Trends 暂时不可用（可能限频）"
-
+    # Successfully fetched fresh data, update cache
     response = {
         "google": all_items,
         "enrich": enrich_data,  # Include enrich data in response
@@ -314,7 +325,7 @@ def get_trends(
         "params": {"timeframe": timeframe, "geo": geo},
         "_stale": False,
         "_cached": False,
-        "_status": status_msg,
+        "_status": None,
     }
 
     _set_cache(key, response)

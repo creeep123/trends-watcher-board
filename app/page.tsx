@@ -1380,14 +1380,14 @@ export default function Home() {
                 />
               </SectionHeader>
 
-              {/* Google 限频提示 */}
-              {data?._stale && sortedGoogle.length === 0 && (
+              {/* Google 限频提示 - 显示缓存数据时也提示 */}
+              {data?._stale && (
                 <div className="mb-3 rounded-md border p-3 text-xs" style={{ borderColor: "rgba(251,191,36,0.3)", background: "rgba(251,191,36,0.1)", color: "#fbbf24" }}>
                   <div className="flex items-start gap-2">
                     <span className="text-sm">⚠️</span>
                     <div>
-                      <div className="font-medium">Google Trends 暂时不可用</div>
-                      <div style={{ color: "var(--text-secondary)" }}>Google 正在限频，请稍后再试或点击刷新按钮重试</div>
+                      <div className="font-medium">Google Trends 暂时不可用（显示缓存数据）</div>
+                      <div style={{ color: "var(--text-secondary)" }}>Google 正在限频，当前显示的是缓存数据。点击刷新按钮将重新获取最新数据。</div>
                     </div>
                   </div>
                 </div>
