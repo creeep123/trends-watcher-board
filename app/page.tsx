@@ -1420,7 +1420,7 @@ export default function Home() {
                 ) : (
                   sortedGoogle.map((item, i) => (
                     <KeywordCard
-                      key={`g-${i}`}
+                      key={`g-${item.name}`}
                       item={item}
                       index={i}
                       isExpanded={expandedKeyword === item.name}
