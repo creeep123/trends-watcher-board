@@ -379,8 +379,8 @@ export default function Home() {
       } catch (e) {
         console.error('Failed to read cache from localStorage:', e);
       }
-      // 没有缓存或缓存过期，显示空状态
-      setLoading(false);
+      // 没有缓存或缓存过期，自动获取数据
+      fetchData();
     }
   }, [fetchData, forceRefresh]);
   useEffect(() => { fetchTrending(); }, [fetchTrending]);
