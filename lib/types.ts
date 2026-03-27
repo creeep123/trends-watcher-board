@@ -151,7 +151,7 @@ export const GEO_OPTIONS = [
   { label: "DE", value: "DE", flag: "🇩🇪" },
 ] as const;
 
-export const DEFAULT_KEYWORDS = "AI, LLM, maker, generator, creator, filter";
+export const DEFAULT_KEYWORDS = "AI, LLM, maker, generator, creator, filter, Anthropic";
 
 // Google Trends 对比关键词（固定）
 export const GT_COMPARISON_KEYWORDS = ["gpts", "happy birthday image"] as const;
