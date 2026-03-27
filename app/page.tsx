@@ -239,6 +239,9 @@ export default function Home() {
   const [kgrFilter, setKgrFilter] = useState<'all' | 'good-kgr' | 'good-ekgr' | 'good-kdroi'>('all');
   const [kgrSort, setKgrSort] = useState<'added' | 'kgr' | 'ekgr' | 'kdroi'>('added');
 
+  // Toast notification
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
   // Root Keywords Monitoring state
   const [rootsExpanded, setRootsExpanded] = useState(false);
   const [rootKeywords, setRootKeywords] = useState<RootKeyword[]>([]);
@@ -542,6 +545,8 @@ export default function Home() {
   const handleAddToKGR = useCallback((keyword: string) => {
     // Check if already exists
     if (kgrItems.some(item => item.keyword === keyword)) {
+      setToast({ message: `"${keyword}" 已在工作台中`, type: 'info' });
+      setTimeout(() => setToast(null), 2000);
       return; // Already in workbench
     }
 
@@ -566,6 +571,10 @@ export default function Home() {
 
     // Auto-fetch allintitle
     fetchAllintitleForKGR(keyword);
+
+    // Show success message
+    setToast({ message: `已添加 "${keyword}" 到 KGR 工作台`, type: 'success' });
+    setTimeout(() => setToast(null), 2000);
   }, [kgrItems]);
 
   const fetchAllintitleForKGR = async (keyword: string) => {
@@ -651,12 +660,49 @@ export default function Home() {
       .map(k => k.trim())
       .filter(k => k.length > 0);
 
+    let addedCount = 0;
+    let skippedCount = 0;
+
     keywords.forEach(keyword => {
-      handleAddToKGR(keyword);
+      // Check if already exists
+      if (kgrItems.some(item => item.keyword === keyword)) {
+        skippedCount++;
+        return;
+      }
+
+      const newItem: KGRItem = {
+        keyword,
+        allintitleCount: null,
+        allintitleTimestamp: null,
+        searchVolume: null,
+        searchVolumeTimestamp: null,
+        kd: null,
+        kdTimestamp: null,
+        kgr: null,
+        kgrStatus: null,
+        ekgr: null,
+        ekgrStatus: null,
+        kdroi: null,
+        kdroiStatus: null,
+        addedAt: new Date().toISOString(),
+      };
+
+      setKgrItems(prev => [...prev, newItem]);
+      fetchAllintitleForKGR(keyword);
+      addedCount++;
     });
 
     setBatchImportText("");
     setShowBatchImport(false);
+
+    // Show summary toast
+    if (addedCount > 0 || skippedCount > 0) {
+      let message = `批量导入完成`;
+      if (addedCount > 0) message += `，添加 ${addedCount} 个`;
+      if (skippedCount > 0) message += `，跳过 ${skippedCount} 个（已存在）`;
+      setToast({ message, type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+    }
   };
 
   // Fetch allintitle for all items
@@ -1584,6 +1630,24 @@ export default function Home() {
         Trends Watcher Board · #trends_watcher
       </footer>
       <ScrollToTopButton />
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-16 left-4 right-4 z-50 sm:left-auto sm:right-4 sm:bottom-4 sm:max-w-sm">
+          <div
+            className="rounded-lg px-4 py-3 shadow-lg text-sm font-medium animate-in slide-in-from-bottom-2"
+            style={{
+              background: toast.type === 'success' ? 'rgba(52,211,153,0.95)' :
+                         toast.type === 'error' ? 'rgba(239,68,68,0.95)' :
+                         'rgba(59,130,246,0.95)',
+              color: '#fff',
+              backdropFilter: 'blur(8px)'
+            }}
+          >
+            {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
