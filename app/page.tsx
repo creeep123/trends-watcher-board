@@ -2516,7 +2516,7 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
     <tr className="border-b" style={{ borderColor: "var(--border)" }}>
       {/* Keyword */}
       <td className="p-2">
-        <div className="max-w-[120px] truncate text-sm font-medium" style={{ color: "var(--text-primary)" }} title={item.keyword}>
+        <div className="min-w-[150px] max-w-[200px] text-sm font-medium break-words" style={{ color: "var(--text-primary)" }}>
           {item.keyword}
         </div>
       </td>
