@@ -10,3 +10,7 @@ api-server/venv/
 api-server/__pycache__/
 api-server/proxy_manager_v2.py
 api-server/.env
+public/sw.js
+public/sw.js.map
+public/gw.js
+public/gw.js.map

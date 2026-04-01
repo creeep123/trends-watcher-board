@@ -11,12 +11,14 @@
     "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
+    "@serwist/next": "^9.5.7",
     "@supabase/supabase-js": "^2.99.1",
     "cheerio": "^1.2.0",
     "googleapis": "^171.4.0",
     "next": "^15.5.12",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "serwist": "^9.5.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
