@@ -26,12 +26,23 @@ from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pytrends.request import TrendReq
 from TikTokApi import TikTokApi
+from supabase import create_client, Client as SupabaseClient
 
 OPENROUTER_API_KEY = os.environ.get(
     "OPENROUTER_API_KEY",
     "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",
 )
 LLM_MODEL = "z-ai/glm-4.5-air:free"
+
+# Supabase & Push config
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:trends@example.com")
+
+supabase_client: SupabaseClient | None = None
+if SUPABASE_URL and SUPABASE_SERVICE_KEY:
+    supabase_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 # --- Tiered cache TTL (seconds) ---
 CACHE_TTL_MAP = {
@@ -1791,3 +1802,36 @@ def health():
         ttl = _ttl_for(key)
         cache_stats[key[:40]] = {"age_s": age, "ttl_s": ttl, "fresh": age < ttl}
     return {"status": "ok", "cache_entries": len(_cache), "cache": cache_stats}
+
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(payload: dict):
+    if not supabase_client:
+        raise HTTPException(500, "Supabase not configured")
+    endpoint = payload.get("endpoint")
+    keys = payload.get("keys", {})
+    if not endpoint or not keys.get("p256dh") or not keys.get("auth"):
+        raise HTTPException(400, "Missing required fields")
+    try:
+        supabase_client.table("twb_push_subscriptions").upsert({
+            "endpoint": endpoint,
+            "keys_p256dh": keys["p256dh"],
+            "keys_auth": keys["auth"],
+            "user_agent": payload.get("user_agent", ""),
+        }).execute()
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.delete("/api/push/subscribe")
+async def push_unsubscribe(payload: dict):
+    if not supabase_client:
+        raise HTTPException(500, "Supabase not configured")
+    endpoint = payload.get("endpoint")
+    if not endpoint:
+        raise HTTPException(400, "Missing endpoint")
+    try:
+        supabase_client.table("twb_push_subscriptions").delete().eq("endpoint", endpoint).execute()
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
