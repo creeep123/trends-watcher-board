@@ -21,6 +21,7 @@ import type {
 import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS,
   getKGRInterpretation, getEKGRInterpretation, getKDROIInterpretation,
   calculateEKGR, calculateKDROI, generateGTCompareUrl } from "@/lib/types";
+import { usePushSubscription } from "@/lib/usePushSubscription";
 
 // --- Tag logic ---
 
@@ -238,6 +239,7 @@ export default function Home() {
   const [showBatchImport, setShowBatchImport] = useState(false);
   const [kgrFilter, setKgrFilter] = useState<'all' | 'good-kgr' | 'good-ekgr' | 'good-kdroi'>('all');
   const [kgrSort, setKgrSort] = useState<'added' | 'kgr' | 'ekgr' | 'kdroi'>('added');
+  const push = usePushSubscription();
 
   // Toast notification
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -920,6 +922,20 @@ export default function Home() {
               >
                 批量 GT
               </a>
+              {push.supported && (
+                <button
+                  onClick={push.subscribed ? push.unsubscribe : push.subscribe}
+                  disabled={push.loading}
+                  className="rounded-md px-2 py-1 text-xs font-medium transition-colors hover:opacity-80"
+                  style={{
+                    background: push.subscribed ? "rgba(16, 185, 129, 0.15)" : "var(--bg-secondary)",
+                    color: push.subscribed ? "#34d399" : "var(--text-secondary)",
+                  }}
+                  title={push.subscribed ? "关闭推送" : "开启推送通知"}
+                >
+                  {push.loading ? "..." : push.subscribed ? "🔔 已订阅" : "🔕 推送"}
+                </button>
+              )}
             </div>
             <button
               onClick={() => { fetchData(); fetchTrending(); fetchReddit(); fetchHackerNews(); fetchTechNews(); }}
