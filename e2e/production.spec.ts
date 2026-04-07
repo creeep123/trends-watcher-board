@@ -39,17 +39,28 @@ test.describe('Trends Watcher Board - Production Tests', () => {
     expect([200, 429, 500, 502, 503]).toContain(response.status());
   });
 
-  test('时间范围按钮存在', async ({ page }) => {
-    // 检查时间范围按钮 (1h, 4h, 24h, 7d, 30d)
-    await expect(page.locator('button:has-text("1h")')).toBeVisible();
-    await expect(page.locator('button:has-text("24h")')).toBeVisible();
-    await expect(page.locator('button:has-text("7d")')).toBeVisible();
+  test('时间范围选择器存在', async ({ page }) => {
+    // 桌面端显示下拉选择框，移动端显示按钮组
+    const selectCount = await page.locator('select').count();
+    expect(selectCount).toBeGreaterThan(0);
+    // 桌面端至少有一个 select 可见
+    let hasVisible = false;
+    for (let i = 0; i < selectCount; i++) {
+      if (await page.locator('select').nth(i).isVisible().catch(() => false)) {
+        hasVisible = true;
+        break;
+      }
+    }
+    if (!hasVisible) {
+      // 移动端 fallback
+      await expect(page.locator('button:has-text("1h")')).toBeVisible();
+    }
   });
 
-  test('地区选择按钮存在', async ({ page }) => {
-    // 检查地区按钮 (Global, US, CN, etc.)
-    await expect(page.locator('button:has-text("Global")').or(page.locator('button:has-text("🌍")'))).toBeVisible();
-    await expect(page.locator('button:has-text("US")').or(page.locator('button:has-text("🇺🇸")'))).toBeVisible();
+  test('地区选择器存在', async ({ page }) => {
+    // 桌面端显示下拉选择框，移动端显示按钮组
+    const geoSelects = page.locator('select');
+    await expect(geoSelects.nth(1)).toBeVisible(); // 第二个 select 是地区选择
   });
 
   test('Tab 导航存在（移动端视图）', async ({ page }) => {
@@ -62,10 +73,13 @@ test.describe('Trends Watcher Board - Production Tests', () => {
     const queriesTab = page.locator('button:has-text("Queries")').or(page.locator('text=/📊/'));
     const redditTab = page.locator('button:has-text("Reddit")').or(page.locator('text=/💬/'));
     const hnTab = page.locator('button:has-text("HN")').or(page.locator('text=/🍊/'));
-    const githubTab = page.locator('button:has-text("GitHub")').or(page.locator('text=/💻/)'));
+    const githubTab = page.locator('button:has-text("GitHub")');
+
+    // 检查底部 tab 导航 (移动端) - 包含 Tech tab
+    const techTab = page.locator('button:has-text("Tech")');
 
     // 至少有一些 tab 可见
-    const tabs = [trendingTab, queriesTab, redditTab, hnTab, githubTab];
+    const tabs = [trendingTab, queriesTab, redditTab, hnTab, githubTab, techTab];
     let visibleCount = 0;
     for (const tab of tabs) {
       if (await tab.isVisible().catch(() => false)) {

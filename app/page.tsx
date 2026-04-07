@@ -1402,7 +1402,7 @@ export default function Home() {
                       onToggle={() => toggleExpand(item.name)}
                       interestData={expandedKeyword === item.name ? interestData : []}
                       interestLoading={expandedKeyword === item.name && interestLoading}
-                      onAddToKGR={handleAddToKGR}
+                      onAddToKGR={kgrExpanded ? handleAddToKGR : undefined}
                     />
                   ))
                 )}
@@ -1495,7 +1495,7 @@ export default function Home() {
                       multiGeoLoading={expandedKeyword === item.name && multiGeoLoading}
                       enrichData={enrichMap[item.name]}
                       enrichLoading={enrichLoading}
-                      onAddToKGR={handleAddToKGR}
+                      onAddToKGR={kgrExpanded ? handleAddToKGR : undefined}
                     />
                   ))
                 )}
@@ -1797,17 +1797,6 @@ function TrendingCard({
       <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-4 text-left sm:items-center sm:gap-3 sm:p-2.5">
         <Rank n={index + 1} />
         <span className={`min-w-0 flex-1 text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
-        {onAddToKGR && (
-          <button onClick={(e) => {
-            e.stopPropagation();
-            onAddToKGR(item.name);
-          }}
-            className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
-            style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
-            title="添加到 KGR 工作台">
-            +KGR
-          </button>
-        )}
         {isTech && (
           <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(79, 143, 247, 0.15)", color: "#4f8ff7" }}>
             Tech
@@ -1820,7 +1809,7 @@ function TrendingCard({
         )}
         <Chevron open={isExpanded} />
       </button>
-      {isExpanded && <DecisionPanel keyword={item.name} points={interestData} loading={interestLoading} />}
+      {isExpanded && <DecisionPanel keyword={item.name} points={interestData} loading={interestLoading} onAddToKGR={onAddToKGR} />}
     </div>
   );
 }
@@ -2009,17 +1998,6 @@ function KeywordCard({
           <Rank n={index + 1} />
         )}
         <span className={`min-w-0 flex-1 text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
-        {onAddToKGR && (
-          <button onClick={(e) => {
-            e.stopPropagation();
-            onAddToKGR(item.name);
-          }}
-            className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
-            style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
-            title="添加到 KGR 工作台">
-            +KGR
-          </button>
-        )}
         {score !== undefined && score >= 75 && (
           <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>冲</span>
         )}
@@ -2042,6 +2020,7 @@ function KeywordCard({
           multiGeoData={multiGeoData || null}
           multiGeoLoading={!!multiGeoLoading}
           enrichData={enrichData}
+          onAddToKGR={onAddToKGR}
         />
       )}
     </div>
@@ -2055,11 +2034,13 @@ function EnrichedDecisionPanel({
   freshnessData, freshnessLoading,
   multiGeoData, multiGeoLoading,
   enrichData,
+  onAddToKGR,
 }: {
   keyword: string; points: InterestPoint[]; loading: boolean;
   freshnessData: FreshnessData | null; freshnessLoading: boolean;
   multiGeoData: MultiGeoData | null; multiGeoLoading: boolean;
   enrichData?: EnrichData;
+  onAddToKGR?: (keyword: string) => void;
 }) {
   const [supplyInput, setSupplyInput] = useState("");
   const [storedSupply, setStoredSupply] = useState<number | null>(null);
@@ -2094,8 +2075,16 @@ function EnrichedDecisionPanel({
   return (
     <div className="border-t px-4 py-3 sm:px-3 sm:py-2.5" style={{ borderColor: "var(--border)" }}>
       {/* 7-day trend chart */}
-      <div className="mb-2.5">
+      <div className="mb-2.5 flex items-center justify-between">
         <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>7-day trend</span>
+        {onAddToKGR && (
+          <button onClick={() => onAddToKGR(keyword)}
+            className="rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
+            style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
+            title="添加到 KGR 工作台">
+            +KGR
+          </button>
+        )}
         {loading ? (
           <div className="mt-1 h-20 animate-pulse rounded sm:h-14" style={{ background: "var(--bg-secondary)" }} />
         ) : points.length > 0 ? (
@@ -2251,11 +2240,19 @@ function EnrichedDecisionPanel({
 }
 
 // Original simple DecisionPanel for TrendingCard
-function DecisionPanel({ keyword, points, loading }: { keyword: string; points: InterestPoint[]; loading: boolean }) {
+function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: string; points: InterestPoint[]; loading: boolean; onAddToKGR?: (keyword: string) => void }) {
   return (
     <div className="border-t px-3 py-3" style={{ borderColor: "var(--border)" }}>
-      <div className="mb-3">
+      <div className="mb-3 flex items-center justify-between">
         <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>7-day trend</span>
+        {onAddToKGR && (
+          <button onClick={() => onAddToKGR(keyword)}
+            className="rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
+            style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
+            title="添加到 KGR 工作台">
+            +KGR
+          </button>
+        )}
         {loading ? (
           <div className="mt-1 h-20 animate-pulse rounded sm:h-14" style={{ background: "var(--bg-secondary)" }} />
         ) : points.length > 0 ? (

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_BASE = process.env.PYTRENDS_API_URL || "http://43.165.126.121";
+const API_BASE = process.env.PYTRENDS_API_URL || "http://127.0.0.1:8081";
 
 export const maxDuration = 60;
 
