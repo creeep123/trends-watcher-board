@@ -341,6 +341,7 @@ export interface KGRItem {
   kdroi: number | null;  // Keyword Difficulty ROI: (annualRevenue - $1000) / $1000 * 100
   kdroiStatus: 'good' | 'medium' | 'bad' | null;  // >100% good, ≤100% bad
   addedAt: string;  // ISO timestamp when added to workbench
+  notes?: string;
 }
 
 // KGR Analysis interpretation

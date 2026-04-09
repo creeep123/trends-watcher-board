@@ -151,6 +151,7 @@ function loadKGRWorkbench(): KGRItem[] {
       kdroi: item.kdroi ?? null,
       kdroiStatus: item.kdroiStatus ?? null,
       addedAt: item.addedAt || new Date().toISOString(),
+      notes: item.notes || "",
     }));
   } catch {
     return [];
@@ -1149,6 +1150,7 @@ export default function Home() {
                       <th className="p-2 text-right font-medium">KGR</th>
                       <th className="p-2 text-right font-medium">EKGR</th>
                       <th className="p-2 text-right font-medium">KDROI</th>
+                      <th className="p-2 text-left font-medium">备注</th>
                       <th className="p-2 text-center font-medium">操作</th>
                     </tr>
                   </thead>
@@ -2727,6 +2729,23 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
         ) : (
           <span className="text-xs" style={{ color: "var(--text-secondary)" }}>--</span>
         )}
+      </td>
+
+      {/* Notes */}
+      <td className="p-2">
+        <input
+          type="text"
+          value={item.notes || ""}
+          onChange={(e) => onUpdate(item.keyword, { notes: e.target.value })}
+          onBlur={(e) => onUpdate(item.keyword, { notes: e.target.value })}
+          placeholder="备注"
+          className="w-full rounded border px-2 py-1 text-xs"
+          style={{
+            background: "var(--bg-secondary)",
+            borderColor: "var(--border)",
+            color: "var(--text-primary)"
+          }}
+        />
       </td>
 
       {/* Actions */}
