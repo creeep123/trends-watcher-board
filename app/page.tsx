@@ -1402,7 +1402,7 @@ export default function Home() {
                       onToggle={() => toggleExpand(item.name)}
                       interestData={expandedKeyword === item.name ? interestData : []}
                       interestLoading={expandedKeyword === item.name && interestLoading}
-                      onAddToKGR={kgrExpanded ? handleAddToKGR : undefined}
+                      onAddToKGR={handleAddToKGR}
                     />
                   ))
                 )}
@@ -1495,7 +1495,7 @@ export default function Home() {
                       multiGeoLoading={expandedKeyword === item.name && multiGeoLoading}
                       enrichData={enrichMap[item.name]}
                       enrichLoading={enrichLoading}
-                      onAddToKGR={kgrExpanded ? handleAddToKGR : undefined}
+                      onAddToKGR={handleAddToKGR}
                     />
                   ))
                 )}
@@ -2075,16 +2075,8 @@ function EnrichedDecisionPanel({
   return (
     <div className="border-t px-4 py-3 sm:px-3 sm:py-2.5" style={{ borderColor: "var(--border)" }}>
       {/* 7-day trend chart */}
-      <div className="mb-2.5 flex items-center justify-between">
+      <div className="mb-2.5">
         <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>7-day trend</span>
-        {onAddToKGR && (
-          <button onClick={() => onAddToKGR(keyword)}
-            className="rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
-            style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
-            title="添加到 KGR 工作台">
-            +KGR
-          </button>
-        )}
         {loading ? (
           <div className="mt-1 h-20 animate-pulse rounded sm:h-14" style={{ background: "var(--bg-secondary)" }} />
         ) : points.length > 0 ? (
@@ -2234,6 +2226,14 @@ function EnrichedDecisionPanel({
         <JumpLink href={allintitleUrl(keyword)} label="allint" color="#ea4335" />
         <JumpLink href={domainSearchUrl(keyword)} label="域" color="#de5833" />
         <JumpLink href={generateGTCompareUrl(keyword)} label="vs gpts" color="#4285f4" />
+        {onAddToKGR && (
+          <button onClick={() => onAddToKGR(keyword)}
+            className="rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
+            style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
+            title="添加到 KGR 工作台">
+            +KGR
+          </button>
+        )}
       </div>
     </div>
   );
@@ -2243,16 +2243,8 @@ function EnrichedDecisionPanel({
 function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: string; points: InterestPoint[]; loading: boolean; onAddToKGR?: (keyword: string) => void }) {
   return (
     <div className="border-t px-3 py-3" style={{ borderColor: "var(--border)" }}>
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3">
         <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>7-day trend</span>
-        {onAddToKGR && (
-          <button onClick={() => onAddToKGR(keyword)}
-            className="rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
-            style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
-            title="添加到 KGR 工作台">
-            +KGR
-          </button>
-        )}
         {loading ? (
           <div className="mt-1 h-20 animate-pulse rounded sm:h-14" style={{ background: "var(--bg-secondary)" }} />
         ) : points.length > 0 ? (
@@ -2271,6 +2263,14 @@ function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: stri
         <JumpLink href={allintitleUrl(keyword)} label="allint" color="#ea4335" />
         <JumpLink href={domainSearchUrl(keyword)} label="域" color="#de5833" />
         <JumpLink href={generateGTCompareUrl(keyword)} label="vs gpts" color="#4285f4" />
+        {onAddToKGR && (
+          <button onClick={() => onAddToKGR(keyword)}
+            className="rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
+            style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
+            title="添加到 KGR 工作台">
+            +KGR
+          </button>
+        )}
       </div>
     </div>
   );
