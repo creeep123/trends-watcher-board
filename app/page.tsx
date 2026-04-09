@@ -2615,18 +2615,27 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
 
       {/* Search Volume */}
       <td className="p-2 text-right">
-        <input type="text" value={volumeInput}
-          onChange={(e) => setVolumeInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") handleVolumeSubmit(); }}
-          onBlur={handleVolumeSubmit}
-          placeholder="搜索量"
-          className="w-20 rounded border px-2 py-1 text-right text-xs"
-          style={{
-            background: "var(--bg-secondary)",
-            borderColor: "var(--border)",
-            color: "var(--text-primary)"
-          }}
-        />
+        <div className="flex items-center justify-end gap-1">
+          <input type="text" value={volumeInput}
+            onChange={(e) => setVolumeInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleVolumeSubmit(); }}
+            onBlur={handleVolumeSubmit}
+            placeholder="搜索量"
+            className="w-20 rounded border px-2 py-1 text-right text-xs"
+            style={{
+              background: "var(--bg-secondary)",
+              borderColor: "var(--border)",
+              color: "var(--text-primary)"
+            }}
+          />
+          <a href={googleTrendsUrl(`${item.keyword},happy birthday image`)}
+            target="_blank" rel="noopener noreferrer"
+            className="shrink-0 rounded px-1.5 py-1 text-xs font-medium transition-opacity hover:opacity-80"
+            style={{ background: "rgba(66,133,244,0.15)", color: "#4285f4" }}
+            title="在 Google Trends 中与 happy birthday image 比较">
+            G
+          </a>
+        </div>
       </td>
 
       {/* KD */}

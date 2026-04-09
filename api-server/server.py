@@ -14,7 +14,7 @@ import hashlib
 import threading
 import xml.etree.ElementTree as ET
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import quote_plus
 
@@ -623,6 +623,8 @@ REDDIT_SUBREDDITS = [
     ("LocalLLaMA", 95),
     ("OpenAI", 100),
     ("singularity", 90),
+    ("LLMs", 90),
+    ("Anthropic", 85),
 
     # AI 图像/视频
     ("StableDiffusion", 85),
@@ -634,14 +636,15 @@ REDDIT_SUBREDDITS = [
     ("localai", 75),
     ("Ollama", 85),
     ("langchain", 80),
-    ("Anthropic", 85),
 
     # 需求发现 - SaaS/产品相关
     ("SaaS", 90),
     ("Entrepreneur", 85),
     ("SideProject", 80),
     ("MicroSaaS", 75),
-    ("lowlevel", 70),
+    ("startups", 80),
+    ("webdev", 70),
+    ("technology", 70),
 ]
 
 REDDIT_SUB_NAMES = [s[0] for s in REDDIT_SUBREDDITS]
@@ -751,7 +754,7 @@ def _extract_reddit_keywords(posts: list[dict]) -> list[dict]:
 def get_reddit(
     sort: str = Query(default="hot", description="Sort: hot or top"),
 ):
-    """Fetch AI/tech Reddit posts and extract trending keywords via LLM."""
+    """Fetch AI/tech Reddit posts (last 16h) and extract trending keywords via LLM."""
     cache_key = f"reddit|{sort}"
     cached = _get_cached(cache_key)
     if cached:
@@ -759,9 +762,10 @@ def get_reddit(
 
     all_posts: list[dict] = []
     seen_titles: set[str] = set()
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=16)
 
-    # Fetch from top 8 subreddits to avoid timeout (20 would take 6+ seconds)
-    for sub in REDDIT_SUB_NAMES[:8]:
+    # Fetch from top 10 subreddits to avoid timeout
+    for sub in REDDIT_SUB_NAMES[:10]:
         posts = _fetch_subreddit_rss(sub, sort=sort, limit=15)
         for p in posts:
             key = p["title"].lower().strip()
@@ -770,18 +774,34 @@ def get_reddit(
                 all_posts.append(p)
         time.sleep(0.2)  # Rate limit between subreddits
 
+    # Filter to last 16 hours
+    filtered = []
+    for p in all_posts:
+        pub = p.get("published", "")
+        if pub:
+            try:
+                pub_time = datetime.fromisoformat(pub.replace("Z", "+00:00"))
+                if pub_time < cutoff:
+                    continue
+            except (ValueError, OverflowError):
+                pass
+        filtered.append(p)
+
+    # 按热度分数排序
+    filtered.sort(key=lambda p: p.get("score", 50), reverse=True)
+
     # 按热度分数排序
     all_posts.sort(key=lambda p: p.get("score", 50), reverse=True)
 
     # Extract keywords via LLM
-    keywords = _extract_reddit_keywords(all_posts)
+    keywords = _extract_reddit_keywords(filtered)
 
     response = {
-        "posts": all_posts[:50],  # Cap at 50 posts
+        "posts": filtered,
         "keywords": keywords,
         "subreddits": REDDIT_SUB_NAMES,
         "sort": sort,
-        "total_posts": len(all_posts),
+        "total_posts": len(filtered),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     _set_cache(cache_key, response)
