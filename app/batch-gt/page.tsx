@@ -113,7 +113,7 @@ export default function BatchGTPage() {
     const days = FILTER_CONFIG.find(f => f.key === activeFilter)!.days;
     const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
     return keywords.filter(k => {
-      if (!k.latest_view) return true;
+      if (!k.latest_view) return false;
       return new Date(k.latest_view).getTime() < cutoff;
     });
   }, [keywords, activeFilter]);
@@ -124,7 +124,7 @@ export default function BatchGTPage() {
       for (const f of FILTER_CONFIG) {
         if (f.key === "all") continue;
         const cutoff = Date.now() - f.days * 24 * 60 * 60 * 1000;
-        if (!kw.latest_view || new Date(kw.latest_view).getTime() < cutoff) {
+        if (kw.latest_view && new Date(kw.latest_view).getTime() < cutoff) {
           counts[f.key]++;
         }
       }
