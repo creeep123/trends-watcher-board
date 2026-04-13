@@ -35,23 +35,6 @@ export default function BatchGTPage() {
     loadKeywords();
   }, []);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (selectedIndex === null) return;
-      if (e.key === "ArrowUp" && selectedIndex > 0) {
-        setSelectedIndex(selectedIndex - 1);
-      } else if (e.key === "ArrowDown" && selectedIndex < filteredKeywords.length - 1) {
-        setSelectedIndex(selectedIndex + 1);
-      } else if (e.key === " ") {
-        e.preventDefault();
-        markAsViewed(filteredKeywords[selectedIndex].id);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedIndex, filteredKeywords]);
-
   async function loadKeywords() {
     try {
       const data = await getRootKeywordsWithViewingRecords();
@@ -148,6 +131,23 @@ export default function BatchGTPage() {
     }
     return counts;
   }, [keywords]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (selectedIndex === null) return;
+      if (e.key === "ArrowUp" && selectedIndex > 0) {
+        setSelectedIndex(selectedIndex - 1);
+      } else if (e.key === "ArrowDown" && selectedIndex < filteredKeywords.length - 1) {
+        setSelectedIndex(selectedIndex + 1);
+      } else if (e.key === " ") {
+        e.preventDefault();
+        markAsViewed(filteredKeywords[selectedIndex].id);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedIndex, filteredKeywords]);
 
   if (loading) {
     return (
