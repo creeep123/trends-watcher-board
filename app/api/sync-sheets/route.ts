@@ -20,7 +20,7 @@ function getServiceAccountAuth() {
 
   const auth = new google.auth.GoogleAuth({
     credentials: keyData,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
 
   return auth;
@@ -106,6 +106,33 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// Append keywords to Google Sheets (web import → Sheets)
+async function appendToSheet(keywords: string[]) {
+  const auth = getServiceAccountAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+
+  // First, get existing keywords to avoid duplicates
+  const existing = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: "A:A",
+  });
+  const existingKeywords = new Set(
+    (existing.data.values || []).slice(1).map(r => (r[0] || "").trim().toLowerCase())
+  );
+
+  const toAppend = keywords.filter(k => !existingKeywords.has(k.trim().toLowerCase()));
+  if (toAppend.length === 0) return 0;
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID,
+    range: "A:A",
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: toAppend.map(k => [k]) },
+  });
+
+  return toAppend.length;
+}
+
 // Manual sync trigger (GET)
 export async function GET(request: NextRequest) {
   try {
@@ -137,5 +164,20 @@ export async function GET(request: NextRequest) {
       { success: false, error: error.message },
       { status: 500 }
     );
+  }
+}
+
+// Append keywords from web import to Google Sheets
+export async function PUT(request: NextRequest) {
+  try {
+    const { keywords } = await request.json();
+    if (!Array.isArray(keywords) || keywords.length === 0) {
+      return NextResponse.json({ success: true, appended: 0 });
+    }
+    const appended = await appendToSheet(keywords);
+    return NextResponse.json({ success: true, appended });
+  } catch (error: any) {
+    console.error("Append to sheet error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

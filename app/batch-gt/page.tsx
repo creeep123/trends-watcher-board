@@ -78,11 +78,21 @@ export default function BatchGTPage() {
       .filter(l => l && !l.startsWith("#"));
 
     try {
+      const newKeywords: string[] = [];
       for (const line of lines) {
         const keyword = line.split(",")[0].trim();
+        if (!keyword) continue;
+        newKeywords.push(keyword);
         await supabase
           .from("twb_root_keywords")
           .upsert({ keyword }, { onConflict: "keyword" });
+      }
+      if (newKeywords.length > 0) {
+        await fetch("/api/sync-sheets", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ keywords: newKeywords }),
+        });
       }
       await loadKeywords();
       setImportText("");
