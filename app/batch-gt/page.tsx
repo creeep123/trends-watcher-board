@@ -30,6 +30,7 @@ export default function BatchGTPage() {
   const [importing, setImporting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
+  const [markingId, setMarkingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadKeywords();
@@ -50,11 +51,20 @@ export default function BatchGTPage() {
   }
 
   async function markAsViewed(keywordId: string) {
+    setMarkingId(keywordId);
+    const now = new Date().toISOString();
+    setKeywords(prev => prev.map(k =>
+      k.id === keywordId ? { ...k, latest_view: now } : k
+    ));
     try {
       await addViewingRecord(keywordId);
-      await loadKeywords();
     } catch (error) {
       console.error("Failed to mark as viewed:", error);
+      setKeywords(prev => prev.map(k =>
+        k.id === keywordId ? { ...k, latest_view: undefined } : k
+      ));
+    } finally {
+      setMarkingId(null);
     }
   }
 
@@ -235,17 +245,18 @@ export default function BatchGTPage() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      markAsViewed(kw.id);
+                      if (markingId !== kw.id) markAsViewed(kw.id);
                     }}
                     className={`
                       flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center
-                      ${isViewedToday
+                      ${isViewedToday || markingId === kw.id
                         ? "bg-green-500 border-green-500 text-white"
                         : "border-gray-600"
                       }
+                      ${markingId === kw.id ? "animate-pulse" : ""}
                     `}
                   >
-                    {isViewedToday && "✓"}
+                    {(isViewedToday || markingId === kw.id) && "✓"}
                   </button>
 
                   <div className="min-w-0">
