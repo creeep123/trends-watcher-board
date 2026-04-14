@@ -259,7 +259,7 @@ export default function BatchGTPage() {
                 </div>
 
                 <a
-                  href={generateGTCompareUrl(kw.keyword, "today 7-d")}
+                  href={generateGTCompareUrl(kw.keyword, "now 7-d")}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}

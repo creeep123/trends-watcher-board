@@ -137,7 +137,7 @@ export const TIMEFRAME_OPTIONS = [
   { label: "4h", value: "now 4-H", description: "过去 4 小时" },
   { label: "24h", value: "now 1-d", description: "过去 24 小时" },
   { label: "7d", value: "now 7-d", description: "过去 7 天" },
-  { label: "30d", value: "today 1-m", description: "过去 30 天" },
+  { label: "30d", value: "now 30-d", description: "过去 30 天" },
 ] as const;
 
 export const GEO_OPTIONS = [
@@ -157,7 +157,7 @@ export const DEFAULT_KEYWORDS = "AI, LLM, maker, generator, creator, filter, Ant
 export const GT_COMPARISON_KEYWORDS = ["gpts", "happy birthday image"] as const;
 
 // 生成 Google Trends 对比 URL
-export function generateGTCompareUrl(keyword: string, timeframe: string = "today 1-m"): string {
+export function generateGTCompareUrl(keyword: string, timeframe: string = "now 1-m"): string {
   const allKeywords = [keyword, ...GT_COMPARISON_KEYWORDS];
   const qParam = allKeywords.map(k => encodeURIComponent(k)).join(',');
   return `https://trends.google.com/trends/explore?q=${qParam}&date=${encodeURIComponent(timeframe)}`;
