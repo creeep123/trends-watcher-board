@@ -42,11 +42,11 @@ function tagLabel(tag: string): string {
 
 function tagColor(tag: string): { bg: string; color: string } {
   const map: Record<string, { bg: string; color: string }> = {
-    surge: { bg: "rgba(239, 68, 68, 0.15)", color: "#f87171" },
-    multi_geo: { bg: "rgba(59, 130, 246, 0.15)", color: "#60a5fa" },
-    fresh: { bg: "rgba(251, 191, 36, 0.15)", color: "#fbbf24" },
+    surge: { bg: "rgba(239, 68, 68, 0.1)", color: "#f87171" },
+    multi_geo: { bg: "rgba(94, 106, 210, 0.1)", color: "#7170ff" },
+    fresh: { bg: "rgba(251, 191, 36, 0.1)", color: "#fbbf24" },
   };
-  return map[tag] || { bg: "rgba(107,114,128,0.15)", color: "#9ca3af" };
+  return map[tag] || { bg: "rgba(255,255,255,0.05)", color: "var(--text-tertiary)" };
 }
 
 function sortBySignal(items: TrendKeyword[], enrichMap?: Record<string, EnrichData>): TrendKeyword[] {
@@ -904,22 +904,22 @@ export default function Home() {
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
       {/* ===== Header ===== */}
       <header
-        className="sticky top-0 z-10 border-b backdrop-blur-md"
-        style={{ borderColor: "var(--border)", background: "rgba(10, 10, 15, 0.88)" }}
+        className="sticky top-0 z-10 backdrop-blur-md"
+        style={{ borderBottom: "1px solid var(--border-subtle)", background: "rgba(8, 9, 10, 0.85)" }}
       >
         <div className="mx-auto max-w-7xl px-3 py-3 sm:px-4 sm:py-4">
           {/* Title row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <h1 className="text-lg font-bold tracking-tight sm:text-xl">
-                <span style={{ color: "var(--accent-blue)" }}>Trends</span>{" "}
+              <h1 className="text-lg font-medium sm:text-xl">
+                <span style={{ color: "var(--accent-blue-hover)", letterSpacing: "-0.02em" }}>Trends</span>{" "}
                 <span className="hidden sm:inline">Watcher Board</span>
                 <span className="sm:hidden">Board</span>
               </h1>
               <a
                 href="/batch-gt"
                 className="rounded-md px-2 py-1 text-xs font-medium transition-colors hover:opacity-80"
-                style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}
+                style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}
               >
                 批量 GT
               </a>
@@ -929,8 +929,8 @@ export default function Home() {
                   disabled={push.loading}
                   className="rounded-md px-2 py-1 text-xs font-medium transition-colors hover:opacity-80"
                   style={{
-                    background: push.subscribed ? "rgba(16, 185, 129, 0.15)" : "var(--bg-secondary)",
-                    color: push.subscribed ? "#34d399" : "var(--text-secondary)",
+                    background: push.subscribed ? "rgba(39, 166, 68, 0.1)" : "var(--bg-elevated)",
+                    color: push.subscribed ? "var(--accent-green-bright)" : "var(--text-tertiary)",
                   }}
                   title={push.subscribed ? "关闭推送" : "开启推送通知"}
                 >
@@ -943,9 +943,10 @@ export default function Home() {
               disabled={loading}
               className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm"
               style={{
-                background: loading ? "var(--border)" : "var(--accent-blue)",
-                color: "#fff",
+                background: loading ? "var(--bg-elevated)" : "var(--accent-blue)",
+                color: "var(--text-primary)",
                 opacity: loading ? 0.6 : 1,
+                boxShadow: loading ? "none" : "var(--shadow-subtle)",
               }}
             >
               {loading ? "..." : "Refresh"}
@@ -961,13 +962,13 @@ export default function Home() {
               onChange={(e) => setKeywordsInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleKeywordsSubmit(); }}
               placeholder={DEFAULT_KEYWORDS}
-              className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500 sm:py-1.5 sm:text-xs"
-              style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+              className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm outline-none transition-colors sm:py-1.5 sm:text-xs"
+              style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)", borderRadius: "var(--radius-md)" }}
             />
             <button
               onClick={handleKeywordsSubmit}
               className="shrink-0 rounded-lg border px-3 py-2 text-xs font-medium transition-colors sm:py-1.5"
-              style={{ background: "var(--bg-card)", color: "var(--text-secondary)", borderColor: "var(--border)" }}
+              style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)", borderColor: "var(--border)", borderRadius: "var(--radius-md)" }}
             >
               Apply
             </button>
@@ -977,8 +978,8 @@ export default function Home() {
 
       {/* ===== Mobile Tab Bar ===== */}
       <div
-        className="sticky z-10 border-b sm:hidden"
-        style={{ top: "auto", borderColor: "var(--border)", background: "var(--bg-primary)" }}
+        className="sticky z-10 sm:hidden"
+        style={{ top: "auto", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-primary)" }}
       >
         <div className="flex">
           {MOBILE_TABS.map((tab) => (
@@ -987,8 +988,8 @@ export default function Home() {
               onClick={() => setMobileTab(tab.key)}
               className="flex-1 py-2.5 text-center text-sm font-medium transition-colors"
               style={{
-                color: mobileTab === tab.key ? "var(--accent-blue)" : "var(--text-secondary)",
-                borderBottom: mobileTab === tab.key ? "2px solid var(--accent-blue)" : "2px solid transparent",
+                color: mobileTab === tab.key ? "var(--accent-blue-hover)" : "var(--text-tertiary)",
+                borderBottom: mobileTab === tab.key ? "2px solid var(--accent-blue-hover)" : "2px solid transparent",
               }}
             >
               {tab.icon} {tab.label}
@@ -1000,19 +1001,21 @@ export default function Home() {
       {/* ===== KGR Workbench Panel ===== */}
       {kgrExpanded && (
         <div className="mx-auto max-w-7xl px-3 py-3 sm:px-4">
-          <div className="rounded-lg border" style={{
+          <div className="border" style={{
             background: "var(--bg-card)",
-            borderColor: "var(--border)"
+            borderColor: "var(--border)",
+            borderRadius: "var(--radius-lg)",
+            boxShadow: "var(--shadow-surface)"
           }}>
-            <div className="border-b p-3" style={{ borderColor: "var(--border)" }}>
+            <div className="p-3" style={{ borderBottom: "1px solid var(--border)" }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">🎯</span>
-                  <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                  <h2 className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                     KGR 决策工作台
                   </h2>
                   <span className="rounded-full px-2 py-0.5 text-xs"
-                    style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                    style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}>
                     {kgrItems.length}
                   </span>
                 </div>
@@ -1021,32 +1024,32 @@ export default function Home() {
                     <>
                       <button onClick={handleFetchAllAllintitle}
                         className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80"
-                        style={{ background: "var(--accent-blue)", color: "#fff" }}
+                        style={{ background: "var(--accent-blue)", color: "var(--text-primary)" }}
                         title="自动获取所有关键词的 allintitle 数据">
                         🔄 一键分析
                       </button>
                       <button onClick={handleExportCSV}
                         className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80"
-                        style={{ background: "var(--accent-green)", color: "#fff" }}
+                        style={{ background: "var(--accent-green)", color: "var(--text-primary)" }}
                         title="导出为 CSV 文件">
                         📥 导出
                       </button>
                       <button onClick={handleCompareTrends}
                         className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80"
-                        style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}>
+                        style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}>
                         📊 对比
                       </button>
                     </>
                   )}
                   <button onClick={() => setShowBatchImport(!showBatchImport)}
                     className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80"
-                    style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}
+                    style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}
                     title="批量导入关键词">
                     📋 批量
                   </button>
                   <button onClick={() => setKgrExpanded(false)}
                     className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80"
-                    style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                    style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}>
                     ✕
                   </button>
                 </div>
@@ -1054,7 +1057,7 @@ export default function Home() {
             </div>
 
             {/* Manual keyword input */}
-            <div className="border-b p-3" style={{ borderColor: "var(--border)" }}>
+            <div className="p-3" style={{ borderBottom: "1px solid var(--border)" }}>
               <input type="text" placeholder="手动添加关键词，按回车确认..."
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && e.currentTarget.value.trim()) {
@@ -1062,7 +1065,7 @@ export default function Home() {
                     e.currentTarget.value = "";
                   }
                 }}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors"
                 style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
               />
 
@@ -1073,7 +1076,7 @@ export default function Home() {
                     value={batchImportText}
                     onChange={(e) => setBatchImportText(e.target.value)}
                     placeholder="批量导入关键词（每行一个）&#10;AI tool&#10;machine learning&#10;data science"
-                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
+                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors"
                     style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)", minHeight: "120px" }}
                     rows={5}
                   />
@@ -1082,14 +1085,14 @@ export default function Home() {
                       onClick={handleBatchImport}
                       disabled={!batchImportText.trim()}
                       className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-50"
-                      style={{ background: "var(--accent-blue)", color: "#fff" }}
+                      style={{ background: "var(--accent-blue)", color: "var(--text-primary)" }}
                     >
                       导入 {batchImportText.split('\n').filter(k => k.trim()).length} 个关键词
                     </button>
                     <button
                       onClick={() => { setShowBatchImport(false); setBatchImportText(""); }}
                       className="rounded-lg px-3 py-1.5 text-xs transition-colors hover:opacity-80"
-                      style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}
+                      style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}
                     >
                       取消
                     </button>
@@ -1100,7 +1103,7 @@ export default function Home() {
 
             {/* Filter and Sort controls */}
             {kgrItems.length > 0 && (
-              <div className="border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
+              <div className="px-3 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs" style={{ color: "var(--text-secondary)" }}>筛选:</span>
@@ -1175,7 +1178,7 @@ export default function Home() {
             {/* Help text */}
             <div className="border-t p-3 text-xs" style={{
               borderColor: "var(--border)",
-              color: "var(--text-secondary)"
+              color: "var(--text-tertiary)"
             }}>
               <div className="space-y-3 sm:space-y-1.5">
                 <div className="flex items-start gap-2">
@@ -1201,8 +1204,8 @@ export default function Home() {
                     <span className="ml-1 inline-block rounded px-1" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>&gt; 200% 🏆 极高回报</span>
                   </div>
                 </div>
-                <div className="pt-1" style={{ color: "var(--text-secondary)" }}>
-                  数据来源: <a href="https://www.semrush.com" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue)" }}>Semrush</a> | <a href="https://ads.google.com/aw/keywordplanner" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue)" }}>Google Ads</a> | <a href="https://ahrefs.com" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue)" }}>Ahrefs</a>
+                <div className="pt-1" style={{ color: "var(--text-tertiary)" }}>
+                  数据来源: <a href="https://www.semrush.com" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue-hover)" }}>Semrush</a> | <a href="https://ads.google.com/aw/keywordplanner" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue-hover)" }}>Google Ads</a> | <a href="https://ahrefs.com" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent-blue-hover)" }}>Ahrefs</a>
                 </div>
               </div>
             </div>
@@ -1213,32 +1216,34 @@ export default function Home() {
       {/* Root Keywords Monitoring Panel */}
       {rootsExpanded && (
         <div className="mx-auto max-w-7xl px-3 py-3 sm:px-4">
-          <div className="rounded-lg border" style={{
+          <div className="border" style={{
             background: "var(--bg-card)",
-            borderColor: "var(--border)"
+            borderColor: "var(--border)",
+            borderRadius: "var(--radius-lg)",
+            boxShadow: "var(--shadow-surface)"
           }}>
-            <div className="border-b p-3" style={{ borderColor: "var(--border)" }}>
+            <div className="p-3" style={{ borderBottom: "1px solid var(--border)" }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">🌱</span>
-                  <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                  <h2 className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                     词根监控
                   </h2>
                   <span className="rounded-full px-2 py-0.5 text-xs"
-                    style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                    style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}>
                     {rootKeywords.length}
                   </span>
                 </div>
                 <button onClick={() => setRootsExpanded(false)}
                   className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80"
-                  style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                  style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}>
                   ✕
                 </button>
               </div>
             </div>
 
             {/* Add keyword input */}
-            <div className="border-b p-3" style={{ borderColor: "var(--border)" }}>
+            <div className="p-3" style={{ borderBottom: "1px solid var(--border)" }}>
               <input type="text" placeholder="添加词根，按回车确认..."
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && e.currentTarget.value.trim()) {
@@ -1246,7 +1251,7 @@ export default function Home() {
                     e.currentTarget.value = "";
                   }
                 }}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors"
                 style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
               />
             </div>
@@ -1268,7 +1273,7 @@ export default function Home() {
                         <span className="font-medium" style={{ color: "var(--text-primary)" }}>{root.keyword}</span>
                         {root.category && (
                           <span className="rounded px-1.5 py-0.5 text-xs"
-                            style={{ background: "var(--accent-blue)", color: "#fff" }}>
+                            style={{ background: "var(--accent-blue)", color: "var(--text-primary)" }}>
                             {root.category}
                           </span>
                         )}
@@ -1283,7 +1288,7 @@ export default function Home() {
                       <button
                         onClick={() => deleteRootKeyword(root.keyword)}
                         className="rounded px-2 py-1 text-xs transition-colors hover:opacity-80"
-                        style={{ background: "var(--accent-red)", color: "#fff" }}>
+                        style={{ background: "var(--accent-red)", color: "var(--text-primary)" }}>
                         删除
                       </button>
                     </div>
@@ -1299,20 +1304,22 @@ export default function Home() {
       {!kgrExpanded && !rootsExpanded && (
         <div className="mx-auto max-w-7xl flex gap-2 px-3 pb-3 pt-4 sm:px-4">
           <button onClick={() => setKgrExpanded(true)}
-            className="flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 sm:flex-none sm:min-w-0"
+            className="flex-1 border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 sm:flex-none sm:min-w-0"
             style={{
-              background: "var(--bg-card)",
+              background: "var(--bg-elevated)",
               borderColor: "var(--border)",
-              color: kgrItems.length > 0 ? "var(--accent-blue)" : "var(--text-secondary)"
+              borderRadius: "var(--radius-md)",
+              color: kgrItems.length > 0 ? "var(--accent-blue-hover)" : "var(--text-tertiary)"
             }}>
             🎯 KGR {kgrItems.length > 0 && `(${kgrItems.length})`}
           </button>
           <button onClick={() => setRootsExpanded(true)}
-            className="flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 sm:flex-none sm:min-w-0"
+            className="flex-1 border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 sm:flex-none sm:min-w-0"
             style={{
-              background: "var(--bg-card)",
+              background: "var(--bg-elevated)",
               borderColor: "var(--border)",
-              color: rootKeywords.length > 0 ? "var(--accent-blue)" : "var(--text-secondary)"
+              borderRadius: "var(--radius-md)",
+              color: rootKeywords.length > 0 ? "var(--accent-blue-hover)" : "var(--text-tertiary)"
             }}>
             🌱 词根监控 {rootKeywords.length > 0 && `(${rootKeywords.length})`}
           </button>
@@ -1323,11 +1330,12 @@ export default function Home() {
       {!kgrExpanded && rootsExpanded && (
         <div className="mx-auto max-w-7xl px-3 pb-3 pt-4 sm:px-4">
           <button onClick={() => setKgrExpanded(true)}
-            className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+            className="border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
             style={{
-              background: "var(--bg-card)",
+              background: "var(--bg-elevated)",
               borderColor: "var(--border)",
-              color: kgrItems.length > 0 ? "var(--accent-blue)" : "var(--text-secondary)"
+              borderRadius: "var(--radius-md)",
+              color: kgrItems.length > 0 ? "var(--accent-blue-hover)" : "var(--text-tertiary)"
             }}>
             🎯 KGR {kgrItems.length > 0 && `(${kgrItems.length})`}
           </button>
@@ -1338,11 +1346,12 @@ export default function Home() {
       {kgrExpanded && !rootsExpanded && (
         <div className="mx-auto max-w-7xl px-3 pb-3 pt-4 sm:px-4">
           <button onClick={() => setRootsExpanded(true)}
-            className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+            className="border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
             style={{
-              background: "var(--bg-card)",
+              background: "var(--bg-elevated)",
               borderColor: "var(--border)",
-              color: rootKeywords.length > 0 ? "var(--accent-blue)" : "var(--text-secondary)"
+              borderRadius: "var(--radius-md)",
+              color: rootKeywords.length > 0 ? "var(--accent-blue-hover)" : "var(--text-tertiary)"
             }}>
             🌱 词根监控 {rootKeywords.length > 0 && `(${rootKeywords.length})`}
           </button>
@@ -1360,8 +1369,8 @@ export default function Home() {
         )}
 
         {error && (
-          <div className="mb-3 rounded-lg border p-3 text-sm sm:mb-4 sm:p-4"
-            style={{ borderColor: "var(--accent-red)", background: "rgba(239, 68, 68, 0.1)", color: "var(--accent-red)" }}>
+          <div className="mb-3 border p-3 text-sm sm:mb-4 sm:p-4"
+            style={{ borderColor: "var(--accent-red)", background: "rgba(239, 68, 68, 0.06)", color: "var(--accent-red)", borderRadius: "var(--radius-lg)" }}>
             Failed to load: {error}
           </div>
         )}
@@ -1379,7 +1388,7 @@ export default function Home() {
                       className="rounded px-1.5 py-0.5 text-xs font-medium transition-colors"
                       style={{
                         background: trendingGeo === opt.value ? "var(--accent-blue)" : "transparent",
-                        color: trendingGeo === opt.value ? "#fff" : "var(--text-secondary)",
+                        color: trendingGeo === opt.value ? "var(--text-primary)" : "var(--text-tertiary)",
                       }}
                     >
                       {opt.label}
@@ -1419,8 +1428,8 @@ export default function Home() {
                   disabled={loading}
                   className="rounded-md px-2.5 py-1 text-xs font-medium transition-opacity disabled:opacity-50"
                   style={{
-                    background: "var(--bg-card)",
-                    color: "var(--text-secondary)",
+                    background: "var(--bg-elevated)",
+                    color: "var(--text-tertiary)",
                     border: "1px solid var(--border-color)"
                   }}
                   title="强制刷新（绕过缓存，获取最新数据）"
@@ -1446,7 +1455,7 @@ export default function Home() {
 
               {/* Google 限频提示 - 显示缓存数据时也提示 */}
               {data?._stale && (
-                <div className="mb-3 rounded-md border p-3 text-xs" style={{ borderColor: "rgba(251,191,36,0.3)", background: "rgba(251,191,36,0.1)", color: "#fbbf24" }}>
+                <div className="mb-3 border p-3 text-xs" style={{ borderColor: "rgba(251,191,36,0.3)", background: "rgba(251,191,36,0.06)", color: "#fbbf24", borderRadius: "var(--radius-lg)" }}>
                   <div className="flex items-start gap-2">
                     <span className="text-sm">⚠️</span>
                     <div>
@@ -1461,7 +1470,7 @@ export default function Home() {
                 {loading ? (
                   <div className="rounded-lg p-4 text-center" style={{ background: "var(--bg-secondary)" }}>
                     <div className="mb-2 flex justify-center">
-                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-t-transparent" style={{ borderColor: "var(--accent-blue-hover)", borderTopColor: "transparent" }}></div>
                     </div>
                     <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                       正在获取 Google Trends 数据...
@@ -1518,7 +1527,7 @@ export default function Home() {
                   <>
                     {redditKeywords.length > 0 && (
                       <div className="rounded-lg border p-2.5" style={{ background: "rgba(255, 69, 0, 0.04)", borderColor: "rgba(255, 69, 0, 0.2)" }}>
-                        <div className="mb-1.5 text-xs font-bold" style={{ color: "#ff4500" }}>
+                        <div className="mb-1.5 text-xs font-medium" style={{ color: "#ff4500" }}>
                           LLM Extracted Keywords
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -1578,8 +1587,8 @@ export default function Home() {
                   techNewsPosts.map((article, i) => (
                     <div
                       key={`tn-${i}`}
-                      className="group rounded-lg border p-3 transition-colors hover:border-blue-500/50"
-                      style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
+                      className="group border p-3 transition-colors"
+                      style={{ borderColor: "var(--border)", background: "var(--bg-card)", borderRadius: "var(--radius-lg)" }}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center gap-2 flex-wrap">
@@ -1592,12 +1601,12 @@ export default function Home() {
                             {article.source}
                           </span>
                           {article.author && article.author !== article.source && (
-                            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                            <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                               · {article.author}
                             </span>
                           )}
                           {article.published && (
-                            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                            <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                               🕒 {(() => {
                                 const date = new Date(article.published);
                                 const diff = Date.now() - date.getTime();
@@ -1613,7 +1622,7 @@ export default function Home() {
                           href={article.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="block text-sm font-medium leading-snug transition-colors hover:text-blue-500"
+                          className="block text-sm font-medium leading-snug transition-colors"
                           style={{ color: "var(--text-primary)" }}
                         >
                           {article.title}
@@ -1658,7 +1667,7 @@ export default function Home() {
               background: toast.type === 'success' ? 'rgba(52,211,153,0.95)' :
                          toast.type === 'error' ? 'rgba(239,68,68,0.95)' :
                          'rgba(59,130,246,0.95)',
-              color: '#fff',
+              color: 'var(--text-primary)',
               backdropFilter: 'blur(8px)'
             }}
           >
@@ -1677,8 +1686,8 @@ function SectionHeader({ title, icon, count, children }: { title: string; icon: 
     <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
       <div className="flex items-center gap-2">
         <span className="text-lg">{icon}</span>
-        <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{title}</h2>
-        <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}>
+        <h2 className="text-sm font-medium" style={{ color: "var(--text-secondary)", letterSpacing: "-0.01em" }}>{title}</h2>
+        <span className="px-2 py-0.5 text-xs font-medium" style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)", borderRadius: "var(--radius-full)" }}>
           {count}
         </span>
       </div>
@@ -1706,7 +1715,7 @@ function CompactTimeSelector({
             className="rounded px-1.5 py-0.5 text-xs font-medium transition-colors"
             style={{
               background: value === opt.value ? "var(--accent-blue)" : "transparent",
-              color: value === opt.value ? "#fff" : "var(--text-secondary)",
+              color: value === opt.value ? "var(--text-primary)" : "var(--text-tertiary)",
             }}
             title={opt.description}
           >
@@ -1718,11 +1727,12 @@ function CompactTimeSelector({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="hidden rounded-md border px-2 py-1 text-xs font-medium sm:block"
+        className="hidden border px-2 py-1 text-xs font-medium sm:block"
         style={{
           background: "var(--bg-secondary)",
           borderColor: "var(--border)",
           color: "var(--text-primary)",
+          borderRadius: "var(--radius-md)",
         }}
       >
         {options.map((opt) => (
@@ -1754,7 +1764,7 @@ function CompactGeoSelector({
             className="rounded px-1.5 py-0.5 text-xs font-medium transition-colors"
             style={{
               background: value === opt.value ? "var(--accent-blue)" : "transparent",
-              color: value === opt.value ? "#fff" : "var(--text-secondary)",
+              color: value === opt.value ? "var(--text-primary)" : "var(--text-tertiary)",
             }}
           >
             {opt.flag} <span className="hidden sm:inline">{opt.label}</span>
@@ -1765,11 +1775,12 @@ function CompactGeoSelector({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="hidden rounded-md border px-2 py-1 text-xs font-medium sm:block"
+        className="hidden border px-2 py-1 text-xs font-medium sm:block"
         style={{
           background: "var(--bg-secondary)",
           borderColor: "var(--border)",
           color: "var(--text-primary)",
+          borderRadius: "var(--radius-md)",
         }}
       >
         {options.map((opt) => (
@@ -1791,16 +1802,17 @@ function TrendingCard({
 }) {
   const isTech = item.is_tech;
   return (
-    <div className="rounded-lg border transition-all"
+    <div className="border transition-all"
       style={{
-        background: isTech ? "rgba(79, 143, 247, 0.06)" : "var(--bg-card)",
-        borderColor: isExpanded ? "var(--accent-blue)" : isTech ? "rgba(79, 143, 247, 0.3)" : "var(--border)",
+        background: isTech ? "rgba(94, 106, 210, 0.06)" : "var(--bg-card)",
+        borderColor: isExpanded ? "var(--accent-blue-hover)" : isTech ? "rgba(94, 106, 210, 0.3)" : "var(--border)",
+        borderRadius: "var(--radius-lg)",
       }}>
       <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-4 text-left sm:items-center sm:gap-3 sm:p-2.5">
         <Rank n={index + 1} />
         <span className={`min-w-0 flex-1 text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
         {isTech && (
-          <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(79, 143, 247, 0.15)", color: "#4f8ff7" }}>
+          <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(94, 106, 210, 0.15)", color: "#5e6ad2" }}>
             Tech
           </span>
         )}
@@ -1845,9 +1857,9 @@ function RedditCard({ post, index }: { post: RedditPost; index: number }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex items-start gap-2.5 rounded-lg border p-4 transition-all sm:gap-3 sm:p-2.5"
-      style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#ff4500"; }}
+      className="group flex items-start gap-2.5 border p-4 transition-all sm:gap-3 sm:p-2.5"
+      style={{ background: "var(--bg-card)", borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255, 69, 0, 0.4)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
     >
       <Rank n={index + 1} />
@@ -1900,9 +1912,9 @@ function HackerNewsCard({ post, index }: { post: HackerNewsPost; index: number }
       href={hnDiscussUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex items-start gap-2.5 rounded-lg border p-4 transition-all sm:gap-3 sm:p-2.5"
-      style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#ff6600"; }}
+      className="group flex items-start gap-2.5 border p-4 transition-all sm:gap-3 sm:p-2.5"
+      style={{ background: "var(--bg-card)", borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255, 102, 0, 0.4)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
     >
       <Rank n={index + 1} />
@@ -1961,8 +1973,8 @@ function KeywordCard({
   if (isGithub) {
     return (
       <a href={item.url} target="_blank" rel="noopener noreferrer"
-        className="group flex items-start gap-2.5 rounded-lg border p-4 transition-all sm:items-center sm:gap-3 sm:p-2.5"
-        style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
+        className="group flex items-start gap-2.5 border p-4 transition-all sm:items-center sm:gap-3 sm:p-2.5"
+        style={{ background: "var(--bg-card)", borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}
         onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-purple)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}>
         <Rank n={index + 1} />
@@ -1984,8 +1996,8 @@ function KeywordCard({
     : "var(--text-secondary)";
 
   return (
-    <div className="rounded-lg border transition-all"
-      style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)" }}>
+    <div className="border transition-all"
+      style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue-hover)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)", borderRadius: "var(--radius-lg)" }}>
       <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-4 text-left sm:items-center sm:gap-3 sm:p-2.5">
         {/* Score badge or rank */}
         {enrichLoading && !enrichData ? (
@@ -2094,7 +2106,7 @@ function EnrichedDecisionPanel({
       {enrichData && enrichData.score !== undefined && (
         <div className="mb-3 rounded-lg p-3 sm:p-2.5" style={{ background: "var(--bg-secondary)" }}>
           <div className="mb-2 flex items-center gap-2">
-            <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>上站指数</span>
+            <span className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>上站指数</span>
             <span className="rounded-full px-2 py-0.5 text-sm font-bold" style={{
               background: enrichData.score >= 75 ? "rgba(52,211,153,0.2)" : enrichData.score >= 55 ? "rgba(59,130,246,0.2)" : enrichData.score >= 35 ? "rgba(251,191,36,0.2)" : "rgba(107,114,128,0.2)",
               color: enrichData.score >= 75 ? "#34d399" : enrichData.score >= 55 ? "#60a5fa" : enrichData.score >= 35 ? "#fbbf24" : "#9ca3af",
@@ -2117,7 +2129,7 @@ function EnrichedDecisionPanel({
 
       {/* === Assessment Section === */}
       <div className="mb-3 rounded-lg p-2.5" style={{ background: "var(--bg-secondary)" }}>
-        <div className="mb-2 text-xs font-bold" style={{ color: "var(--text-primary)" }}>
+        <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-primary)" }}>
           上站评估
         </div>
 
@@ -2171,7 +2183,7 @@ function EnrichedDecisionPanel({
             <span className="text-xs" style={{ color: "var(--text-secondary)" }}>页面供给量</span>
             <span
               className="cursor-help text-xs"
-              style={{ color: "var(--accent-blue)" }}
+              style={{ color: "var(--accent-blue-hover)" }}
               title="1. 点击查 allintitle 打开 Google&#10;2. 看结果页顶部 '约 X,XXX 条结果'&#10;3. 把数字填入下方输入框"
             >
               ⓘ
@@ -2397,7 +2409,7 @@ function ScrollToTopButton() {
       className="fixed bottom-6 right-4 sm:bottom-8 sm:right-8 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg hover:opacity-90 transition-opacity"
       style={{
         background: "var(--accent-blue)",
-        color: "#fff",
+        color: "var(--text-primary)",
         marginBottom: "80px",
       }}
       aria-label="回到顶部"
@@ -2437,7 +2449,7 @@ function EmptyState({ text, actionLink, actionText }: { text: string; actionLink
           target="_blank"
           rel="noopener"
           className="mt-3 inline-block rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-          style={{ background: "var(--accent-blue)", color: "#fff" }}
+          style={{ background: "var(--accent-blue)", color: "var(--text-primary)" }}
         >
           {actionText || "在 Google Trends 查看 →"}
         </a>
@@ -2599,7 +2611,7 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
             <button
               onClick={() => onFetchAllintitle(item.keyword)}
               className="rounded px-1.5 py-1 text-xs underline"
-              style={{ color: "var(--accent-blue)" }}
+              style={{ color: "var(--accent-blue-hover)" }}
             >
               获取
             </button>
