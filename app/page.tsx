@@ -1133,7 +1133,7 @@ export default function Home() {
                       <option value="kdroi">KDROI (高→低)</option>
                     </select>
                   </div>
-                  <div className="ml-auto text-xs" style={{ color: "var(--text-secondary)" }}>
+                  <div className="ml-auto text-xs" style={{ color: "var(--text-tertiary)" }}>
                     显示 {filteredAndSortedItems.length} / {kgrItems.length} 个
                   </div>
                 </div>
@@ -1169,7 +1169,7 @@ export default function Home() {
                   </tbody>
                 </table>
               ) : (
-                <div className="p-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+                <div className="p-8 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
                   {kgrItems.length === 0 ? "从下方列表添加关键词，或手动输入" : "没有符合筛选条件的关键词"}
                 </div>
               )}
@@ -1259,9 +1259,9 @@ export default function Home() {
             {/* Root keywords list */}
             <div className="max-h-96 overflow-y-auto p-3">
               {rootsLoading ? (
-                <div className="text-center py-4" style={{ color: "var(--text-secondary)" }}>加载中...</div>
+                <div className="text-center py-4" style={{ color: "var(--text-tertiary)" }}>加载中...</div>
               ) : rootKeywords.length === 0 ? (
-                <div className="text-center py-4 text-sm" style={{ color: "var(--text-secondary)" }}>
+                <div className="text-center py-4 text-sm" style={{ color: "var(--text-tertiary)" }}>
                   暂无词根，请添加
                 </div>
               ) : (
@@ -1361,7 +1361,7 @@ export default function Home() {
       {/* ===== Main Content ===== */}
       <main className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
         {data && !loading && (
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs sm:mb-4 sm:gap-3" style={{ color: "var(--text-secondary)" }}>
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs sm:mb-4 sm:gap-3" style={{ color: "var(--text-tertiary)" }}>
             <span>{currentGeo?.flag || "🌍"} {currentGeo?.label || "Global"} · {currentTimeframe?.description}</span>
             <span className="hidden sm:inline">·</span>
             <span className="hidden sm:inline">Updated {new Date(data.timestamp).toLocaleTimeString()}</span>
@@ -1437,7 +1437,7 @@ export default function Home() {
                   {loading ? "刷新中..." : "🔄 刷新"}
                 </button>
                 {data?.timestamp && (
-                  <span className="hidden rounded-md px-2 py-1 text-xs sm:inline-block" style={{ color: "var(--text-secondary)" }}>
+                  <span className="hidden rounded-md px-2 py-1 text-xs sm:inline-block" style={{ color: "var(--text-tertiary)" }}>
                     🕒 {timeAgo(data.timestamp)}
                   </span>
                 )}
@@ -1460,7 +1460,7 @@ export default function Home() {
                     <span className="text-sm">⚠️</span>
                     <div>
                       <div className="font-medium">Google Trends 暂时不可用（显示缓存数据）</div>
-                      <div style={{ color: "var(--text-secondary)" }}>Google 正在限频，当前显示的是缓存数据。点击刷新按钮将重新获取最新数据。</div>
+                      <div style={{ color: "var(--text-tertiary)" }}>Google 正在限频，当前显示的是缓存数据。点击刷新按钮将重新获取最新数据。</div>
                     </div>
                   </div>
                 </div>
@@ -1560,7 +1560,7 @@ export default function Home() {
               <SectionHeader title="HackerNews" icon="🍊" count={hnPosts.length} />
               <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {hnLoading ? (
-                  <div className="py-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+                  <div className="py-8 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
                     Loading...
                   </div>
                 ) : hnPosts.length === 0 ? (
@@ -1578,7 +1578,7 @@ export default function Home() {
               <SectionHeader title="Tech News" icon="📰" count={techNewsPosts.length} />
               <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {techNewsLoading ? (
-                  <div className="py-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+                  <div className="py-8 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
                     Loading...
                   </div>
                 ) : techNewsPosts.length === 0 ? (
@@ -1652,7 +1652,7 @@ export default function Home() {
 
       <footer
         className="border-t py-3 text-center text-xs sm:py-4"
-        style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+        style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
       >
         Trends Watcher Board · #trends_watcher
       </footer>
@@ -1867,7 +1867,7 @@ function RedditCard({ post, index }: { post: RedditPost; index: number }) {
         <div className="text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>
           {title}
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+        <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
           <span className="rounded px-1 py-0.5" style={{ background: "rgba(255, 69, 0, 0.1)", color: "#ff6b35" }}>
             r/{subreddit}
           </span>
@@ -1922,7 +1922,7 @@ function HackerNewsCard({ post, index }: { post: HackerNewsPost; index: number }
         <div className="text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>
           {title}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: "var(--text-secondary)" }}>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
           <span className="rounded px-1 py-0.5 max-w-[100px] truncate" style={{ background: "rgba(255, 102, 0, 0.1)", color: "#ff6600" }}>
             {domain}
           </span>
@@ -1939,7 +1939,7 @@ function HackerNewsCard({ post, index }: { post: HackerNewsPost; index: number }
             target="_blank"
             rel="noopener noreferrer"
             className="rounded p-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-            style={{ color: "var(--text-secondary)" }}
+            style={{ color: "var(--text-tertiary)" }}
             title={`访问外部链接: ${url}`}
             onClick={(e) => e.stopPropagation()}
           >
@@ -2002,7 +2002,7 @@ function KeywordCard({
         {/* Score badge or rank */}
         {enrichLoading && !enrichData ? (
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full animate-pulse" style={{ background: "var(--bg-secondary)" }}>
-            <span className="text-[9px]" style={{ color: "var(--text-secondary)" }}>...</span>
+            <span className="text-[9px]" style={{ color: "var(--text-tertiary)" }}>...</span>
           </span>
         ) : score !== undefined ? (
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: scoreBg, color: scoreColor2 }}>
@@ -2087,16 +2087,16 @@ function EnrichedDecisionPanel({
     : null;
 
   return (
-    <div className="border-t px-4 py-3 sm:px-3 sm:py-2.5" style={{ borderColor: "var(--border)" }}>
+    <div className="border-t px-4 py-3 sm:px-3 sm:py-2.5" style={{ borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}>
       {/* 7-day trend chart */}
       <div className="mb-2.5">
-        <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>7-day trend</span>
+        <span className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>7-day trend</span>
         {loading ? (
           <div className="mt-1 h-20 animate-pulse rounded sm:h-14" style={{ background: "var(--bg-secondary)" }} />
         ) : points.length > 0 ? (
           <MiniChart points={points} />
         ) : (
-          <div className="mt-1 flex h-20 items-center justify-center rounded text-xs sm:h-14" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+          <div className="mt-1 flex h-20 items-center justify-center rounded text-xs sm:h-14" style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}>
             No trend data
           </div>
         )}
@@ -2114,7 +2114,7 @@ function EnrichedDecisionPanel({
               {enrichData.score}
             </span>
             {!enrichData.has_full_score && (
-              <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>(初步)</span>
+              <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>(初步)</span>
             )}
             {enrichData.score >= 75 && <span className="text-xs font-medium" style={{ color: "#34d399" }}>值得冲!</span>}
           </div>
@@ -2148,31 +2148,31 @@ function EnrichedDecisionPanel({
                 </span>
               </div>
             ) : (
-              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>--</span>
+              <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>--</span>
             )}
           </div>
 
           {/* Multi-geo */}
           <div className="rounded-md p-3 sm:p-2" style={{ background: "var(--bg-card)" }}>
-            <div className="mb-1 text-xs" style={{ color: "var(--text-secondary)" }}>多国热度</div>
+            <div className="mb-1 text-xs" style={{ color: "var(--text-tertiary)" }}>多国热度</div>
             {multiGeoLoading ? (
               <div className="h-4 w-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
             ) : multiGeoData ? (
               <div>
                 <span className="text-xs font-bold" style={{
                   color: multiGeoData.found_in.length >= 3 ? "#34d399"
-                    : multiGeoData.found_in.length >= 1 ? "#fbbf24" : "var(--text-secondary)",
+                    : multiGeoData.found_in.length >= 1 ? "#fbbf24" : "var(--text-tertiary)",
                 }}>
                   {multiGeoData.found_in.length}/{multiGeoData.total_geos} 国
                 </span>
                 {multiGeoData.found_in.length > 0 && (
-                  <div className="mt-0.5 text-xs" style={{ color: "var(--text-secondary)" }}>
+                  <div className="mt-0.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
                     {multiGeoData.found_in.join(", ")}
                   </div>
                 )}
               </div>
             ) : (
-              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>--</span>
+              <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>--</span>
             )}
           </div>
         </div>
@@ -2243,7 +2243,7 @@ function EnrichedDecisionPanel({
         {onAddToKGR && (
           <button onClick={() => onAddToKGR(keyword)}
             className="rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
-            style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
+            style={{ background: "rgba(94, 106, 210, 0.15)", color: "var(--accent-blue-hover)" }}
             title="添加到 KGR 工作台">
             +KGR
           </button>
@@ -2256,15 +2256,15 @@ function EnrichedDecisionPanel({
 // Original simple DecisionPanel for TrendingCard
 function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: string; points: InterestPoint[]; loading: boolean; onAddToKGR?: (keyword: string) => void }) {
   return (
-    <div className="border-t px-3 py-3" style={{ borderColor: "var(--border)" }}>
+    <div className="border-t px-3 py-3" style={{ borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}>
       <div className="mb-3">
-        <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>7-day trend</span>
+        <span className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>7-day trend</span>
         {loading ? (
           <div className="mt-1 h-20 animate-pulse rounded sm:h-14" style={{ background: "var(--bg-secondary)" }} />
         ) : points.length > 0 ? (
           <MiniChart points={points} />
         ) : (
-          <div className="mt-1 flex h-20 items-center justify-center rounded text-xs sm:h-14" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+          <div className="mt-1 flex h-20 items-center justify-center rounded text-xs sm:h-14" style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}>
             No trend data
           </div>
         )}
@@ -2280,7 +2280,7 @@ function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: stri
         {onAddToKGR && (
           <button onClick={() => onAddToKGR(keyword)}
             className="rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
-            style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
+            style={{ background: "rgba(94, 106, 210, 0.15)", color: "var(--accent-blue-hover)" }}
             title="添加到 KGR 工作台">
             +KGR
           </button>
@@ -2300,7 +2300,7 @@ function ScoreDimension({ label, score, note }: { label: string; score: number; 
         <ScoreBar value={score} />
         <span className="text-xs font-bold" style={{ color: scoreColor(score) }}>{score}</span>
       </div>
-      {note && <div className="mt-0.5 text-[10px]" style={{ color: "var(--text-secondary)" }}>{note}</div>}
+      {note && <div className="mt-0.5 text-[10px]" style={{ color: "var(--text-tertiary)" }}>{note}</div>}
     </div>
   );
 }
@@ -2356,7 +2356,7 @@ function MiniChart({ points }: { points: InterestPoint[] }) {
         <path d={areaD} fill={fill} />
         <path d={lineD} fill="none" stroke={stroke} strokeWidth="2" />
       </svg>
-      <div className="mt-0.5 flex justify-between text-xs" style={{ color: "var(--text-secondary)" }}>
+      <div className="mt-0.5 flex justify-between text-xs" style={{ color: "var(--text-tertiary)" }}>
         <span style={{ color: stroke }}>{label}</span>
         <span>Peak: {max}</span>
       </div>
@@ -2381,7 +2381,7 @@ function JumpLink({ href, label, color }: { href: string; label: string; color: 
 function Rank({ n }: { n: number }) {
   return (
     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-bold sm:h-5 sm:w-5"
-      style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+      style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}>
       {n}
     </span>
   );
@@ -2424,7 +2424,7 @@ function ScrollToTopButton() {
 function Chevron({ open }: { open: boolean }) {
   return (
     <svg className="h-4 w-4 shrink-0 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-      style={{ color: "var(--text-secondary)", transform: open ? "rotate(180deg)" : "none" }}>
+      style={{ color: "var(--text-tertiary)", transform: open ? "rotate(180deg)" : "none" }}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
     </svg>
   );
@@ -2433,7 +2433,7 @@ function Chevron({ open }: { open: boolean }) {
 function ExternalIcon() {
   return (
     <svg className="h-4 w-4 shrink-0 opacity-40 transition-opacity sm:opacity-0 sm:group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-      style={{ color: "var(--text-secondary)" }}>
+      style={{ color: "var(--text-tertiary)" }}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
     </svg>
   );
@@ -2441,7 +2441,7 @@ function ExternalIcon() {
 
 function EmptyState({ text, actionLink, actionText }: { text: string; actionLink?: string; actionText?: string }) {
   return (
-    <div className="rounded-lg border border-dashed p-6 text-center text-sm sm:p-8" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+    <div className="rounded-lg border border-dashed p-6 text-center text-sm sm:p-8" style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}>
       <div>{text}</div>
       {actionLink && (
         <a
@@ -2689,7 +2689,7 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
             )}
           </div>
         ) : (
-          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>--</span>
+          <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>--</span>
         )}
       </td>
 
@@ -2714,7 +2714,7 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
             )}
           </div>
         ) : (
-          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>--</span>
+          <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>--</span>
         )}
       </td>
 
@@ -2739,7 +2739,7 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
             )}
           </div>
         ) : (
-          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>--</span>
+          <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>--</span>
         )}
       </td>
 
