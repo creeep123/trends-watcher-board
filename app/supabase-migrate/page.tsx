@@ -61,21 +61,21 @@ CREATE POLICY "Allow public delete access" ON twb_kgr_workbench
   FOR DELETE USING (true);`;
 
   return (
-    <div style={{ padding: '40px', maxWidth: '900px', margin: '0 auto', fontFamily: 'system-ui, sans-serif' }}>
-      <h1 style={{ fontSize: '24px', marginBottom: '20px' }}>Supabase Migration</h1>
+    <div style={{ padding: '40px', maxWidth: '900px', margin: '0 auto' }}>
+      <h1 style={{ fontSize: '24px', fontWeight: 500, marginBottom: '20px', color: 'var(--text-secondary)', letterSpacing: '-0.02em' }}>Supabase Migration</h1>
 
-      <div style={{ marginBottom: '30px', padding: '20px', background: '#f5f5f5', borderRadius: '8px' }}>
-        <h2 style={{ fontSize: '18px', marginBottom: '10px' }}>步骤：</h2>
-        <ol style={{ paddingLeft: '20px', lineHeight: '1.6' }}>
-          <li>打开 <a href="https://supabase.com/dashboard/project/roruthlntpjtfardmte/sql/new" target="_blank" style={{ color: '#0066cc' }}>Supabase SQL Editor</a></li>
+      <div style={{ marginBottom: '30px', padding: '20px', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 500, marginBottom: '10px', color: 'var(--text-tertiary)' }}>步骤：</h2>
+        <ol style={{ paddingLeft: '20px', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
+          <li>打开 <a href="https://supabase.com/dashboard/project/roruthlntpjtfardmte/sql/new" target="_blank" style={{ color: 'var(--accent-blue-hover)' }}>Supabase SQL Editor</a></li>
           <li>复制下面的 SQL 代码</li>
           <li>粘贴到 SQL Editor 并点击 Run</li>
-          <li>执行完成后访问 <a href="/api/supabase-migrate" target="_blank" style={{ color: '#0066cc' }}>验证表是否创建成功</a></li>
+          <li>执行完成后访问 <a href="/api/supabase-migrate" target="_blank" style={{ color: 'var(--accent-blue-hover)' }}>验证表是否创建成功</a></li>
         </ol>
       </div>
 
       <div style={{ marginBottom: '20px' }}>
-        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>SQL 迁移代码（点击复制）：</label>
+        <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', color: 'var(--text-tertiary)' }}>SQL 迁移代码（点击复制）：</label>
         <textarea
           readOnly
           value={MIGRATION_SQL}
@@ -86,17 +86,18 @@ CREATE POLICY "Allow public delete access" ON twb_kgr_workbench
             fontFamily: 'monospace',
             fontSize: '12px',
             padding: '15px',
-            border: '1px solid #ddd',
-            borderRadius: '8px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
             cursor: 'pointer',
-            background: '#f9f9f9'
+            background: 'var(--bg-secondary)',
+            color: 'var(--text-primary)',
           }}
         />
-        <p style={{ fontSize: '14px', color: '#666', marginTop: '8px' }}>点击文本框自动复制</p>
+        <p style={{ fontSize: '14px', color: 'var(--text-quaternary)', marginTop: '8px' }}>点击文本框自动复制</p>
       </div>
 
-      <div style={{ padding: '15px', background: '#e3f2fd', borderRadius: '8px', border: '1px solid #2196f3' }}>
-        <strong style={{ color: '#1976d2' }}>注意：</strong> 执行完迁移后，这个页面可以删除或保留
+      <div style={{ padding: '15px', background: 'rgba(94, 106, 210, 0.06)', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(94, 106, 210, 0.15)' }}>
+        <span style={{ color: 'var(--accent-blue-hover)' }}>注意：</span> 执行完迁移后，这个页面可以删除或保留
       </div>
     </div>
   );

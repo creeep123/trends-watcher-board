@@ -1267,8 +1267,8 @@ export default function Home() {
               ) : (
                 <div className="space-y-2">
                   {rootKeywords.map((root) => (
-                    <div key={root.id} className="flex items-center justify-between rounded-lg border p-2 text-sm"
-                      style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+                    <div key={root.id} className="flex items-center justify-between border p-2 text-sm"
+                      style={{ borderColor: "var(--border)", background: "var(--bg-secondary)", borderRadius: "var(--radius-md)" }}>
                       <div className="flex items-center gap-2">
                         <span className="font-medium" style={{ color: "var(--text-primary)" }}>{root.keyword}</span>
                         {root.category && (
@@ -1277,11 +1277,15 @@ export default function Home() {
                             {root.category}
                           </span>
                         )}
-                        <span className={`rounded px-1.5 py-0.5 text-xs ${
-                          root.priority === "high" ? "bg-red-100 text-red-700" :
-                          root.priority === "medium" ? "bg-yellow-100 text-yellow-700" :
-                          "bg-gray-100 text-gray-700"
-                        }`}>
+                        <span className="rounded px-1.5 py-0.5 text-xs"
+                          style={{
+                            background: root.priority === "high" ? "rgba(239, 68, 68, 0.1)" :
+                                         root.priority === "medium" ? "rgba(251, 191, 36, 0.1)" :
+                                         "rgba(255, 255, 255, 0.05)",
+                            color: root.priority === "high" ? "#f87171" :
+                                   root.priority === "medium" ? "#fbbf24" :
+                                   "var(--text-tertiary)"
+                          }}>
                           {root.priority === "high" ? "高" : root.priority === "medium" ? "中" : "低"}
                         </span>
                       </div>
@@ -1664,11 +1668,12 @@ export default function Home() {
           <div
             className="rounded-lg px-4 py-3 shadow-lg text-sm font-medium animate-in slide-in-from-bottom-2"
             style={{
-              background: toast.type === 'success' ? 'rgba(52,211,153,0.95)' :
-                         toast.type === 'error' ? 'rgba(239,68,68,0.95)' :
-                         'rgba(59,130,246,0.95)',
+              background: toast.type === 'success' ? 'rgba(16,185,129,0.9)' :
+                         toast.type === 'error' ? 'rgba(239,68,68,0.9)' :
+                         'rgba(94,106,210,0.9)',
               color: 'var(--text-primary)',
-              backdropFilter: 'blur(8px)'
+              backdropFilter: 'blur(8px)',
+              borderRadius: 'var(--radius-lg)',
             }}
           >
             {toast.message}
@@ -1938,8 +1943,10 @@ function HackerNewsCard({ post, index }: { post: HackerNewsPost; index: number }
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded p-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="rounded p-1 transition-colors"
             style={{ color: "var(--text-tertiary)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-elevated)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             title={`访问外部链接: ${url}`}
             onClick={(e) => e.stopPropagation()}
           >
@@ -2406,10 +2413,12 @@ function ScrollToTopButton() {
   return (
     <button
       onClick={scrollToTop}
-      className="fixed bottom-6 right-4 sm:bottom-8 sm:right-8 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg hover:opacity-90 transition-opacity"
+      className="fixed bottom-6 right-4 sm:bottom-8 sm:right-8 z-50 flex h-12 w-12 items-center justify-center rounded-full hover:opacity-90 transition-opacity"
       style={{
-        background: "var(--accent-blue)",
-        color: "var(--text-primary)",
+        background: "var(--bg-elevated)",
+        color: "var(--text-secondary)",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-elevated)",
         marginBottom: "80px",
       }}
       aria-label="回到顶部"

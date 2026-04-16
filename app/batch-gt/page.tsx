@@ -182,7 +182,7 @@ export default function BatchGTPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-4 sm:mb-6">
-          <h1 className="text-2xl sm:text-3xl font-medium mb-2" style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}>批量 GT 浏览器</h1>
+          <h1 className="text-2xl sm:text-3xl font-medium mb-2" style={{ color: "var(--text-secondary)", letterSpacing: "-0.02em" }}>批量 GT 浏览器</h1>
           <p className="text-sm sm:text-base" style={{ color: "var(--text-tertiary)" }}>
             今日已查看: {viewedToday} / {keywords.length}
             <span className="hidden sm:inline"> | 快捷键: ↑↓ 切换, 空格标记已看</span>
@@ -190,29 +190,29 @@ export default function BatchGTPage() {
         </div>
 
         {/* Import Section */}
-        <div className="mb-4 sm:mb-6 p-3 sm:p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)" }}>
-          <h2 className="text-base sm:text-lg font-medium mb-2" style={{ color: "var(--text-secondary)" }}>导入词根</h2>
+        <div className="mb-4 sm:mb-6 p-3 sm:p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-surface)" }}>
+          <h2 className="text-base sm:text-lg font-medium mb-2" style={{ color: "var(--text-tertiary)" }}>导入词根</h2>
           <textarea
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
             placeholder="每行一个词根，支持逗号分隔的类别"
-            className="w-full h-20 sm:h-24 p-2 text-sm"
+            className="w-full h-20 sm:h-24 p-2 text-sm outline-none"
             style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", color: "var(--text-primary)", borderRadius: "var(--radius-md)" }}
           />
           <div className="mt-2 flex flex-col sm:flex-row gap-2">
             <button
               onClick={handleImport}
               disabled={importing}
-              className="px-4 py-2 disabled:opacity-50 text-sm"
-              style={{ background: "var(--accent-blue)", color: "var(--text-primary)" }}
+              className="px-4 py-2 disabled:opacity-50 text-sm transition-opacity"
+              style={{ background: "var(--accent-blue)", color: "var(--text-primary)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-subtle)" }}
             >
               {importing ? "导入中..." : "导入"}
             </button>
             <button
               onClick={handleSyncFromSheets}
               disabled={syncing}
-              className="px-4 py-2 disabled:opacity-50 text-sm"
-              style={{ background: "var(--accent-green)", color: "var(--text-primary)" }}
+              className="px-4 py-2 disabled:opacity-50 text-sm transition-opacity"
+              style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}
             >
               {syncing ? "同步中..." : "从 Google Sheets 同步"}
             </button>
@@ -228,9 +228,9 @@ export default function BatchGTPage() {
               className="flex-shrink-0 px-3 py-1.5 text-xs sm:text-sm whitespace-nowrap"
               style={{
                 background: activeFilter === f.key ? "var(--accent-blue)" : "var(--bg-elevated)",
-                color: activeFilter ? "var(--text-primary)" : "var(--text-tertiary)",
+                color: activeFilter === f.key ? "var(--text-primary)" : "var(--text-tertiary)",
                 borderRadius: "var(--radius-full)",
-                border: activeFilter ? "1px solid var(--accent-blue)" : "1px solid var(--border)",
+                border: activeFilter === f.key ? "1px solid var(--accent-blue)" : "1px solid var(--border)",
               }}
             >
               {f.label} ({filterCounts[f.key]})
@@ -250,9 +250,10 @@ export default function BatchGTPage() {
                 onClick={() => setSelectedIndex(index)}
                 className="flex items-center justify-between p-3 sm:p-4 cursor-pointer"
                 style={{
-                  background: isSelected ? "rgba(94, 106, 210, 0.08)" : "var(--bg-card)",
+                  background: isSelected ? "rgba(94, 106, 210, 0.06)" : "var(--bg-card)",
                   border: `1px solid ${isSelected ? "var(--accent-blue-hover)" : "var(--border)"}`,
                   borderRadius: "var(--radius-lg)",
+                  transition: "background 0.15s, border-color 0.15s",
                 }}
               >
                 <div className="flex items-center gap-3 sm:gap-4 min-w-0">
@@ -287,8 +288,8 @@ export default function BatchGTPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="flex-shrink-0 ml-2 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm"
-                  style={{ background: "var(--accent-green)", color: "var(--text-primary)", borderRadius: "var(--radius-md)" }}
+                  className="flex-shrink-0 ml-2 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition-opacity hover:opacity-80"
+                  style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}
                 >
                   GT 对比
                 </a>
