@@ -172,44 +172,47 @@ export default function BatchGTPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="text-xl">Loading...</div>
+        <div className="text-xl" style={{ color: "var(--text-tertiary)" }}>Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 px-3 py-4 sm:p-6">
+    <div className="min-h-screen px-3 py-4 sm:p-6" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-4 sm:mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2">批量 GT 浏览器</h1>
-          <p className="text-gray-400 text-sm sm:text-base">
+          <h1 className="text-2xl sm:text-3xl font-medium mb-2" style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}>批量 GT 浏览器</h1>
+          <p className="text-sm sm:text-base" style={{ color: "var(--text-tertiary)" }}>
             今日已查看: {viewedToday} / {keywords.length}
             <span className="hidden sm:inline"> | 快捷键: ↑↓ 切换, 空格标记已看</span>
           </p>
         </div>
 
         {/* Import Section */}
-        <div className="mb-4 sm:mb-6 bg-gray-900 rounded-lg p-3 sm:p-4">
-          <h2 className="text-base sm:text-lg font-semibold mb-2">导入词根</h2>
+        <div className="mb-4 sm:mb-6 p-3 sm:p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)" }}>
+          <h2 className="text-base sm:text-lg font-medium mb-2" style={{ color: "var(--text-secondary)" }}>导入词根</h2>
           <textarea
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
             placeholder="每行一个词根，支持逗号分隔的类别"
-            className="w-full h-20 sm:h-24 bg-gray-800 border border-gray-700 rounded p-2 text-sm"
+            className="w-full h-20 sm:h-24 p-2 text-sm"
+            style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", color: "var(--text-primary)", borderRadius: "var(--radius-md)" }}
           />
           <div className="mt-2 flex flex-col sm:flex-row gap-2">
             <button
               onClick={handleImport}
               disabled={importing}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 text-sm"
+              className="px-4 py-2 disabled:opacity-50 text-sm"
+              style={{ background: "var(--accent-blue)", color: "var(--text-primary)" }}
             >
               {importing ? "导入中..." : "导入"}
             </button>
             <button
               onClick={handleSyncFromSheets}
               disabled={syncing}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded disabled:opacity-50 text-sm"
+              className="px-4 py-2 disabled:opacity-50 text-sm"
+              style={{ background: "var(--accent-green)", color: "var(--text-primary)" }}
             >
               {syncing ? "同步中..." : "从 Google Sheets 同步"}
             </button>
@@ -222,13 +225,13 @@ export default function BatchGTPage() {
             <button
               key={f.key}
               onClick={() => { setActiveFilter(f.key); setSelectedIndex(null); }}
-              className={`
-                flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm whitespace-nowrap
-                ${activeFilter === f.key
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                }
-              `}
+              className="flex-shrink-0 px-3 py-1.5 text-xs sm:text-sm whitespace-nowrap"
+              style={{
+                background: activeFilter === f.key ? "var(--accent-blue)" : "var(--bg-elevated)",
+                color: activeFilter ? "var(--text-primary)" : "var(--text-tertiary)",
+                borderRadius: "var(--radius-full)",
+                border: activeFilter ? "1px solid var(--accent-blue)" : "1px solid var(--border)",
+              }}
             >
               {f.label} ({filterCounts[f.key]})
             </button>
@@ -245,11 +248,12 @@ export default function BatchGTPage() {
               <div
                 key={kw.id}
                 onClick={() => setSelectedIndex(index)}
-                className={`
-                  flex items-center justify-between p-3 sm:p-4 rounded-lg cursor-pointer
-                  ${isSelected ? "bg-blue-900/30 ring-2 ring-blue-500" : "bg-gray-900"}
-                  hover:bg-gray-800
-                `}
+                className="flex items-center justify-between p-3 sm:p-4 cursor-pointer"
+                style={{
+                  background: isSelected ? "rgba(94, 106, 210, 0.08)" : "var(--bg-card)",
+                  border: `1px solid ${isSelected ? "var(--accent-blue-hover)" : "var(--border)"}`,
+                  borderRadius: "var(--radius-lg)",
+                }}
               >
                 <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                   <button
@@ -257,22 +261,21 @@ export default function BatchGTPage() {
                       e.stopPropagation();
                       if (markingId !== kw.id) markAsViewed(kw.id);
                     }}
-                    className={`
-                      flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center
-                      ${isViewedToday || markingId === kw.id
-                        ? "bg-green-500 border-green-500 text-white"
-                        : "border-gray-600"
-                      }
-                      ${markingId === kw.id ? "animate-pulse" : ""}
-                    `}
+                    className={`flex-shrink-0 w-6 h-6 flex items-center justify-center ${markingId === kw.id ? "animate-pulse" : ""}`}
+                    style={{
+                      borderRadius: "var(--radius-sm)",
+                      border: `2px solid ${isViewedToday || markingId === kw.id ? "var(--accent-green-bright)" : "var(--border)"}`,
+                      background: isViewedToday || markingId === kw.id ? "var(--accent-green-bright)" : "transparent",
+                      color: isViewedToday || markingId === kw.id ? "var(--text-primary)" : "transparent",
+                    }}
                   >
                     {(isViewedToday || markingId === kw.id) && "✓"}
                   </button>
 
                   <div className="min-w-0">
-                    <div className="font-semibold text-sm sm:text-base truncate">{kw.keyword}</div>
+                    <div className="font-medium text-sm sm:text-base truncate" style={{ color: "var(--text-primary)" }}>{kw.keyword}</div>
                     {kw.latest_view && (
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs" style={{ color: "var(--text-quaternary)" }}>
                         上次查看: {new Date(kw.latest_view).toLocaleString("zh-CN")}
                       </div>
                     )}
@@ -284,7 +287,8 @@ export default function BatchGTPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="flex-shrink-0 ml-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-green-600 hover:bg-green-700 rounded text-xs sm:text-sm"
+                  className="flex-shrink-0 ml-2 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm"
+                  style={{ background: "var(--accent-green)", color: "var(--text-primary)", borderRadius: "var(--radius-md)" }}
                 >
                   GT 对比
                 </a>
@@ -293,7 +297,7 @@ export default function BatchGTPage() {
           })}
 
           {filteredKeywords.length === 0 && (
-            <div className="text-center text-gray-500 py-12">
+            <div className="text-center py-12" style={{ color: "var(--text-quaternary)" }}>
               {keywords.length === 0 ? "还没有词根，请先导入" : "当前筛选条件下没有结果"}
             </div>
           )}
