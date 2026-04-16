@@ -6,7 +6,7 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
-  featureSettings: "'cv01' 1, 'ss03' 1",
+  style: "normal",
 });
 
 export const viewport: Viewport = {
