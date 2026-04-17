@@ -901,7 +901,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen overflow-x-hidden" style={{ background: "var(--bg-primary)" }}>
+    <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
       {/* ===== Header ===== */}
       <header
         className="sticky top-0 z-10 backdrop-blur-md"
@@ -1183,25 +1183,25 @@ export default function Home() {
               <div className="space-y-3 sm:space-y-1.5">
                 <div className="flex items-start gap-2">
                   <span className="shrink-0">📊</span>
-                  <div>
+                  <div className="min-w-0">
                     <strong>KGR</strong> = 搜索量 ÷ allintitle
-                    <span className="ml-1 inline-block rounded px-1" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>&lt; 0.025 🏆 黄金</span>
-                    <span className="ml-1 inline-block rounded px-1" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}>&lt; 0.1 ✅ 优质</span>
+                    <span className="ml-1 inline-block break-inside-avoid rounded px-1" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>&lt; 0.025 🏆 黄金</span>
+                    <span className="ml-1 inline-block break-inside-avoid rounded px-1" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}>&lt; 0.1 ✅ 优质</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="shrink-0">🎯</span>
-                  <div>
+                  <div className="min-w-0">
                     <strong>EKGR</strong> = (搜索量 × 0.6) ÷ (allintitle × √KD)
-                    <span className="ml-1 inline-block rounded px-1" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>&gt; 20 🏆 极优</span>
-                    <span className="ml-1 inline-block rounded px-1" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}>&gt; 10 ✅ 优质</span>
+                    <span className="ml-1 inline-block break-inside-avoid rounded px-1" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>&gt; 20 🏆 极优</span>
+                    <span className="ml-1 inline-block break-inside-avoid rounded px-1" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}>&gt; 10 ✅ 优质</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="shrink-0">💰</span>
-                  <div>
+                  <div className="min-w-0">
                     <strong>KDROI</strong> = (收入 - 反链成本) ÷ 反链成本
-                    <span className="ml-1 inline-block rounded px-1" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>&gt; 200% 🏆 极高回报</span>
+                    <span className="ml-1 inline-block break-inside-avoid rounded px-1" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>&gt; 200% 🏆 极高回报</span>
                   </div>
                 </div>
                 <div className="pt-1" style={{ color: "var(--text-tertiary)" }}>
@@ -1363,7 +1363,7 @@ export default function Home() {
       )}
 
       {/* ===== Main Content ===== */}
-      <main className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
+      <main className="mx-auto min-w-0 max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
         {data && !loading && (
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs sm:mb-4 sm:gap-3" style={{ color: "var(--text-tertiary)" }}>
             <span>{currentGeo?.flag || "🌍"} {currentGeo?.label || "Global"} · {currentTimeframe?.description}</span>
@@ -1400,7 +1400,7 @@ export default function Home() {
                   ))}
                 </div>
               </SectionHeader>
-              <div className="space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+              <div className="min-w-0 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {trendingLoading ? (
                   Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="h-11 animate-pulse rounded-lg" style={{ background: "var(--bg-card)", opacity: 1 - i * 0.12 }} />
@@ -1470,7 +1470,7 @@ export default function Home() {
                 </div>
               )}
 
-              <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+              <div className="min-w-0 mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {loading ? (
                   <div className="rounded-lg p-4 text-center" style={{ background: "var(--bg-secondary)" }}>
                     <div className="mb-2 flex justify-center">
@@ -1520,7 +1520,7 @@ export default function Home() {
             {/* --- Reddit Signals --- */}
             <section className={`${mobileTab !== "reddit" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="Reddit Signals" icon="💬" count={redditPosts.length} />
-              <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+              <div className="min-w-0 mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {redditLoading ? (
                   Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="h-11 animate-pulse rounded-lg" style={{ background: "var(--bg-card)", opacity: 1 - i * 0.12 }} />
@@ -1562,7 +1562,7 @@ export default function Home() {
             {/* --- HackerNews --- */}
             <section className={`${mobileTab !== "hn" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="HackerNews" icon="🍊" count={hnPosts.length} />
-              <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+              <div className="min-w-0 mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {hnLoading ? (
                   <div className="py-8 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
                     Loading...
@@ -1580,7 +1580,7 @@ export default function Home() {
             {/* --- Tech News --- */}
             <section className={`${mobileTab !== "technews" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="Tech News" icon="📰" count={techNewsPosts.length} />
-              <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+              <div className="min-w-0 mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {techNewsLoading ? (
                   <div className="py-8 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
                     Loading...
@@ -1641,7 +1641,7 @@ export default function Home() {
             {/* --- GitHub Trending --- */}
             <section className={`${mobileTab !== "github" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="GitHub Trending" icon="💻" count={data?.github?.length || 0} />
-              <div className="mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+              <div className="min-w-0 mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {!data?.github || data.github.length === 0 ? (
                   <EmptyState text="No GitHub projects trending" />
                 ) : (
@@ -1807,15 +1807,15 @@ function TrendingCard({
 }) {
   const isTech = item.is_tech;
   return (
-    <div className="overflow-hidden border transition-all"
+    <div className="min-w-0 border transition-all"
       style={{
         background: isTech ? "rgba(94, 106, 210, 0.06)" : "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : isTech ? "rgba(94, 106, 210, 0.3)" : "var(--border)",
         borderRadius: "var(--radius-lg)",
       }}>
-      <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-4 text-left sm:items-center sm:gap-3 sm:p-2.5">
+      <button onClick={onToggle} className="flex min-w-0 w-full items-start gap-2.5 p-4 text-left sm:items-center sm:gap-3 sm:p-2.5">
         <Rank n={index + 1} />
-        <span className={`min-w-0 flex-1 text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        <span className={`min-w-0 flex-1 break-words text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
         {isTech && (
           <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(94, 106, 210, 0.15)", color: "#5e6ad2" }}>
             Tech
@@ -2003,9 +2003,9 @@ function KeywordCard({
     : "var(--text-secondary)";
 
   return (
-    <div className="border overflow-hidden transition-all"
+    <div className="min-w-0 border transition-all"
       style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue-hover)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)", borderRadius: "var(--radius-lg)" }}>
-      <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-4 text-left sm:items-center sm:gap-3 sm:p-2.5">
+      <button onClick={onToggle} className="flex min-w-0 w-full items-start gap-2.5 p-4 text-left sm:items-center sm:gap-3 sm:p-2.5">
         {/* Score badge or rank */}
         {enrichLoading && !enrichData ? (
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full animate-pulse" style={{ background: "var(--bg-secondary)" }}>
@@ -2018,7 +2018,7 @@ function KeywordCard({
         ) : (
           <Rank n={index + 1} />
         )}
-        <span className={`min-w-0 flex-1 text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        <span className={`min-w-0 flex-1 break-words text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
         {score !== undefined && score >= 75 && (
           <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>冲</span>
         )}
@@ -2094,7 +2094,7 @@ function EnrichedDecisionPanel({
     : null;
 
   return (
-    <div className="overflow-hidden border-t px-4 py-3 sm:px-3 sm:py-2.5" style={{ borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}>
+    <div className="min-w-0 border-t px-4 py-3 sm:px-3 sm:py-2.5" style={{ borderColor: "var(--border)", borderRadius: "var(--radius-lg)", overflowWrap: "break-word" }}>
       {/* 7-day trend chart */}
       <div className="mb-2.5">
         <span className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>7-day trend</span>
@@ -2263,7 +2263,7 @@ function EnrichedDecisionPanel({
 // Original simple DecisionPanel for TrendingCard
 function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: string; points: InterestPoint[]; loading: boolean; onAddToKGR?: (keyword: string) => void }) {
   return (
-    <div className="overflow-hidden border-t px-3 py-3" style={{ borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}>
+    <div className="min-w-0 border-t px-3 py-3" style={{ borderColor: "var(--border)", borderRadius: "var(--radius-lg)", overflowWrap: "break-word" }}>
       <div className="mb-3">
         <span className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>7-day trend</span>
         {loading ? (
