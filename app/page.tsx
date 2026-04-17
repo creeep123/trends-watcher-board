@@ -901,7 +901,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
+    <div className="min-h-screen overflow-x-hidden" style={{ background: "var(--bg-primary)" }}>
       {/* ===== Header ===== */}
       <header
         className="sticky top-0 z-10 backdrop-blur-md"
@@ -1807,7 +1807,7 @@ function TrendingCard({
 }) {
   const isTech = item.is_tech;
   return (
-    <div className="border transition-all"
+    <div className="overflow-hidden border transition-all"
       style={{
         background: isTech ? "rgba(94, 106, 210, 0.06)" : "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : isTech ? "rgba(94, 106, 210, 0.3)" : "var(--border)",
@@ -2003,7 +2003,7 @@ function KeywordCard({
     : "var(--text-secondary)";
 
   return (
-    <div className="border transition-all"
+    <div className="border overflow-hidden transition-all"
       style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue-hover)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)", borderRadius: "var(--radius-lg)" }}>
       <button onClick={onToggle} className="flex w-full items-start gap-2.5 p-4 text-left sm:items-center sm:gap-3 sm:p-2.5">
         {/* Score badge or rank */}
@@ -2094,7 +2094,7 @@ function EnrichedDecisionPanel({
     : null;
 
   return (
-    <div className="border-t px-4 py-3 sm:px-3 sm:py-2.5" style={{ borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}>
+    <div className="overflow-hidden border-t px-4 py-3 sm:px-3 sm:py-2.5" style={{ borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}>
       {/* 7-day trend chart */}
       <div className="mb-2.5">
         <span className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>7-day trend</span>
@@ -2173,7 +2173,7 @@ function EnrichedDecisionPanel({
                   {multiGeoData.found_in.length}/{multiGeoData.total_geos} 国
                 </span>
                 {multiGeoData.found_in.length > 0 && (
-                  <div className="mt-0.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
+                  <div className="mt-0.5 break-words text-xs" style={{ color: "var(--text-tertiary)" }}>
                     {multiGeoData.found_in.join(", ")}
                   </div>
                 )}
@@ -2263,7 +2263,7 @@ function EnrichedDecisionPanel({
 // Original simple DecisionPanel for TrendingCard
 function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: string; points: InterestPoint[]; loading: boolean; onAddToKGR?: (keyword: string) => void }) {
   return (
-    <div className="border-t px-3 py-3" style={{ borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}>
+    <div className="overflow-hidden border-t px-3 py-3" style={{ borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}>
       <div className="mb-3">
         <span className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>7-day trend</span>
         {loading ? (
