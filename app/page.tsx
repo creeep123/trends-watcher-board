@@ -2498,6 +2498,7 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
   const [volumeInput, setVolumeInput] = useState(
     item.searchVolume !== null ? String(item.searchVolume) : ""
   );
+  const [volumeUnit, setVolumeUnit] = useState<'day' | 'month'>('month');
   const [kdInput, setKdInput] = useState(
     item.kd !== null ? String(item.kd) : ""
   );
@@ -2521,8 +2522,9 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
   const handleVolumeSubmit = () => {
     const vol = parseInt(volumeInput.replace(/[,\s]/g, ""), 10);
     if (!isNaN(vol) && vol >= 0) {
+      const monthlyVol = volumeUnit === 'day' ? vol * 30 : vol;
       onUpdate(item.keyword, {
-        searchVolume: vol,
+        searchVolume: monthlyVol,
         searchVolumeTimestamp: new Date().toISOString(),
       });
     }
@@ -2649,7 +2651,7 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
             onChange={(e) => setVolumeInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleVolumeSubmit(); }}
             onBlur={handleVolumeSubmit}
-            placeholder="搜索量"
+            placeholder={volumeUnit === 'day' ? '日搜索量' : '月搜索量'}
             className="w-20 rounded border px-2 py-1 text-right text-xs"
             style={{
               background: "var(--bg-secondary)",
@@ -2657,6 +2659,14 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
               color: "var(--text-primary)"
             }}
           />
+          <button
+            onClick={() => setVolumeUnit(u => u === 'month' ? 'day' : 'month')}
+            className="shrink-0 rounded px-1 py-0.5 text-[10px] font-medium"
+            style={{ background: volumeUnit === 'day' ? "rgba(94, 106, 210, 0.15)" : "transparent", color: volumeUnit === 'day' ? "var(--accent-blue-hover)" : "var(--text-quaternary)" }}
+            title={volumeUnit === 'day' ? '当前：日搜索量，点击切换为月' : '当前：月搜索量，点击切换为日'}
+          >
+            {volumeUnit === 'day' ? '日' : '月'}
+          </button>
           <a href={googleTrendsUrl(`${item.keyword},happy birthday image`)}
             target="_blank" rel="noopener noreferrer"
             className="shrink-0 rounded px-1.5 py-1 text-xs font-medium transition-opacity hover:opacity-80"
