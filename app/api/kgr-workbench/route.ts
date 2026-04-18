@@ -25,6 +25,7 @@ export async function GET() {
       ekgrStatus: item.ekgr_status as 'good' | 'medium' | 'bad' | null,
       kdroi: item.kdroi,
       kdroiStatus: item.kdroi_status as 'good' | 'medium' | 'bad' | null,
+      notes: item.notes ?? undefined,
       addedAt: item.added_at,
     }));
 
@@ -68,6 +69,7 @@ export async function POST(request: NextRequest) {
       ekgr_status: item.ekgrStatus,
       kdroi: item.kdroi,
       kdroi_status: item.kdroiStatus,
+      notes: item.notes || null,
       added_at: item.addedAt,
     });
 
@@ -141,6 +143,7 @@ export async function PUT(request: NextRequest) {
         ekgr_status: item.ekgrStatus,
         kdroi: item.kdroi,
         kdroi_status: item.kdroiStatus,
+        notes: item.notes || null,
         added_at: item.addedAt,
       });
     }

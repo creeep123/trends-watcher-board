@@ -107,6 +107,7 @@ export interface KGRWorkbenchItem {
   ekgr_status: string | null;
   kdroi: number | null;
   kdroi_status: string | null;
+  notes: string | null;
   added_at: string;
   updated_at: string;
   user_id?: string;
@@ -143,6 +144,7 @@ export async function upsertKGRItem(item: {
   ekgr_status?: string | null;
   kdroi?: number | null;
   kdroi_status?: string | null;
+  notes?: string | null;
   added_at?: string;
   user_id?: string;
   device_id?: string;
@@ -187,6 +189,7 @@ export async function syncKGRItems(
     ekgr_status?: string | null;
     kdroi?: number | null;
     kdroi_status?: string | null;
+    notes?: string | null;
     added_at?: string;
     user_id?: string;
     device_id?: string;

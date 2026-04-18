@@ -2503,6 +2503,8 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
   );
   const [allintitleInput, setAllintitleInput] = useState("");
   const [showAllintitleManual, setShowAllintitleManual] = useState(false);
+  const [notesInput, setNotesInput] = useState(item.notes || "");
+  const [editingNotes, setEditingNotes] = useState(false);
 
   const handleAllintitleManualSubmit = () => {
     const count = parseInt(allintitleInput.replace(/[,\s]/g, ""), 10);
@@ -2758,19 +2760,66 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
 
       {/* Notes */}
       <td className="p-2">
-        <input
-          type="text"
-          value={item.notes || ""}
-          onChange={(e) => onUpdate(item.keyword, { notes: e.target.value })}
-          onBlur={(e) => onUpdate(item.keyword, { notes: e.target.value })}
-          placeholder="备注"
-          className="w-full rounded border px-2 py-1 text-xs"
-          style={{
-            background: "var(--bg-secondary)",
-            borderColor: "var(--border)",
-            color: "var(--text-primary)"
-          }}
-        />
+        {editingNotes ? (
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              value={notesInput}
+              onChange={(e) => setNotesInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  onUpdate(item.keyword, { notes: notesInput });
+                  setEditingNotes(false);
+                } else if (e.key === "Escape") {
+                  setNotesInput(item.notes || "");
+                  setEditingNotes(false);
+                }
+              }}
+              autoFocus
+              className="min-w-0 flex-1 rounded border px-2 py-1 text-xs"
+              style={{
+                background: "var(--bg-secondary)",
+                borderColor: "var(--border)",
+                color: "var(--text-primary)"
+              }}
+            />
+            <button
+              onClick={() => {
+                onUpdate(item.keyword, { notes: notesInput });
+                setEditingNotes(false);
+              }}
+              className="shrink-0 rounded px-1.5 py-1 text-[10px] font-medium"
+              style={{ background: "rgba(94, 106, 210, 0.15)", color: "var(--accent-blue-hover)" }}
+            >
+              ✓
+            </button>
+            <button
+              onClick={() => {
+                setNotesInput(item.notes || "");
+                setEditingNotes(false);
+              }}
+              className="shrink-0 rounded px-1.5 py-1 text-[10px]"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => {
+              setNotesInput(item.notes || "");
+              setEditingNotes(true);
+            }}
+            className="w-full text-left rounded border px-2 py-1 text-xs"
+            style={{
+              background: "var(--bg-secondary)",
+              borderColor: "var(--border)",
+              color: item.notes ? "var(--text-primary)" : "var(--text-quaternary)",
+            }}
+          >
+            {item.notes || "备注"}
+          </button>
+        )}
       </td>
 
       {/* Actions */}
