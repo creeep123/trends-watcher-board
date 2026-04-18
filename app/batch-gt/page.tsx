@@ -31,6 +31,7 @@ export default function BatchGTPage() {
   const [syncing, setSyncing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [markingId, setMarkingId] = useState<string | null>(null);
+  const [flashId, setFlashId] = useState<string | null>(null);
 
   useEffect(() => {
     loadKeywords();
@@ -52,6 +53,7 @@ export default function BatchGTPage() {
 
   async function markAsViewed(keywordId: string) {
     setMarkingId(keywordId);
+    setFlashId(keywordId);
     const now = new Date().toISOString();
     setKeywords(prev => prev.map(k =>
       k.id === keywordId ? { ...k, latest_view: now } : k
@@ -65,6 +67,7 @@ export default function BatchGTPage() {
       ));
     } finally {
       setMarkingId(null);
+      setTimeout(() => setFlashId(null), 600);
     }
   }
 
@@ -184,7 +187,7 @@ export default function BatchGTPage() {
         <div className="mb-4 sm:mb-6">
           <h1 className="text-2xl sm:text-3xl font-medium mb-2" style={{ color: "var(--text-secondary)", letterSpacing: "-0.02em" }}>批量 GT 浏览器</h1>
           <p className="text-sm sm:text-base" style={{ color: "var(--text-tertiary)" }}>
-            今日已查看: {viewedToday} / {keywords.length}
+            今日已查看: <span className={flashId ? "batch-count-bounce" : ""}>{viewedToday}</span> / {keywords.length}
             <span className="hidden sm:inline"> | 快捷键: ↑↓ 切换, 空格标记已看</span>
           </p>
         </div>
@@ -248,7 +251,7 @@ export default function BatchGTPage() {
               <div
                 key={kw.id}
                 onClick={() => setSelectedIndex(index)}
-                className="flex items-center justify-between p-3 sm:p-4 cursor-pointer"
+                className={`flex items-center justify-between p-3 sm:p-4 cursor-pointer ${flashId === kw.id ? "batch-row-flash" : ""}`}
                 style={{
                   background: isSelected ? "rgba(94, 106, 210, 0.06)" : "var(--bg-card)",
                   border: `1px solid ${isSelected ? "var(--accent-blue-hover)" : "var(--border)"}`,
@@ -262,15 +265,18 @@ export default function BatchGTPage() {
                       e.stopPropagation();
                       if (markingId !== kw.id) markAsViewed(kw.id);
                     }}
-                    className={`flex-shrink-0 w-6 h-6 flex items-center justify-center ${markingId === kw.id ? "animate-pulse" : ""}`}
+                    className={`batch-check-box flex-shrink-0 w-6 h-6 flex items-center justify-center ${!isViewedToday && markingId === kw.id ? "pop" : ""}`}
                     style={{
                       borderRadius: "var(--radius-sm)",
                       border: `2px solid ${isViewedToday || markingId === kw.id ? "var(--accent-green-bright)" : "var(--border)"}`,
                       background: isViewedToday || markingId === kw.id ? "var(--accent-green-bright)" : "transparent",
-                      color: isViewedToday || markingId === kw.id ? "var(--text-primary)" : "transparent",
                     }}
                   >
-                    {(isViewedToday || markingId === kw.id) && "✓"}
+                    {(isViewedToday || markingId === kw.id) && (
+                      <svg className="batch-check-svg checked" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path className="check-path" d="M2.5 7.5L5.5 10.5L11.5 3.5" stroke="var(--text-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
                   </button>
 
                   <div className="min-w-0">

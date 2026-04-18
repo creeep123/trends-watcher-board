@@ -94,6 +94,62 @@ button, a {
   animation: fadeIn 0.2s ease-out;
 }
 
+/* ===== Batch GT checkmark animations ===== */
+
+/* SVG checkmark draw — stroke draws itself */
+@keyframes checkDraw {
+  from { stroke-dashoffset: 24; }
+  to   { stroke-dashoffset: 0; }
+}
+
+/* Checkbox container: scale pop on check */
+@keyframes checkPop {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.25); }
+  60%  { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+/* Row flash: subtle green sweep left→right */
+@keyframes rowFlash {
+  0%   { background-position: -100% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Counter number bounce */
+@keyframes countBounce {
+  0%   { transform: translateY(0); }
+  25%  { transform: translateY(-3px); }
+  50%  { transform: translateY(0); }
+}
+
+.batch-check-svg .check-path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+}
+.batch-check-svg.checked .check-path {
+  animation: checkDraw 0.3s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+.batch-check-box.pop {
+  animation: checkPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.batch-row-flash {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(16, 185, 129, 0.08) 30%,
+    rgba(16, 185, 129, 0.12) 50%,
+    rgba(16, 185, 129, 0.08) 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: rowFlash 0.6s ease-out forwards;
+}
+.batch-count-bounce {
+  display: inline-block;
+  animation: countBounce 0.3s ease-out;
+}
+
 /* Linear signature weight 510 — available as arbitrary Tailwind class */
 /* Usage: className="font-[510]" when you need Linear's between-regular-and-medium weight */
 /* Most places use font-medium (500) as a close approximation */
