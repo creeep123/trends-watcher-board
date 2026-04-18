@@ -285,24 +285,11 @@ export function calculateEKGR(
   return (allintitleCount * (1 + kd / 100)) / searchVolume;
 }
 
-// Calculate backlink cost based on tiered pricing model
-export function calculateBacklinkCost(kd: number): number {
-  // Fixed: 10 backlinks needed (as per requirements)
-  const requiredLinks = 10;
-
-  let cost = 0;
-  const baseCost = 100; // $100 per link for first 10
-
-  // First 10 links: $100 each = $1,000 total
-  cost = requiredLinks * baseCost;
-
-  // Note: Higher tiers (11-50, 51-200, 200+) not used since we only need 10 links
-  // But keeping the function structure in case requirements change
-
-  return cost;
-}
-
 // Calculate KDROI
+// Formula: ((daily_search_volume * 0.1 * 365) / (required_backlinks * 100) - 1) * 100
+// - daily_search_volume = monthly_search_volume / 30
+// - $0.1 revenue per click, 100% capture assumed
+// - required_backlinks * $100 = investment cost
 export function calculateKDROI(
   searchVolume: number | null,
   kd: number | null
@@ -311,18 +298,13 @@ export function calculateKDROI(
     return null;
   }
 
-  // Assumptions:
-  // - Required backlinks: 10 (fixed)
-  // - Investment cost: $1,000 (10 × $100)
-  // - Revenue per click: $0.1
-  // - Can capture 100% of clicks
+  const dailyVolume = searchVolume / 30;
+  const requiredBacklinks = 10;
+  const investmentCost = requiredBacklinks * 100;
 
-  const monthlyRevenue = searchVolume * 0.1; // $0.1 per click
-  const annualRevenue = monthlyRevenue * 12;
-  const investmentCost = 1000; // $1,000 for 10 backlinks
-
-  const roi = ((annualRevenue - investmentCost) / investmentCost) * 100;
-  return roi;
+  const annualRevenue = dailyVolume * 0.1 * 365;
+  const kdroi = (annualRevenue / investmentCost - 1) * 100;
+  return kdroi;
 }
 
 // KGR Workbench types
@@ -338,7 +320,7 @@ export interface KGRItem {
   kgrStatus: 'good' | 'medium' | 'bad' | null;  // <0.25 good, 0.25-1 medium, >1 bad
   ekgr: number | null;  // Enhanced KGR: (allintitleCount * (1 + KD/100)) / searchVolume
   ekgrStatus: 'good' | 'medium' | 'bad' | null;  // <0.25 good, 0.25-1 medium, >1 bad
-  kdroi: number | null;  // Keyword Difficulty ROI: (annualRevenue - $1000) / $1000 * 100
+  kdroi: number | null;  // ((daily_vol * 0.1 * 365) / (backlinks * 100) - 1) * 100
   kdroiStatus: 'good' | 'medium' | 'bad' | null;  // >100% good, ≤100% bad
   addedAt: string;  // ISO timestamp when added to workbench
   notes?: string;

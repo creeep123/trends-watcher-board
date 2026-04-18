@@ -901,7 +901,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen overflow-x-hidden" style={{ background: "var(--bg-primary)" }}>
+    <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
       {/* ===== Header ===== */}
       <header
         className="sticky top-0 z-10 backdrop-blur-md"
@@ -1807,7 +1807,7 @@ function TrendingCard({
 }) {
   const isTech = item.is_tech;
   return (
-    <div className="min-w-0 overflow-hidden border transition-all"
+    <div className="min-w-0 overflow-x-auto border transition-all"
       style={{
         background: isTech ? "rgba(94, 106, 210, 0.06)" : "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : isTech ? "rgba(94, 106, 210, 0.3)" : "var(--border)",
@@ -2003,7 +2003,7 @@ function KeywordCard({
     : "var(--text-secondary)";
 
   return (
-    <div className="min-w-0 overflow-hidden border transition-all"
+    <div className="min-w-0 overflow-x-auto border transition-all"
       style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue-hover)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)", borderRadius: "var(--radius-lg)" }}>
       <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2.5 p-2.5 text-left sm:gap-3">
         {/* Score badge or rank */}
