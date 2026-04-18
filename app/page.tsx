@@ -901,7 +901,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
+    <div className="min-h-screen overflow-x-hidden" style={{ background: "var(--bg-primary)" }}>
       {/* ===== Header ===== */}
       <header
         className="sticky top-0 z-10 backdrop-blur-md"
@@ -1400,7 +1400,7 @@ export default function Home() {
                   ))}
                 </div>
               </SectionHeader>
-              <div className="min-w-0 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+              <div className="min-w-0 space-y-2 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {trendingLoading ? (
                   Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="h-11 animate-pulse rounded-lg" style={{ background: "var(--bg-card)", opacity: 1 - i * 0.12 }} />
@@ -1470,7 +1470,7 @@ export default function Home() {
                 </div>
               )}
 
-              <div className="min-w-0 mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+              <div className="min-w-0 mt-2 space-y-2 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {loading ? (
                   <div className="rounded-lg p-4 text-center" style={{ background: "var(--bg-secondary)" }}>
                     <div className="mb-2 flex justify-center">
@@ -1520,7 +1520,7 @@ export default function Home() {
             {/* --- Reddit Signals --- */}
             <section className={`${mobileTab !== "reddit" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="Reddit Signals" icon="💬" count={redditPosts.length} />
-              <div className="min-w-0 mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+              <div className="min-w-0 mt-2 space-y-2 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {redditLoading ? (
                   Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="h-11 animate-pulse rounded-lg" style={{ background: "var(--bg-card)", opacity: 1 - i * 0.12 }} />
@@ -1562,7 +1562,7 @@ export default function Home() {
             {/* --- HackerNews --- */}
             <section className={`${mobileTab !== "hn" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="HackerNews" icon="🍊" count={hnPosts.length} />
-              <div className="min-w-0 mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+              <div className="min-w-0 mt-2 space-y-2 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {hnLoading ? (
                   <div className="py-8 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
                     Loading...
@@ -1580,7 +1580,7 @@ export default function Home() {
             {/* --- Tech News --- */}
             <section className={`${mobileTab !== "technews" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="Tech News" icon="📰" count={techNewsPosts.length} />
-              <div className="min-w-0 mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+              <div className="min-w-0 mt-2 space-y-2 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {techNewsLoading ? (
                   <div className="py-8 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
                     Loading...
@@ -1641,7 +1641,7 @@ export default function Home() {
             {/* --- GitHub Trending --- */}
             <section className={`${mobileTab !== "github" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="GitHub Trending" icon="💻" count={data?.github?.length || 0} />
-              <div className="min-w-0 mt-2 space-y-3 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+              <div className="min-w-0 mt-2 space-y-2 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {!data?.github || data.github.length === 0 ? (
                   <EmptyState text="No GitHub projects trending" />
                 ) : (
@@ -1807,13 +1807,13 @@ function TrendingCard({
 }) {
   const isTech = item.is_tech;
   return (
-    <div className="min-w-0 border transition-all"
+    <div className="min-w-0 overflow-hidden border transition-all"
       style={{
         background: isTech ? "rgba(94, 106, 210, 0.06)" : "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : isTech ? "rgba(94, 106, 210, 0.3)" : "var(--border)",
         borderRadius: "var(--radius-lg)",
       }}>
-      <button onClick={onToggle} className="flex min-w-0 w-full items-start gap-2.5 p-4 text-left sm:items-center sm:gap-3 sm:p-2.5">
+      <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2.5 p-2.5 text-left sm:gap-3">
         <Rank n={index + 1} />
         <span className={`min-w-0 flex-1 break-words text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
         {isTech && (
@@ -2003,9 +2003,9 @@ function KeywordCard({
     : "var(--text-secondary)";
 
   return (
-    <div className="min-w-0 border transition-all"
+    <div className="min-w-0 overflow-hidden border transition-all"
       style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue-hover)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)", borderRadius: "var(--radius-lg)" }}>
-      <button onClick={onToggle} className="flex min-w-0 w-full items-start gap-2.5 p-4 text-left sm:items-center sm:gap-3 sm:p-2.5">
+      <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2.5 p-2.5 text-left sm:gap-3">
         {/* Score badge or rank */}
         {enrichLoading && !enrichData ? (
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full animate-pulse" style={{ background: "var(--bg-secondary)" }}>
@@ -2094,16 +2094,18 @@ function EnrichedDecisionPanel({
     : null;
 
   return (
-    <div className="min-w-0 border-t px-4 py-3 sm:px-3 sm:py-2.5" style={{ borderColor: "var(--border)", borderRadius: "var(--radius-lg)", overflowWrap: "break-word" }}>
+    <div className="min-w-0 px-3 py-2 sm:px-3 sm:py-2.5" style={{ overflowWrap: "break-word" }}>
+      {/* Divider */}
+      <div className="mb-2" style={{ borderTop: "1px solid var(--border)" }} />
       {/* 7-day trend chart */}
-      <div className="mb-2.5">
+      <div className="mb-2">
         <span className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>7-day trend</span>
         {loading ? (
-          <div className="mt-1 h-20 animate-pulse rounded sm:h-14" style={{ background: "var(--bg-secondary)" }} />
+          <div className="mt-1 h-14 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
         ) : points.length > 0 ? (
           <MiniChart points={points} />
         ) : (
-          <div className="mt-1 flex h-20 items-center justify-center rounded text-xs sm:h-14" style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}>
+          <div className="mt-1 flex h-14 items-center justify-center rounded text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}>
             No trend data
           </div>
         )}
@@ -2111,8 +2113,8 @@ function EnrichedDecisionPanel({
 
       {/* === Score Breakdown === */}
       {enrichData && enrichData.score !== undefined && (
-        <div className="mb-3 rounded-lg p-3 sm:p-2.5" style={{ background: "var(--bg-secondary)" }}>
-          <div className="mb-2 flex items-center gap-2">
+        <div className="mb-2 rounded-lg p-2.5" style={{ background: "var(--bg-secondary)" }}>
+          <div className="mb-1.5 flex items-center gap-2">
             <span className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>上站指数</span>
             <span className="rounded-full px-2 py-0.5 text-sm font-bold" style={{
               background: enrichData.score >= 75 ? "rgba(52,211,153,0.2)" : enrichData.score >= 55 ? "rgba(59,130,246,0.2)" : enrichData.score >= 35 ? "rgba(251,191,36,0.2)" : "rgba(107,114,128,0.2)",
@@ -2125,7 +2127,7 @@ function EnrichedDecisionPanel({
             )}
             {enrichData.score >= 75 && <span className="text-xs font-medium" style={{ color: "#34d399" }}>值得冲!</span>}
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <ScoreDimension label="增长 30%" score={enrichData.growth_score || 0} />
             <ScoreDimension label="竞争 25%" score={enrichData.competition_score || 0} note={enrichData.competition_level !== "unknown" ? enrichData.competition_level : undefined} />
             <ScoreDimension label="新鲜 25%" score={enrichData.freshness_score ?? 0} note={enrichData.freshness_score === undefined ? "展开加载" : undefined} />
@@ -2135,15 +2137,15 @@ function EnrichedDecisionPanel({
       )}
 
       {/* === Assessment Section === */}
-      <div className="mb-3 rounded-lg p-2.5" style={{ background: "var(--bg-secondary)" }}>
-        <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+      <div className="mb-2 rounded-lg p-2" style={{ background: "var(--bg-secondary)" }}>
+        <div className="mb-1.5 text-xs font-medium" style={{ color: "var(--text-primary)" }}>
           上站评估
         </div>
 
         {/* Freshness + Multi-geo row */}
-        <div className="mb-2 grid grid-cols-2 gap-3 sm:gap-2">
+        <div className="mb-1.5 grid grid-cols-2 gap-2">
           {/* Freshness */}
-          <div className="rounded-md p-3 sm:p-2" style={{ background: "var(--bg-card)" }}>
+          <div className="rounded-md p-2" style={{ background: "var(--bg-card)" }}>
             <div className="mb-1 text-xs" style={{ color: "var(--text-secondary)" }}>新鲜度</div>
             {freshnessLoading ? (
               <div className="h-4 w-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
@@ -2160,7 +2162,7 @@ function EnrichedDecisionPanel({
           </div>
 
           {/* Multi-geo */}
-          <div className="rounded-md p-3 sm:p-2" style={{ background: "var(--bg-card)" }}>
+          <div className="rounded-md p-2" style={{ background: "var(--bg-card)" }}>
             <div className="mb-1 text-xs" style={{ color: "var(--text-tertiary)" }}>多国热度</div>
             {multiGeoLoading ? (
               <div className="h-4 w-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
@@ -2205,7 +2207,7 @@ function EnrichedDecisionPanel({
               onChange={(e) => setSupplyInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSupplySubmit(); }}
               placeholder="填入 allintitle 结果数"
-              className="min-w-0 flex-1 rounded border px-3 py-2.5 text-base outline-none sm:px-2 sm:py-1 sm:text-xs"
+              className="min-w-0 flex-1 rounded border px-3 py-1.5 text-base outline-none sm:px-2 sm:py-1 sm:text-xs"
               style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
             />
             <a
@@ -2239,7 +2241,7 @@ function EnrichedDecisionPanel({
       </div>
 
       {/* Simplified Links - grid layout for mobile, row for desktop */}
-      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 sm:gap-2">
+      <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
         <JumpLink href={googleAiUrl(keyword)} label="AI" color="#8b5cf6" />
         <JumpLink href={googleSearchUrl(keyword)} label="G" color="#4285f4" />
         <JumpLink href={googleTrendsUrl(keyword)} label="GT" color="#34a853" />
@@ -2263,20 +2265,22 @@ function EnrichedDecisionPanel({
 // Original simple DecisionPanel for TrendingCard
 function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: string; points: InterestPoint[]; loading: boolean; onAddToKGR?: (keyword: string) => void }) {
   return (
-    <div className="min-w-0 border-t px-3 py-3" style={{ borderColor: "var(--border)", borderRadius: "var(--radius-lg)", overflowWrap: "break-word" }}>
-      <div className="mb-3">
+    <div className="min-w-0 px-3 py-2" style={{ overflowWrap: "break-word" }}>
+      {/* Divider */}
+      <div className="mb-2" style={{ borderTop: "1px solid var(--border)" }} />
+      <div className="mb-2">
         <span className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>7-day trend</span>
         {loading ? (
-          <div className="mt-1 h-20 animate-pulse rounded sm:h-14" style={{ background: "var(--bg-secondary)" }} />
+          <div className="mt-1 h-14 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
         ) : points.length > 0 ? (
           <MiniChart points={points} />
         ) : (
-          <div className="mt-1 flex h-20 items-center justify-center rounded text-xs sm:h-14" style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}>
+          <div className="mt-1 flex h-14 items-center justify-center rounded text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}>
             No trend data
           </div>
         )}
       </div>
-      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 sm:gap-2">
+      <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
         <JumpLink href={googleAiUrl(keyword)} label="AI" color="#8b5cf6" />
         <JumpLink href={googleSearchUrl(keyword)} label="G" color="#4285f4" />
         <JumpLink href={googleTrendsUrl(keyword)} label="GT" color="#34a853" />
