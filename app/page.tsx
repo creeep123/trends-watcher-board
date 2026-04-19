@@ -907,7 +907,7 @@ export default function Home() {
         className="sticky top-0 z-10 backdrop-blur-md"
         style={{ borderBottom: "1px solid var(--border-subtle)", background: "rgba(8, 9, 10, 0.85)" }}
       >
-        <div className="mx-auto max-w-7xl px-3 py-3 sm:px-4 sm:py-4">
+        <div className="mx-auto max-w-7xl px-3 py-2 sm:px-4 sm:py-4">
           {/* Title row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -954,7 +954,7 @@ export default function Home() {
           </div>
 
           {/* Keywords */}
-          <div className="mt-3 flex items-center gap-1.5 sm:mt-4 sm:gap-2">
+          <div className="mt-2 flex items-center gap-1.5 sm:mt-4 sm:gap-2">
             <span className="hidden text-xs font-medium sm:block" style={{ color: "var(--text-secondary)" }}>KEYWORDS</span>
             <input
               type="text"
@@ -986,7 +986,7 @@ export default function Home() {
             <button
               key={tab.key}
               onClick={() => setMobileTab(tab.key)}
-              className="flex-1 py-2.5 text-center text-sm font-medium transition-colors"
+              className="flex-1 py-2 text-center text-xs font-medium transition-colors"
               style={{
                 color: mobileTab === tab.key ? "var(--accent-blue-hover)" : "var(--text-tertiary)",
                 borderBottom: mobileTab === tab.key ? "2px solid var(--accent-blue-hover)" : "2px solid transparent",
@@ -1363,9 +1363,9 @@ export default function Home() {
       )}
 
       {/* ===== Main Content ===== */}
-      <main className="mx-auto min-w-0 max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
+      <main className="mx-auto min-w-0 max-w-7xl px-3 py-2 sm:px-4 sm:py-6">
         {data && !loading && (
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs sm:mb-4 sm:gap-3" style={{ color: "var(--text-tertiary)" }}>
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs sm:mb-4 sm:gap-3" style={{ color: "var(--text-tertiary)" }}>
             <span>{currentGeo?.flag || "🌍"} {currentGeo?.label || "Global"} · {currentTimeframe?.description}</span>
             <span className="hidden sm:inline">·</span>
             <span className="hidden sm:inline">Updated {new Date(data.timestamp).toLocaleTimeString()}</span>
@@ -1380,7 +1380,7 @@ export default function Home() {
         )}
 
         {/* Main content always visible, each section handles its own loading state */}
-        <div className="grid gap-4 sm:gap-6 lg:grid-cols-4">
+        <div className="grid gap-2 sm:gap-6 lg:grid-cols-4">
             {/* --- Trending Now --- */}
             <section className={`${mobileTab !== "trending" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="Trending Now" icon="🔥" count={trendingItems.length}>
@@ -1688,9 +1688,9 @@ export default function Home() {
 
 function SectionHeader({ title, icon, count, children }: { title: string; icon: string; count: number; children?: React.ReactNode }) {
   return (
-    <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+    <div className="mb-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
       <div className="flex items-center gap-2">
-        <span className="text-lg">{icon}</span>
+        <span className="text-base">{icon}</span>
         <h2 className="text-sm font-medium" style={{ color: "var(--text-secondary)", letterSpacing: "-0.01em" }}>{title}</h2>
         <span className="px-2 py-0.5 text-xs font-medium" style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)", borderRadius: "var(--radius-full)" }}>
           {count}
@@ -1813,7 +1813,7 @@ function TrendingCard({
         borderColor: isExpanded ? "var(--accent-blue-hover)" : isTech ? "rgba(94, 106, 210, 0.3)" : "var(--border)",
         borderRadius: "var(--radius-lg)",
       }}>
-      <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2.5 p-2.5 text-left sm:gap-3">
+      <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2 p-2.5 text-left sm:gap-3">
         <Rank n={index + 1} />
         <span className={`min-w-0 flex-1 break-words text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
         {isTech && (
@@ -2005,7 +2005,7 @@ function KeywordCard({
   return (
     <div className="min-w-0 overflow-x-auto border transition-all"
       style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue-hover)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)", borderRadius: "var(--radius-lg)" }}>
-      <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2.5 p-2.5 text-left sm:gap-3">
+      <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2 p-2.5 text-left sm:gap-3">
         {/* Score badge or rank */}
         {enrichLoading && !enrichData ? (
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full animate-pulse" style={{ background: "var(--bg-secondary)" }}>
@@ -2391,7 +2391,7 @@ function JumpLink({ href, label, color }: { href: string; label: string; color: 
 
 function Rank({ n }: { n: number }) {
   return (
-    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-bold sm:h-5 sm:w-5"
+    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold"
       style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}>
       {n}
     </span>
