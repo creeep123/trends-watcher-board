@@ -2096,16 +2096,16 @@ function EnrichedDecisionPanel({
   return (
     <div className="min-w-0 px-3 py-2 sm:px-3 sm:py-2.5" style={{ overflowWrap: "break-word" }}>
       {/* Divider */}
-      <div className="mb-2" style={{ borderTop: "1px solid var(--border)" }} />
+      <div className="mb-1.5" style={{ borderTop: "1px solid var(--border)" }} />
       {/* 7-day trend chart */}
-      <div className="mb-2">
+      <div className="mb-1.5">
         <span className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>7-day trend</span>
         {loading ? (
-          <div className="mt-1 h-14 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
+          <div className="mt-1 h-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
         ) : points.length > 0 ? (
           <MiniChart points={points} />
         ) : (
-          <div className="mt-1 flex h-14 items-center justify-center rounded text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}>
+          <div className="mt-1 flex h-12 items-center justify-center rounded text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}>
             No trend data
           </div>
         )}
@@ -2113,8 +2113,8 @@ function EnrichedDecisionPanel({
 
       {/* === Score Breakdown === */}
       {enrichData && enrichData.score !== undefined && (
-        <div className="mb-2 rounded-lg p-2.5" style={{ background: "var(--bg-secondary)" }}>
-          <div className="mb-1.5 flex items-center gap-2">
+        <div className="mb-1.5 rounded-lg p-2" style={{ background: "var(--bg-secondary)" }}>
+          <div className="mb-1 flex items-center gap-2">
             <span className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>上站指数</span>
             <span className="rounded-full px-2 py-0.5 text-sm font-bold" style={{
               background: enrichData.score >= 75 ? "rgba(52,211,153,0.2)" : enrichData.score >= 55 ? "rgba(59,130,246,0.2)" : enrichData.score >= 35 ? "rgba(251,191,36,0.2)" : "rgba(107,114,128,0.2)",
@@ -2127,7 +2127,7 @@ function EnrichedDecisionPanel({
             )}
             {enrichData.score >= 75 && <span className="text-xs font-medium" style={{ color: "#34d399" }}>值得冲!</span>}
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-1.5">
             <ScoreDimension label="增长 30%" score={enrichData.growth_score || 0} />
             <ScoreDimension label="竞争 25%" score={enrichData.competition_score || 0} note={enrichData.competition_level !== "unknown" ? enrichData.competition_level : undefined} />
             <ScoreDimension label="新鲜 25%" score={enrichData.freshness_score ?? 0} note={enrichData.freshness_score === undefined ? "展开加载" : undefined} />
@@ -2137,20 +2137,20 @@ function EnrichedDecisionPanel({
       )}
 
       {/* === Assessment Section === */}
-      <div className="mb-2 rounded-lg p-2" style={{ background: "var(--bg-secondary)" }}>
-        <div className="mb-1.5 text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+      <div className="mb-1.5 rounded-lg p-1.5" style={{ background: "var(--bg-secondary)" }}>
+        <div className="mb-1 text-xs font-medium" style={{ color: "var(--text-primary)" }}>
           上站评估
         </div>
 
         {/* Freshness + Multi-geo row */}
-        <div className="mb-1.5 grid grid-cols-2 gap-2">
+        <div className="mb-1.5 grid grid-cols-2 gap-1.5">
           {/* Freshness */}
-          <div className="rounded-md p-2" style={{ background: "var(--bg-card)" }}>
-            <div className="mb-1 text-xs" style={{ color: "var(--text-secondary)" }}>新鲜度</div>
+          <div className="rounded-md p-1.5" style={{ background: "var(--bg-card)" }}>
+            <div className="mb-0.5 text-xs" style={{ color: "var(--text-secondary)" }}>新鲜度</div>
             {freshnessLoading ? (
-              <div className="h-4 w-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
+              <div className="h-3.5 w-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
             ) : freshnessData ? (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 <ScoreBar value={freshnessData.freshness} />
                 <span className="text-xs font-bold" style={{ color: scoreColor(freshnessData.freshness) }}>
                   {freshnessData.freshness}
@@ -2162,10 +2162,10 @@ function EnrichedDecisionPanel({
           </div>
 
           {/* Multi-geo */}
-          <div className="rounded-md p-2" style={{ background: "var(--bg-card)" }}>
-            <div className="mb-1 text-xs" style={{ color: "var(--text-tertiary)" }}>多国热度</div>
+          <div className="rounded-md p-1.5" style={{ background: "var(--bg-card)" }}>
+            <div className="mb-0.5 text-xs" style={{ color: "var(--text-tertiary)" }}>多国热度</div>
             {multiGeoLoading ? (
-              <div className="h-4 w-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
+              <div className="h-3.5 w-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
             ) : multiGeoData ? (
               <div>
                 <span className="text-xs font-bold" style={{
@@ -2187,8 +2187,8 @@ function EnrichedDecisionPanel({
         </div>
 
         {/* Supply input + KGR */}
-        <div className="rounded-md p-2" style={{ background: "var(--bg-card)" }}>
-          <div className="mb-1.5 flex items-center gap-1.5">
+        <div className="rounded-md p-1.5" style={{ background: "var(--bg-card)" }}>
+          <div className="mb-1 flex items-center gap-1">
             <span className="text-xs" style={{ color: "var(--text-secondary)" }}>页面供给量</span>
             <span
               className="cursor-help text-xs"
@@ -2200,21 +2200,21 @@ function EnrichedDecisionPanel({
           </div>
 
           {/* Input row */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <input
               type="text"
               value={supplyInput}
               onChange={(e) => setSupplyInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSupplySubmit(); }}
               placeholder="填入 allintitle 结果数"
-              className="min-w-0 flex-1 rounded border px-3 py-1.5 text-base outline-none sm:px-2 sm:py-1 sm:text-xs"
+              className="min-w-0 flex-1 rounded border px-2.5 py-1.5 text-base outline-none sm:px-2 sm:py-1 sm:text-xs"
               style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
             />
             <a
               href={allintitleUrl(keyword)}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded px-3 py-2.5 text-sm font-medium transition-opacity hover:opacity-80 sm:px-2 sm:py-1 sm:text-xs"
+              className="shrink-0 rounded px-2 py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
               style={{ background: "rgba(66,133,244,0.15)", color: "#4285f4" }}
             >
               查 allintitle
@@ -2223,7 +2223,7 @@ function EnrichedDecisionPanel({
 
           {/* KGR result */}
           {kgr !== null && kgrStatus && (
-            <div className="mt-2 flex items-center gap-2 rounded p-2" style={{ background: kgrStatus.bg }}>
+            <div className="mt-1.5 flex items-center gap-2 rounded p-1.5" style={{ background: kgrStatus.bg }}>
               <span className="text-sm font-bold" style={{ color: kgrStatus.color }}>
                 KGR = {kgr.toFixed(3)}
               </span>
@@ -2233,7 +2233,7 @@ function EnrichedDecisionPanel({
             </div>
           )}
           {storedSupply !== null && peakInterest !== null && kgr === null && storedSupply === 0 && (
-            <div className="mt-2 rounded p-2 text-xs" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>
+            <div className="mt-1.5 rounded p-1.5 text-xs" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>
               供给量为 0 — 全新蓝海！
             </div>
           )}
@@ -2241,7 +2241,7 @@ function EnrichedDecisionPanel({
       </div>
 
       {/* Simplified Links - grid layout for mobile, row for desktop */}
-      <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+      <div className="grid grid-cols-4 gap-1 sm:gap-2">
         <JumpLink href={googleAiUrl(keyword)} label="AI" color="#8b5cf6" />
         <JumpLink href={googleSearchUrl(keyword)} label="G" color="#4285f4" />
         <JumpLink href={googleTrendsUrl(keyword)} label="GT" color="#34a853" />
@@ -2267,20 +2267,20 @@ function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: stri
   return (
     <div className="min-w-0 px-3 py-2" style={{ overflowWrap: "break-word" }}>
       {/* Divider */}
-      <div className="mb-2" style={{ borderTop: "1px solid var(--border)" }} />
-      <div className="mb-2">
+      <div className="mb-1.5" style={{ borderTop: "1px solid var(--border)" }} />
+      <div className="mb-1.5">
         <span className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>7-day trend</span>
         {loading ? (
-          <div className="mt-1 h-14 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
+          <div className="mt-1 h-12 animate-pulse rounded" style={{ background: "var(--bg-secondary)" }} />
         ) : points.length > 0 ? (
           <MiniChart points={points} />
         ) : (
-          <div className="mt-1 flex h-14 items-center justify-center rounded text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}>
+          <div className="mt-1 flex h-12 items-center justify-center rounded text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}>
             No trend data
           </div>
         )}
       </div>
-      <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+      <div className="grid grid-cols-4 gap-1 sm:gap-2">
         <JumpLink href={googleAiUrl(keyword)} label="AI" color="#8b5cf6" />
         <JumpLink href={googleSearchUrl(keyword)} label="G" color="#4285f4" />
         <JumpLink href={googleTrendsUrl(keyword)} label="GT" color="#34a853" />
@@ -2305,9 +2305,9 @@ function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: stri
 
 function ScoreDimension({ label, score, note }: { label: string; score: number; note?: string }) {
   return (
-    <div className="rounded-md p-1.5" style={{ background: "var(--bg-card)" }}>
+    <div className="rounded-md p-1" style={{ background: "var(--bg-card)" }}>
       <div className="mb-0.5 text-[10px]" style={{ color: "var(--text-secondary)" }}>{label}</div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1">
         <ScoreBar value={score} />
         <span className="text-xs font-bold" style={{ color: scoreColor(score) }}>{score}</span>
       </div>
@@ -2325,7 +2325,7 @@ function scoreColor(score: number): string {
 function ScoreBar({ value }: { value: number }) {
   const clamped = Math.max(0, Math.min(100, value));
   return (
-    <div className="h-1.5 flex-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+    <div className="h-1 flex-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
       <div
         className="h-full rounded-full transition-all"
         style={{ width: `${clamped}%`, background: scoreColor(clamped) }}
@@ -2378,7 +2378,7 @@ function MiniChart({ points }: { points: InterestPoint[] }) {
 function JumpLink({ href, label, color }: { href: string; label: string; color: string }) {
   return (
     <a href={href} target="_blank" rel="noopener noreferrer"
-      className="flex-1 rounded-md py-1.5 px-1.5 text-center text-xs font-medium transition-opacity sm:py-1.5 sm:px-2.5 sm:text-xs hover:opacity-90 active:scale-95"
+      className="flex-1 rounded-md py-1 px-1 text-center text-xs font-medium transition-opacity sm:py-1.5 sm:px-2.5 sm:text-xs hover:opacity-90 active:scale-95"
       style={{
         background: `${color}15`,
         color,
