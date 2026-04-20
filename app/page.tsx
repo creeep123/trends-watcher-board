@@ -2094,7 +2094,7 @@ function EnrichedDecisionPanel({
     : null;
 
   return (
-    <div className="min-w-0 px-3 py-2 sm:px-3 sm:py-2.5" style={{ overflowWrap: "break-word" }}>
+    <div className="min-w-0 px-2.5 py-2 sm:px-3 sm:py-2.5" style={{ overflowWrap: "break-word" }}>
       {/* Divider */}
       <div className="mb-1.5" style={{ borderTop: "1px solid var(--border)" }} />
       {/* 7-day trend chart */}
@@ -2113,8 +2113,8 @@ function EnrichedDecisionPanel({
 
       {/* === Score Breakdown === */}
       {enrichData && enrichData.score !== undefined && (
-        <div className="mb-1.5 rounded-lg p-2" style={{ background: "var(--bg-secondary)" }}>
-          <div className="mb-1 flex items-center gap-2">
+        <div className="mb-1.5 rounded-lg p-1.5" style={{ background: "var(--bg-secondary)" }}>
+          <div className="mb-1 flex items-center gap-1.5">
             <span className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>上站指数</span>
             <span className="rounded-full px-2 py-0.5 text-sm font-bold" style={{
               background: enrichData.score >= 75 ? "rgba(52,211,153,0.2)" : enrichData.score >= 55 ? "rgba(59,130,246,0.2)" : enrichData.score >= 35 ? "rgba(251,191,36,0.2)" : "rgba(107,114,128,0.2)",
@@ -2217,7 +2217,7 @@ function EnrichedDecisionPanel({
               className="shrink-0 rounded px-2 py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
               style={{ background: "rgba(66,133,244,0.15)", color: "#4285f4" }}
             >
-              查 allintitle
+              查
             </a>
           </div>
 
@@ -2265,7 +2265,7 @@ function EnrichedDecisionPanel({
 // Original simple DecisionPanel for TrendingCard
 function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: string; points: InterestPoint[]; loading: boolean; onAddToKGR?: (keyword: string) => void }) {
   return (
-    <div className="min-w-0 px-3 py-2" style={{ overflowWrap: "break-word" }}>
+    <div className="min-w-0 px-2.5 py-2" style={{ overflowWrap: "break-word" }}>
       {/* Divider */}
       <div className="mb-1.5" style={{ borderTop: "1px solid var(--border)" }} />
       <div className="mb-1.5">
