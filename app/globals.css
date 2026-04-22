@@ -150,6 +150,12 @@ button, a {
   animation: countBounce 0.3s ease-out;
 }
 
+/* Confetti particle burst */
+@keyframes confettiParticle {
+  0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0); }
+}
+
 /* Linear signature weight 510 — available as arbitrary Tailwind class */
 /* Usage: className="font-[510]" when you need Linear's between-regular-and-medium weight */
 /* Most places use font-medium (500) as a close approximation */

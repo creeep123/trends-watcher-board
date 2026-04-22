@@ -1,10 +1,49 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase, getRootKeywordsWithViewingRecords, addViewingRecord } from "@/lib/supabase";
 import { generateGTCompareUrl } from "@/lib/types";
 
-type FilterType = "all" | "3d" | "7d" | "30d";
+function ConfettiBurst({ x, y, onDone }: { x: number; y: number; onDone: () => void }) {
+  const particles = useMemo(() =>
+    Array.from({ length: 16 }, (_, i) => ({
+      id: i,
+      angle: (i * 360) / 16 + (Math.random() - 0.5) * 30,
+      distance: 28 + Math.random() * 32,
+      size: 3 + Math.random() * 3,
+      color: ["#10b981", "#7170ff", "#f59e0b", "#ef4444", "#a78bfa", "#5e6ad2"][i % 6],
+      duration: 0.4 + Math.random() * 0.3,
+      delay: Math.random() * 0.05,
+    })), []);
+
+  useEffect(() => {
+    const t = setTimeout(onDone, 800);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <div className="pointer-events-none fixed" style={{ left: x, top: y, zIndex: 9999 }}>
+      {particles.map(p => (
+        <div
+          key={p.id}
+          className="absolute"
+          style={{
+            width: p.size,
+            height: p.size,
+            borderRadius: "50%",
+            background: p.color,
+            "--tx": `${Math.cos(p.angle * Math.PI / 180) * p.distance}px`,
+            "--ty": `${Math.sin(p.angle * Math.PI / 180) * p.distance}px`,
+            animation: `confettiParticle ${p.duration}s ${p.delay}s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards`,
+            opacity: 0,
+          } as React.CSSProperties}
+        />
+      ))}
+    </div>
+  );
+}
+
+type FilterType = "all" | "today_done" | "today_left" | "3d" | "7d" | "30d";
 
 interface KeywordWithRecords {
   id: string;
@@ -17,6 +56,8 @@ interface KeywordWithRecords {
 
 const FILTER_CONFIG: { key: FilterType; label: string; days: number }[] = [
   { key: "all", label: "全部", days: 0 },
+  { key: "today_done", label: "今天已看", days: 0 },
+  { key: "today_left", label: "今天未看", days: 0 },
   { key: "3d", label: "3天未看", days: 3 },
   { key: "7d", label: "7天未看", days: 7 },
   { key: "30d", label: "30天未看", days: 30 },
@@ -32,6 +73,7 @@ export default function BatchGTPage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [confetti, setConfetti] = useState<{ id: number; x: number; y: number } | null>(null);
 
   useEffect(() => {
     loadKeywords();
@@ -51,9 +93,12 @@ export default function BatchGTPage() {
     }
   }
 
-  async function markAsViewed(keywordId: string) {
+  async function markAsViewed(keywordId: string, evt?: React.MouseEvent) {
     setMarkingId(keywordId);
     setFlashId(keywordId);
+    if (evt) {
+      setConfetti({ id: Date.now(), x: evt.clientX, y: evt.clientY });
+    }
     const now = new Date().toISOString();
     setKeywords(prev => prev.map(k =>
       k.id === keywordId ? { ...k, latest_view: now } : k
@@ -133,6 +178,8 @@ export default function BatchGTPage() {
 
   const filteredKeywords = useMemo(() => {
     if (activeFilter === "all") return keywords;
+    if (activeFilter === "today_done") return keywords.filter(k => k.latest_view && k.latest_view.startsWith(today));
+    if (activeFilter === "today_left") return keywords.filter(k => !k.latest_view || !k.latest_view.startsWith(today));
     const days = FILTER_CONFIG.find(f => f.key === activeFilter)!.days;
     const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
     return keywords.filter(k => {
@@ -142,10 +189,13 @@ export default function BatchGTPage() {
   }, [keywords, activeFilter]);
 
   const filterCounts = useMemo(() => {
-    const counts: Record<FilterType, number> = { all: keywords.length, "3d": 0, "7d": 0, "30d": 0 };
+    const counts: Record<FilterType, number> = { all: keywords.length, today_done: 0, today_left: 0, "3d": 0, "7d": 0, "30d": 0 };
     for (const kw of keywords) {
+      const isToday = kw.latest_view && kw.latest_view.startsWith(today);
+      if (isToday) counts.today_done++;
+      else counts.today_left++;
       for (const f of FILTER_CONFIG) {
-        if (f.key === "all") continue;
+        if (f.key !== "3d" && f.key !== "7d" && f.key !== "30d") continue;
         const cutoff = Date.now() - f.days * 24 * 60 * 60 * 1000;
         if (!kw.latest_view || new Date(kw.latest_view).getTime() < cutoff) {
           counts[f.key]++;
@@ -263,7 +313,7 @@ export default function BatchGTPage() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (markingId !== kw.id) markAsViewed(kw.id);
+                      if (markingId !== kw.id) markAsViewed(kw.id, e);
                     }}
                     className={`batch-check-box flex-shrink-0 w-6 h-6 flex items-center justify-center ${!isViewedToday && markingId === kw.id ? "pop" : ""}`}
                     style={{
@@ -310,6 +360,14 @@ export default function BatchGTPage() {
           )}
         </div>
       </div>
+      {confetti && (
+        <ConfettiBurst
+          key={confetti.id}
+          x={confetti.x}
+          y={confetti.y}
+          onDone={() => setConfetti(null)}
+        />
+      )}
     </div>
   );
 }
