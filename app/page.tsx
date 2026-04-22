@@ -22,6 +22,7 @@ import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS,
   getKGRInterpretation, getEKGRInterpretation, getKDROIInterpretation,
   calculateEKGR, calculateKDROI, generateGTCompareUrl } from "@/lib/types";
 import { usePushSubscription } from "@/lib/usePushSubscription";
+import { useReadItems } from "@/lib/useReadItems";
 
 // --- Tag logic ---
 
@@ -241,6 +242,7 @@ export default function Home() {
   const [kgrFilter, setKgrFilter] = useState<'all' | 'good-kgr' | 'good-ekgr' | 'good-kdroi'>('all');
   const [kgrSort, setKgrSort] = useState<'added' | 'kgr' | 'ekgr' | 'kdroi'>('added');
   const push = usePushSubscription();
+  const { fetchReadStatus, markAsRead, isRead } = useReadItems();
 
   // Toast notification
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -393,6 +395,18 @@ export default function Home() {
   useEffect(() => { fetchReddit(); }, [fetchReddit]);
   useEffect(() => { fetchHackerNews(); }, [fetchHackerNews]);
   useEffect(() => { fetchTechNews(); }, [fetchTechNews]);
+
+  // Fetch read status for all visible items after data loads
+  useEffect(() => {
+    const items: { item_type: "trending" | "queries" | "reddit" | "hn" | "technews" | "github"; item_key: string }[] = [];
+    data?.trending?.forEach(k => items.push({ item_type: "trending", item_key: k.name }));
+    data?.queries?.forEach(k => items.push({ item_type: "queries", item_key: k.name }));
+    redditPosts.forEach(p => { if (p.url) items.push({ item_type: "reddit", item_key: p.url }); });
+    hnPosts.forEach(p => items.push({ item_type: "hn", item_key: String(p.id) }));
+    techNewsPosts.forEach(a => { if (a.url) items.push({ item_type: "technews", item_key: a.url }); });
+    data?.github?.forEach(g => items.push({ item_type: "github", item_key: g.name }));
+    if (items.length > 0) fetchReadStatus(items);
+  }, [data, redditPosts, hnPosts, techNewsPosts, fetchReadStatus]);
 
   // Load KGR workbench on mount - try Supabase first, fallback to localStorage
   useEffect(() => {
@@ -1418,6 +1432,8 @@ export default function Home() {
                       interestData={expandedKeyword === item.name ? interestData : []}
                       interestLoading={expandedKeyword === item.name && interestLoading}
                       onAddToKGR={handleAddToKGR}
+                      read={isRead("trending", item.name)}
+                      onRead={() => markAsRead("trending", item.name)}
                     />
                   ))
                 )}
@@ -1511,6 +1527,8 @@ export default function Home() {
                       enrichData={enrichMap[item.name]}
                       enrichLoading={enrichLoading}
                       onAddToKGR={handleAddToKGR}
+                      read={isRead("queries", item.name)}
+                      onRead={() => markAsRead("queries", item.name)}
                     />
                   ))
                 )}
@@ -1552,7 +1570,7 @@ export default function Home() {
                       </div>
                     )}
                     {redditPosts.map((post, i) => (
-                      <RedditCard key={`r-${i}`} post={post} index={i} />
+                      <RedditCard key={`r-${i}`} post={post} index={i} read={isRead("reddit", post.url)} onRead={() => markAsRead("reddit", post.url)} />
                     ))}
                   </>
                 )}
@@ -1571,7 +1589,7 @@ export default function Home() {
                   <EmptyState text="No HackerNews posts available" />
                 ) : (
                   hnPosts.map((post, i) => (
-                    <HackerNewsCard key={`hn-${i}`} post={post} index={i} />
+                    <HackerNewsCard key={`hn-${i}`} post={post} index={i} read={isRead("hn", String(post.id))} onRead={() => markAsRead("hn", String(post.id))} />
                   ))
                 )}
               </div>
@@ -1592,7 +1610,7 @@ export default function Home() {
                     <div
                       key={`tn-${i}`}
                       className="group border p-3 transition-colors"
-                      style={{ borderColor: "var(--border)", background: "var(--bg-card)", borderRadius: "var(--radius-lg)" }}
+                      style={{ borderColor: "var(--border)", background: "var(--bg-card)", borderRadius: "var(--radius-lg)", opacity: isRead("technews", article.url) ? 0.4 : 1, transition: "opacity 0.3s", cursor: "pointer" }}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center gap-2 flex-wrap">
@@ -1626,6 +1644,7 @@ export default function Home() {
                           href={article.url}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={() => markAsRead("technews", article.url)}
                           className="block text-sm font-medium leading-snug transition-colors"
                           style={{ color: "var(--text-primary)" }}
                         >
@@ -1646,7 +1665,7 @@ export default function Home() {
                   <EmptyState text="No GitHub projects trending" />
                 ) : (
                   data.github.map((item, i) => (
-                    <KeywordCard key={`gh-${i}`} item={item} index={i} isGithub />
+                    <KeywordCard key={`gh-${i}`} item={item} index={i} isGithub read={isRead("github", item.name)} onRead={() => markAsRead("github", item.name)} />
                   ))
                 )}
               </div>
@@ -1799,11 +1818,12 @@ function CompactGeoSelector({
 }
 
 function TrendingCard({
-  item, index, isExpanded, onToggle, interestData, interestLoading, onAddToKGR,
+  item, index, isExpanded, onToggle, interestData, interestLoading, onAddToKGR, read, onRead,
 }: {
   item: TrendingItem; index: number; isExpanded: boolean; onToggle: () => void;
   interestData: InterestPoint[]; interestLoading: boolean;
   onAddToKGR?: (keyword: string) => void;
+  read?: boolean; onRead?: () => void;
 }) {
   const isTech = item.is_tech;
   return (
@@ -1812,6 +1832,8 @@ function TrendingCard({
         background: isTech ? "rgba(94, 106, 210, 0.06)" : "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : isTech ? "rgba(94, 106, 210, 0.3)" : "var(--border)",
         borderRadius: "var(--radius-lg)",
+        opacity: read ? 0.4 : 1,
+        transition: "opacity 0.3s",
       }}>
       <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2 p-2.5 text-left sm:gap-3">
         <Rank n={index + 1} />
@@ -1833,7 +1855,7 @@ function TrendingCard({
   );
 }
 
-function RedditCard({ post, index }: { post: RedditPost; index: number }) {
+function RedditCard({ post, index, read, onRead }: { post: RedditPost; index: number; read: boolean; onRead: () => void }) {
   const timeAgo = (dateStr: string) => {
     if (!dateStr) return "";
     const date = new Date(dateStr);
@@ -1862,8 +1884,9 @@ function RedditCard({ post, index }: { post: RedditPost; index: number }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={onRead}
       className="group flex items-start gap-2.5 border p-4 transition-all sm:gap-3 sm:p-2.5"
-      style={{ background: "var(--bg-card)", borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}
+      style={{ background: "var(--bg-card)", borderColor: "var(--border)", borderRadius: "var(--radius-lg)", opacity: read ? 0.4 : 1, transition: "opacity 0.3s" }}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255, 69, 0, 0.4)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
     >
@@ -1884,7 +1907,7 @@ function RedditCard({ post, index }: { post: RedditPost; index: number }) {
   );
 }
 
-function HackerNewsCard({ post, index }: { post: HackerNewsPost; index: number }) {
+function HackerNewsCard({ post, index, read, onRead }: { post: HackerNewsPost; index: number; read: boolean; onRead: () => void }) {
   const timeAgo = (dateStr: string) => {
     if (!dateStr) return "";
     const date = new Date(dateStr);
@@ -1917,8 +1940,9 @@ function HackerNewsCard({ post, index }: { post: HackerNewsPost; index: number }
       href={hnDiscussUrl}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={onRead}
       className="group flex items-start gap-2.5 border p-4 transition-all sm:gap-3 sm:p-2.5"
-      style={{ background: "var(--bg-card)", borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}
+      style={{ background: "var(--bg-card)", borderColor: "var(--border)", borderRadius: "var(--radius-lg)", opacity: read ? 0.4 : 1, transition: "opacity 0.3s" }}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255, 102, 0, 0.4)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
     >
@@ -1965,7 +1989,7 @@ function HackerNewsCard({ post, index }: { post: HackerNewsPost; index: number }
 function KeywordCard({
   item, index, isGithub, isExpanded, onToggle, interestData, interestLoading,
   freshnessData, freshnessLoading, multiGeoData, multiGeoLoading,
-  enrichData, enrichLoading, onAddToKGR,
+  enrichData, enrichLoading, onAddToKGR, read, onRead,
 }: {
   item: TrendKeyword; index: number; isGithub?: boolean; isExpanded?: boolean;
   onToggle?: () => void; interestData?: InterestPoint[]; interestLoading?: boolean;
@@ -1973,6 +1997,7 @@ function KeywordCard({
   multiGeoData?: MultiGeoData | null; multiGeoLoading?: boolean;
   enrichData?: EnrichData; enrichLoading?: boolean;
   onAddToKGR?: (keyword: string) => void;
+  read?: boolean; onRead?: () => void;
 }) {
   const tags = getTags(item);
   const hasSurge = tags.includes("surge");
@@ -1980,8 +2005,9 @@ function KeywordCard({
   if (isGithub) {
     return (
       <a href={item.url} target="_blank" rel="noopener noreferrer"
+        onClick={onRead}
         className="group flex items-start gap-2.5 border p-4 transition-all sm:items-center sm:gap-3 sm:p-2.5"
-        style={{ background: "var(--bg-card)", borderColor: "var(--border)", borderRadius: "var(--radius-lg)" }}
+        style={{ background: "var(--bg-card)", borderColor: "var(--border)", borderRadius: "var(--radius-lg)", opacity: read ? 0.4 : 1, transition: "opacity 0.3s" }}
         onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-purple)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}>
         <Rank n={index + 1} />
@@ -2004,7 +2030,7 @@ function KeywordCard({
 
   return (
     <div className="min-w-0 overflow-x-auto border transition-all"
-      style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue-hover)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)", borderRadius: "var(--radius-lg)" }}>
+      style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue-hover)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)", borderRadius: "var(--radius-lg)", opacity: read ? 0.4 : 1, transition: "opacity 0.3s" }}>
       <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2 p-2.5 text-left sm:gap-3">
         {/* Score badge or rank */}
         {enrichLoading && !enrichData ? (
