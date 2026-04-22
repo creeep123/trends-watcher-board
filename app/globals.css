@@ -150,10 +150,28 @@ button, a {
   animation: countBounce 0.3s ease-out;
 }
 
-/* Confetti particle burst */
+/* Confetti particle burst (small, legacy) */
 @keyframes confettiParticle {
   0%   { opacity: 1; transform: translate(0, 0) scale(1); }
   100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0); }
+}
+
+/* Full-screen confetti rain */
+@keyframes confettiFall {
+  0%   { opacity: 1; transform: translateY(0) translateX(0) rotate(0deg); }
+  100% { opacity: 0; transform: translateY(var(--fall)) translateX(var(--drift)) rotate(var(--rot)); }
+}
+
+/* Floating +1 */
+@keyframes floatUp {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  50%  { opacity: 1; transform: translateY(-40px) scale(1.3); }
+  100% { opacity: 0; transform: translateY(-80px) scale(0.8); }
+}
+
+/* Row done — glow then fade out */
+.batch-row-done {
+  opacity: 0.6;
 }
 
 /* Linear signature weight 510 — available as arbitrary Tailwind class */

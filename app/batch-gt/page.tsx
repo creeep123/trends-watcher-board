@@ -1,44 +1,70 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase, getRootKeywordsWithViewingRecords, addViewingRecord } from "@/lib/supabase";
 import { generateGTCompareUrl } from "@/lib/types";
 
-function ConfettiBurst({ x, y, onDone }: { x: number; y: number; onDone: () => void }) {
+/* ─── Full-screen confetti shower ─── */
+function FullConfetti({ onDone }: { onDone: () => void }) {
   const particles = useMemo(() =>
-    Array.from({ length: 16 }, (_, i) => ({
+    Array.from({ length: 50 }, (_, i) => ({
       id: i,
-      angle: (i * 360) / 16 + (Math.random() - 0.5) * 30,
-      distance: 28 + Math.random() * 32,
-      size: 3 + Math.random() * 3,
-      color: ["#10b981", "#7170ff", "#f59e0b", "#ef4444", "#a78bfa", "#5e6ad2"][i % 6],
-      duration: 0.4 + Math.random() * 0.3,
-      delay: Math.random() * 0.05,
+      x: Math.random() * 100,
+      color: ["#10b981", "#7170ff", "#f59e0b", "#ef4444", "#a78bfa", "#5e6ad2", "#828fff", "#ffffff"][i % 8],
+      size: 4 + Math.random() * 6,
+      duration: 0.8 + Math.random() * 0.6,
+      delay: Math.random() * 0.3,
+      drift: (Math.random() - 0.5) * 60,
+      shape: Math.random() > 0.5 ? "circle" : "rect",
+      rotation: Math.random() * 720,
     })), []);
 
   useEffect(() => {
-    const t = setTimeout(onDone, 800);
+    const t = setTimeout(onDone, 1800);
     return () => clearTimeout(t);
   }, [onDone]);
 
   return (
-    <div className="pointer-events-none fixed" style={{ left: x, top: y, zIndex: 9999 }}>
+    <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 9999, overflow: "hidden" }}>
       {particles.map(p => (
         <div
           key={p.id}
           className="absolute"
           style={{
+            left: `${p.x}%`,
+            top: "-10px",
             width: p.size,
-            height: p.size,
-            borderRadius: "50%",
+            height: p.shape === "rect" ? p.size * 2.5 : p.size,
+            borderRadius: p.shape === "circle" ? "50%" : "2px",
             background: p.color,
-            "--tx": `${Math.cos(p.angle * Math.PI / 180) * p.distance}px`,
-            "--ty": `${Math.sin(p.angle * Math.PI / 180) * p.distance}px`,
-            animation: `confettiParticle ${p.duration}s ${p.delay}s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards`,
             opacity: 0,
+            "--fall": "105vh",
+            "--drift": `${p.drift}px`,
+            "--rot": `${p.rotation}deg`,
+            animation: `confettiFall ${p.duration}s ${p.delay}s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards`,
           } as React.CSSProperties}
         />
       ))}
+    </div>
+  );
+}
+
+/* ─── Floating +1 from position to counter ─── */
+function FloatingPlusOne({ x, y, onDone }: { x: number; y: number; onDone: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 1000);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <div
+      className="fixed pointer-events-none select-none"
+      style={{
+        left: x, top: y, zIndex: 10000,
+        animation: "floatUp 1s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+      }}
+    >
+      <span className="text-2xl sm:text-3xl font-bold" style={{ color: "#10b981", textShadow: "0 0 12px rgba(16,185,129,0.5)" }}>+1</span>
     </div>
   );
 }
@@ -73,7 +99,13 @@ export default function BatchGTPage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [flashId, setFlashId] = useState<string | null>(null);
-  const [confetti, setConfetti] = useState<{ id: number; x: number; y: number } | null>(null);
+  // Keep recently-viewed items visible for 1.5s before they filter out
+  const [recentlyViewed, setRecentlyViewed] = useState<Set<string>>(new Set());
+  // Full-screen effects
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [floatingPlus, setFloatingPlus] = useState<{ id: number; x: number; y: number } | null>(null);
+  // Track total checked in this session for milestone celebrations
+  const [sessionChecked, setSessionChecked] = useState(0);
 
   useEffect(() => {
     loadKeywords();
@@ -93,12 +125,26 @@ export default function BatchGTPage() {
     }
   }
 
+  const clearRecent = useCallback((id: string) => {
+    setRecentlyViewed(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
   async function markAsViewed(keywordId: string, evt?: React.MouseEvent) {
     setMarkingId(keywordId);
     setFlashId(keywordId);
+    setRecentlyViewed(prev => new Set(prev).add(keywordId));
+
+    // Trigger full-screen effects
+    setShowConfetti(true);
     if (evt) {
-      setConfetti({ id: Date.now(), x: evt.clientX, y: evt.clientY });
+      setFloatingPlus({ id: Date.now(), x: evt.clientX, y: evt.clientY });
     }
+    setSessionChecked(prev => prev + 1);
+
     const now = new Date().toISOString();
     setKeywords(prev => prev.map(k =>
       k.id === keywordId ? { ...k, latest_view: now } : k
@@ -110,9 +156,11 @@ export default function BatchGTPage() {
       setKeywords(prev => prev.map(k =>
         k.id === keywordId ? { ...k, latest_view: undefined } : k
       ));
+      clearRecent(keywordId);
     } finally {
       setMarkingId(null);
       setTimeout(() => setFlashId(null), 600);
+      setTimeout(() => clearRecent(keywordId), 1500);
     }
   }
 
@@ -183,10 +231,12 @@ export default function BatchGTPage() {
     const days = FILTER_CONFIG.find(f => f.key === activeFilter)!.days;
     const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
     return keywords.filter(k => {
+      // Keep recently-viewed items visible even if they no longer match the filter
+      if (recentlyViewed.has(k.id)) return true;
       if (!k.latest_view) return true;
       return new Date(k.latest_view).getTime() < cutoff;
     });
-  }, [keywords, activeFilter]);
+  }, [keywords, activeFilter, recentlyViewed]);
 
   const filterCounts = useMemo(() => {
     const counts: Record<FilterType, number> = { all: keywords.length, today_done: 0, today_left: 0, "3d": 0, "7d": 0, "30d": 0 };
@@ -295,18 +345,19 @@ export default function BatchGTPage() {
         <div className="grid gap-2">
           {filteredKeywords.map((kw, index) => {
             const isViewedToday = kw.latest_view && kw.latest_view.startsWith(today);
+            const justChecked = recentlyViewed.has(kw.id) && markingId !== kw.id;
             const isSelected = selectedIndex === index;
 
             return (
               <div
                 key={kw.id}
                 onClick={() => setSelectedIndex(index)}
-                className={`flex items-center justify-between p-3 sm:p-4 cursor-pointer ${flashId === kw.id ? "batch-row-flash" : ""}`}
+                className={`flex items-center justify-between p-3 sm:p-4 cursor-pointer ${flashId === kw.id ? "batch-row-flash" : ""} ${justChecked ? "batch-row-done" : ""}`}
                 style={{
                   background: isSelected ? "rgba(94, 106, 210, 0.06)" : "var(--bg-card)",
-                  border: `1px solid ${isSelected ? "var(--accent-blue-hover)" : "var(--border)"}`,
+                  border: `1px solid ${justChecked ? "var(--accent-green-bright)" : isSelected ? "var(--accent-blue-hover)" : "var(--border)"}`,
                   borderRadius: "var(--radius-lg)",
-                  transition: "background 0.15s, border-color 0.15s",
+                  transition: "background 0.15s, border-color 0.15s, opacity 0.4s, transform 0.4s",
                 }}
               >
                 <div className="flex items-center gap-3 sm:gap-4 min-w-0">
@@ -330,7 +381,7 @@ export default function BatchGTPage() {
                   </button>
 
                   <div className="min-w-0">
-                    <div className="font-medium text-sm sm:text-base truncate" style={{ color: "var(--text-primary)" }}>{kw.keyword}</div>
+                    <div className="font-medium text-sm sm:text-base truncate" style={{ color: justChecked ? "var(--accent-green-bright)" : "var(--text-primary)" }}>{kw.keyword}</div>
                     {kw.latest_view && (
                       <div className="text-xs" style={{ color: "var(--text-quaternary)" }}>
                         上次查看: {new Date(kw.latest_view).toLocaleString("zh-CN")}
@@ -360,12 +411,17 @@ export default function BatchGTPage() {
           )}
         </div>
       </div>
-      {confetti && (
-        <ConfettiBurst
-          key={confetti.id}
-          x={confetti.x}
-          y={confetti.y}
-          onDone={() => setConfetti(null)}
+
+      {/* Full-screen effects */}
+      {showConfetti && (
+        <FullConfetti onDone={() => setShowConfetti(false)} />
+      )}
+      {floatingPlus && (
+        <FloatingPlusOne
+          key={floatingPlus.id}
+          x={floatingPlus.x}
+          y={floatingPlus.y}
+          onDone={() => setFloatingPlus(null)}
         />
       )}
     </div>
