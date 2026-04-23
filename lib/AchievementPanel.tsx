@@ -1,6 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useLayoutEffect } from "react";
+
+function useIsMobile(breakpoint = 640) {
+  const [isMobile, setIsMobile] = useState(false);
+  useLayoutEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < breakpoint);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [breakpoint]);
+  return isMobile;
+}
 
 // --- Data Types ---
 
@@ -397,6 +408,8 @@ function DetailPanel({
   onClose: () => void;
   onRefresh: () => void;
 }) {
+  const isMobile = useIsMobile();
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -404,6 +417,12 @@ function DetailPanel({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
+
+  // Lock body scroll when open
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
 
   const total = stats?.today.total ?? 0;
   const goal = stats?.goals.total ?? 40;
@@ -419,223 +438,242 @@ function DetailPanel({
   const heatmapGoal = stats?.goals.total ?? 40;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {/* Backdrop */}
+    <>
+      {/* Backdrop — separate fixed element, always covers full viewport */}
       <div
         onClick={onClose}
         style={{
           position: "fixed",
           inset: 0,
+          zIndex: 1000,
           background: "rgba(0, 0, 0, 0.7)",
-          zIndex: 0,
         }}
       />
 
       {/* Panel */}
       <div
-        className="max-sm:!fixed max-sm:!bottom-0 max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!rounded-t-2xl max-sm:!rounded-b-none max-sm:!max-h-[85vh]"
         style={{
-          position: "relative",
-          zIndex: 1,
-          background: "var(--bg-secondary)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius-xl)",
-          maxWidth: 448,
-          width: "100%",
-          maxHeight: "90vh",
-          overflowY: "auto",
-          padding: 24,
-          boxShadow: "var(--shadow-dialog)",
+          position: isMobile ? "fixed" : "fixed",
+          top: isMobile ? "auto" : 0,
+          bottom: isMobile ? 0 : 0,
+          left: 0,
+          right: 0,
+          zIndex: 1001,
+          display: "flex",
+          alignItems: isMobile ? "flex-end" : "center",
+          justifyContent: "center",
+          padding: isMobile ? 0 : 16,
         }}
       >
-        {/* Close button */}
-        <button
-          onClick={onClose}
+        <div
           style={{
-            position: "sticky",
-            top: 0,
-            float: "right",
-            width: 28,
-            height: 28,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
             background: "var(--bg-secondary)",
             border: "1px solid var(--border)",
-            color: "var(--text-tertiary)",
-            cursor: "pointer",
-            borderRadius: "var(--radius-sm)",
-            fontSize: 16,
-            lineHeight: 1,
-            padding: 0,
-            transition: "color 0.15s ease",
-            zIndex: 2,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = "var(--text-primary)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "var(--text-tertiary)";
-          }}
-          aria-label="Close"
-        >
-          ✕
-        </button>
-
-        {/* Section A — Today's Progress */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 16,
-            marginBottom: 24,
+            borderTopLeftRadius: isMobile ? 16 : "var(--radius-xl)",
+            borderTopRightRadius: isMobile ? 16 : "var(--radius-xl)",
+            borderBottomLeftRadius: isMobile ? 0 : "var(--radius-xl)",
+            borderBottomRightRadius: isMobile ? 0 : "var(--radius-xl)",
+            maxWidth: 448,
+            width: "100%",
+            maxHeight: isMobile ? "85vh" : "90vh",
+            overflowY: "auto",
+            padding: isMobile ? "20px 20px 32px 20px" : 24,
+            boxShadow: "var(--shadow-dialog)",
           }}
         >
-          <ProgressRing
-            size={72}
-            strokeWidth={5}
-            progress={progress}
-            strokeColor={
-              goalMet ? "var(--accent-green-bright)" : "var(--accent-blue)"
-            }
-            trackColor="var(--border-subtle)"
-          >
-            <span
+          {/* Mobile drag handle */}
+          {isMobile && (
+            <div
               style={{
-                fontSize: 24,
-                fontWeight: 590,
-                color: "var(--text-primary)",
-                lineHeight: 1,
+                width: 36,
+                height: 4,
+                borderRadius: 2,
+                background: "var(--border)",
+                margin: "0 auto 16px auto",
               }}
-            >
-              {total}
-            </span>
-          </ProgressRing>
-          <span
-            style={{
-              fontSize: 13,
-              color: "var(--text-tertiary)",
-              fontWeight: 400,
-            }}
-          >
-            / {goal} 今日已读
-          </span>
+            />
+          )}
 
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            style={{
+              position: "absolute",
+              top: isMobile ? 12 : 16,
+              right: isMobile ? 12 : 16,
+              width: 28,
+              height: 28,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              color: "var(--text-tertiary)",
+              cursor: "pointer",
+              borderRadius: "var(--radius-sm)",
+              fontSize: 16,
+              lineHeight: 1,
+              padding: 0,
+              transition: "color 0.15s ease",
+              zIndex: 2,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "var(--text-tertiary)";
+            }}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+
+          {/* Section A — Today's Progress */}
           <div
             style={{
-              width: "100%",
               display: "flex",
               flexDirection: "column",
+              alignItems: "center",
               gap: 16,
+              marginBottom: 24,
             }}
           >
-            <StackedBar
-              label="新词"
-              segments={[
-                { name: "trending", value: nw?.trending ?? 0, color: "var(--accent-blue)" },
-                { name: "queries", value: nw?.queries ?? 0, color: "var(--accent-blue-hover)" },
-                { name: "github", value: nw?.github ?? 0, color: "var(--accent-blue-muted)" },
-              ]}
-              goal={nwGoal}
-            />
-            <StackedBar
-              label="资讯"
-              segments={[
-                { name: "reddit", value: info?.reddit ?? 0, color: "var(--accent-blue)" },
-                { name: "hn", value: info?.hn ?? 0, color: "var(--accent-blue-hover)" },
-                { name: "technews", value: info?.technews ?? 0, color: "var(--accent-blue-muted)" },
-              ]}
-              goal={infoGoal}
-            />
-          </div>
-        </div>
-
-        <div
-          style={{
-            height: 1,
-            background: "var(--border-subtle)",
-            margin: "0 0 20px 0",
-          }}
-        />
-
-        {/* Section B — Heatmap */}
-        <div style={{ marginBottom: 24 }}>
-          <div
-            style={{
-              fontSize: 13,
-              color: "var(--text-tertiary)",
-              marginBottom: 12,
-              fontWeight: 500,
-            }}
-          >
-            近 12 周
-          </div>
-          <Heatmap data={heatmapData} goal={heatmapGoal} />
-        </div>
-
-        <div
-          style={{
-            height: 1,
-            background: "var(--border-subtle)",
-            margin: "0 0 20px 0",
-          }}
-        />
-
-        {/* Section C — Cumulative Stats */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          {[
-            { value: cumulative?.total_reads ?? 0, label: "总已读" },
-            { value: cumulative?.streak ?? 0, label: "连续天数" },
-            { value: cumulative?.best_day ?? 0, label: "最高单日" },
-          ].map((metric, idx) => (
-            <div
-              key={idx}
+            <ProgressRing
+              size={72}
+              strokeWidth={5}
+              progress={progress}
+              strokeColor={
+                goalMet ? "var(--accent-green-bright)" : "var(--accent-blue)"
+              }
+              trackColor="var(--border-subtle)"
+            >
+              <span
+                style={{
+                  fontSize: 24,
+                  fontWeight: 590,
+                  color: "var(--text-primary)",
+                  lineHeight: 1,
+                }}
+              >
+                {total}
+              </span>
+            </ProgressRing>
+            <span
               style={{
-                flex: 1,
-                textAlign: "center",
-                borderRight:
-                  idx < 2 ? "1px solid var(--border-subtle)" : "none",
+                fontSize: 13,
+                color: "var(--text-tertiary)",
+                fontWeight: 400,
               }}
             >
-              <div
-                style={{
-                  fontSize: 20,
-                  fontWeight: 600,
-                  color: "var(--text-primary)",
-                  lineHeight: 1.2,
-                }}
-              >
-                {metric.value}
-              </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "var(--text-quaternary)",
-                  marginTop: 2,
-                }}
-              >
-                {metric.label}
-              </div>
+              / {goal} 今日已读
+            </span>
+
+            <div
+              style={{
+                width: "100%",
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+              }}
+            >
+              <StackedBar
+                label="新词"
+                segments={[
+                  { name: "trending", value: nw?.trending ?? 0, color: "var(--accent-blue)" },
+                  { name: "queries", value: nw?.queries ?? 0, color: "var(--accent-blue-hover)" },
+                  { name: "github", value: nw?.github ?? 0, color: "var(--accent-blue-muted)" },
+                ]}
+                goal={nwGoal}
+              />
+              <StackedBar
+                label="资讯"
+                segments={[
+                  { name: "reddit", value: info?.reddit ?? 0, color: "var(--accent-blue)" },
+                  { name: "hn", value: info?.hn ?? 0, color: "var(--accent-blue-hover)" },
+                  { name: "technews", value: info?.technews ?? 0, color: "var(--accent-blue-muted)" },
+                ]}
+                goal={infoGoal}
+              />
             </div>
-          ))}
+          </div>
+
+          <div
+            style={{
+              height: 1,
+              background: "var(--border-subtle)",
+              margin: "0 0 20px 0",
+            }}
+          />
+
+          {/* Section B — Heatmap */}
+          <div style={{ marginBottom: 24 }}>
+            <div
+              style={{
+                fontSize: 13,
+                color: "var(--text-tertiary)",
+                marginBottom: 12,
+                fontWeight: 500,
+              }}
+            >
+              近 12 周
+            </div>
+            <Heatmap data={heatmapData} goal={heatmapGoal} />
+          </div>
+
+          <div
+            style={{
+              height: 1,
+              background: "var(--border-subtle)",
+              margin: "0 0 20px 0",
+            }}
+          />
+
+          {/* Section C — Cumulative Stats */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            {[
+              { value: cumulative?.total_reads ?? 0, label: "总已读" },
+              { value: cumulative?.streak ?? 0, label: "连续天数" },
+              { value: cumulative?.best_day ?? 0, label: "最高单日" },
+            ].map((metric, idx) => (
+              <div
+                key={idx}
+                style={{
+                  flex: 1,
+                  textAlign: "center",
+                  borderRight:
+                    idx < 2 ? "1px solid var(--border-subtle)" : "none",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 600,
+                    color: "var(--text-primary)",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {metric.value}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text-quaternary)",
+                    marginTop: 2,
+                  }}
+                >
+                  {metric.label}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
