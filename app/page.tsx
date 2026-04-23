@@ -23,6 +23,7 @@ import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS,
   calculateEKGR, calculateKDROI, generateGTCompareUrl } from "@/lib/types";
 import { usePushSubscription } from "@/lib/usePushSubscription";
 import { useReadItems } from "@/lib/useReadItems";
+import { AchievementSummary } from "@/lib/AchievementPanel";
 
 // --- Tag logic ---
 
@@ -952,19 +953,22 @@ export default function Home() {
                 </button>
               )}
             </div>
-            <button
-              onClick={() => { fetchData(); fetchTrending(); fetchReddit(); fetchHackerNews(); fetchTechNews(); }}
-              disabled={loading}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm"
-              style={{
-                background: loading ? "var(--bg-elevated)" : "var(--accent-blue)",
-                color: "var(--text-primary)",
-                opacity: loading ? 0.6 : 1,
-                boxShadow: loading ? "none" : "var(--shadow-subtle)",
-              }}
-            >
-              {loading ? "..." : "Refresh"}
-            </button>
+            <div className="flex items-center gap-2">
+              <AchievementSummary />
+              <button
+                onClick={() => { fetchData(); fetchTrending(); fetchReddit(); fetchHackerNews(); fetchTechNews(); }}
+                disabled={loading}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm"
+                style={{
+                  background: loading ? "var(--bg-elevated)" : "var(--accent-blue)",
+                  color: "var(--text-primary)",
+                  opacity: loading ? 0.6 : 1,
+                  boxShadow: loading ? "none" : "var(--shadow-subtle)",
+                }}
+              >
+                {loading ? "..." : "Refresh"}
+              </button>
+            </div>
           </div>
 
           {/* Keywords */}
