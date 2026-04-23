@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useLayoutEffect } from "react";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import { createPortal } from "react-dom";
 
 // --- Data Types ---
 
@@ -331,29 +333,26 @@ function DetailPanel({ stats, onClose, onRefresh }: {
     </>
   );
 
-  if (isMobile) {
-    return (
-      <>
-        <div
-          onClick={onClose}
-          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, background: "rgba(0,0,0,0.7)" }}
-        />
-        <div style={{
-          position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 1001,
-          background: "var(--bg-secondary)", border: "1px solid var(--border)",
-          borderTopLeftRadius: 16, borderTopRightRadius: 16, borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
-          maxWidth: 448, width: "100%", maxHeight: "85vh", overflowY: "auto",
-          padding: "20px 20px 32px 20px", boxShadow: "var(--shadow-dialog)",
-          margin: "0 auto",
-        }}>
-          {content}
-        </div>
-      </>
-    );
-  }
+  const mobileJSX = (
+    <>
+      <div
+        onClick={onClose}
+        style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, background: "rgba(0,0,0,0.7)" }}
+      />
+      <div style={{
+        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 1001,
+        background: "var(--bg-secondary)", border: "1px solid var(--border)",
+        borderTopLeftRadius: 16, borderTopRightRadius: 16, borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+        maxWidth: 448, width: "100%", maxHeight: "85vh", overflowY: "auto",
+        padding: "20px 20px 32px 20px", boxShadow: "var(--shadow-dialog)",
+        margin: "0 auto",
+      }}>
+        {content}
+      </div>
+    </>
+  );
 
-  // Desktop: centered modal
-  return (
+  const desktopJSX = (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{
@@ -370,4 +369,7 @@ function DetailPanel({ stats, onClose, onRefresh }: {
       </div>
     </div>
   );
+
+  // Portal to <body> to escape ancestor backdrop-filter containment
+  return createPortal(isMobile ? mobileJSX : desktopJSX, document.body);
 }
