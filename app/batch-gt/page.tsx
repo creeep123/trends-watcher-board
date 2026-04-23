@@ -284,13 +284,28 @@ export default function BatchGTPage() {
     <div className="min-h-screen px-3 py-4 sm:p-6" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-4 sm:mb-6">
-          <h1 className="text-2xl sm:text-3xl font-medium mb-2" style={{ color: "var(--text-secondary)", letterSpacing: "-0.02em" }}>批量 GT 浏览器</h1>
-          <p className="text-sm sm:text-base" style={{ color: "var(--text-tertiary)" }}>
-            今日已查看: <span className={flashId ? "batch-count-bounce" : ""}>{viewedToday}</span> / {keywords.length}
-            <span className="hidden sm:inline"> | 快捷键: ↑↓ 切换, 空格标记已看</span>
-          </p>
-        </div>
+        <header
+          className="sticky top-0 z-10 backdrop-blur-md -mx-3 sm:-mx-6"
+          style={{ borderBottom: "1px solid var(--border-subtle)", background: "rgba(8, 9, 10, 0.85)" }}
+        >
+          <div className="mx-auto max-w-7xl px-3 py-2 sm:px-4 sm:py-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => window.location.href = '/'}
+                className="flex items-center justify-center w-8 h-8 rounded-md transition-colors"
+                style={{ color: "var(--text-tertiary)", background: "transparent", border: "none", cursor: "pointer" }}
+                aria-label="返回"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 3L5 8L10 13"/>
+                </svg>
+              </button>
+              <h1 className="text-lg font-medium sm:text-xl" style={{ color: "var(--text-secondary)" }}>
+                <span style={{ letterSpacing: "-0.02em" }}>批量 GT</span>
+              </h1>
+            </div>
+          </div>
+        </header>
 
         {/* Import Section */}
         <div className="mb-4 sm:mb-6 p-3 sm:p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-surface)" }}>
@@ -322,23 +337,28 @@ export default function BatchGTPage() {
           </div>
         </div>
 
-        {/* Filter Chips */}
-        <div className="mb-4 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0">
-          {FILTER_CONFIG.map(f => (
-            <button
-              key={f.key}
-              onClick={() => { setActiveFilter(f.key); setSelectedIndex(null); }}
-              className="flex-shrink-0 px-3 py-1.5 text-xs sm:text-sm whitespace-nowrap"
-              style={{
-                background: activeFilter === f.key ? "var(--accent-blue)" : "var(--bg-elevated)",
-                color: activeFilter === f.key ? "var(--text-primary)" : "var(--text-tertiary)",
-                borderRadius: "var(--radius-full)",
-                border: activeFilter === f.key ? "1px solid var(--accent-blue)" : "1px solid var(--border)",
-              }}
-            >
-              {f.label} ({filterCounts[f.key]})
-            </button>
-          ))}
+        {/* Filter Chips + Stats */}
+        <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0">
+          <div className="flex gap-2 flex-shrink-0">
+            {FILTER_CONFIG.map(f => (
+              <button
+                key={f.key}
+                onClick={() => { setActiveFilter(f.key); setSelectedIndex(null); }}
+                className="flex-shrink-0 px-3 py-1.5 text-xs sm:text-sm whitespace-nowrap"
+                style={{
+                  background: activeFilter === f.key ? "var(--accent-blue)" : "var(--bg-elevated)",
+                  color: activeFilter === f.key ? "var(--text-primary)" : "var(--text-tertiary)",
+                  borderRadius: "var(--radius-full)",
+                  border: activeFilter === f.key ? "1px solid var(--accent-blue)" : "1px solid var(--border)",
+                }}
+              >
+                {f.label} ({filterCounts[f.key]})
+              </button>
+            ))}
+          </div>
+          <span className="ml-auto flex-shrink-0 text-xs whitespace-nowrap" style={{ color: "var(--text-quaternary)" }}>
+            已看 <span className={flashId ? "batch-count-bounce" : ""}>{viewedToday}</span>/{keywords.length}
+          </span>
         </div>
 
         {/* Keywords List */}
