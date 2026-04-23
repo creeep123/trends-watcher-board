@@ -204,15 +204,12 @@ function Heatmap({
   data: { date: string; count: number }[];
   goal: number;
 }) {
-  // data has 84 entries (12 weeks x 7 days), oldest first.
-  // Reorganize into columns (weeks), each column is 7 days (Mon-Sun).
-  // First entry's weekday determines alignment.
   const weeks: { date: string; count: number; row: number }[][] = [];
   let currentWeek: { date: string; count: number; row: number }[] = [];
 
   for (const entry of data) {
-    const dow = new Date(entry.date + "T00:00:00").getDay(); // 0=Sun
-    const row = dow === 0 ? 6 : dow - 1; // Mon=0, Tue=1, ..., Sun=6
+    const dow = new Date(entry.date + "T00:00:00").getDay();
+    const row = dow === 0 ? 6 : dow - 1;
     currentWeek.push({ ...entry, row });
 
     if (currentWeek.length === 7) {
@@ -233,13 +230,12 @@ function Heatmap({
           alignItems: "flex-start",
         }}
       >
-        {/* Row labels column */}
         <div
           style={{
             display: "flex",
             flexDirection: "column",
             gap: 2,
-            height: 7 * 11 + 6 * 2, // 7 cells + 6 gaps
+            height: 7 * 11 + 6 * 2,
             justifyContent: "space-between",
             marginRight: 4,
           }}
@@ -262,7 +258,6 @@ function Heatmap({
           ))}
         </div>
 
-        {/* Grid columns */}
         <div style={{ display: "flex", gap: 2 }}>
           {weeks.map((week, wi) => (
             <div
@@ -325,12 +320,10 @@ export function AchievementSummary() {
 
   useEffect(() => {
     fetchStats();
-    // Refresh every 60 seconds
     const interval = setInterval(fetchStats, 60_000);
     return () => clearInterval(interval);
   }, [fetchStats]);
 
-  // Refresh when panel closes
   useEffect(() => {
     if (!open) fetchStats();
   }, [open, fetchStats]);
@@ -379,9 +372,7 @@ export function AchievementSummary() {
           }
           trackColor="var(--border-subtle)"
         />
-        <span>
-          今日 {total}/{goal}
-        </span>
+        <span>今日 {total}/{goal}</span>
       </button>
 
       {open && (
@@ -406,7 +397,6 @@ function DetailPanel({
   onClose: () => void;
   onRefresh: () => void;
 }) {
-  // Close on Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -433,28 +423,29 @@ function DetailPanel({
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 100,
+        zIndex: 1000,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: 16,
       }}
     >
-      {/* Backdrop — click to close */}
+      {/* Backdrop */}
       <div
         onClick={onClose}
         style={{
-          position: "absolute",
+          position: "fixed",
           inset: 0,
           background: "rgba(0, 0, 0, 0.7)",
+          zIndex: 0,
         }}
       />
 
       {/* Panel */}
       <div
-        className="max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-auto max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:max-h-[85vh] max-sm:pt-8"
+        className="max-sm:!fixed max-sm:!bottom-0 max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!rounded-t-2xl max-sm:!rounded-b-none max-sm:!max-h-[85vh]"
         style={{
           position: "relative",
+          zIndex: 1,
           background: "var(--bg-secondary)",
           border: "1px solid var(--border)",
           borderRadius: "var(--radius-xl)",
@@ -470,16 +461,16 @@ function DetailPanel({
         <button
           onClick={onClose}
           style={{
-            position: "absolute",
-            top: 16,
-            right: 16,
+            position: "sticky",
+            top: 0,
+            float: "right",
             width: 28,
             height: 28,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "transparent",
-            border: "none",
+            background: "var(--bg-secondary)",
+            border: "1px solid var(--border)",
             color: "var(--text-tertiary)",
             cursor: "pointer",
             borderRadius: "var(--radius-sm)",
@@ -487,6 +478,7 @@ function DetailPanel({
             lineHeight: 1,
             padding: 0,
             transition: "color 0.15s ease",
+            zIndex: 2,
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.color = "var(--text-primary)";
@@ -496,7 +488,7 @@ function DetailPanel({
           }}
           aria-label="Close"
         >
-          {"✕"}
+          ✕
         </button>
 
         {/* Section A — Today's Progress */}
@@ -539,7 +531,6 @@ function DetailPanel({
             / {goal} 今日已读
           </span>
 
-          {/* Stacked bars */}
           <div
             style={{
               width: "100%",
@@ -569,7 +560,6 @@ function DetailPanel({
           </div>
         </div>
 
-        {/* Divider */}
         <div
           style={{
             height: 1,
@@ -588,12 +578,11 @@ function DetailPanel({
               fontWeight: 500,
             }}
           >
-            {"近 12 周"}
+            近 12 周
           </div>
           <Heatmap data={heatmapData} goal={heatmapGoal} />
         </div>
 
-        {/* Divider */}
         <div
           style={{
             height: 1,
@@ -611,18 +600,9 @@ function DetailPanel({
           }}
         >
           {[
-            {
-              value: cumulative?.total_reads ?? 0,
-              label: "总已读",
-            },
-            {
-              value: cumulative?.streak ?? 0,
-              label: "连续天数",
-            },
-            {
-              value: cumulative?.best_day ?? 0,
-              label: "最高单日",
-            },
+            { value: cumulative?.total_reads ?? 0, label: "总已读" },
+            { value: cumulative?.streak ?? 0, label: "连续天数" },
+            { value: cumulative?.best_day ?? 0, label: "最高单日" },
           ].map((metric, idx) => (
             <div
               key={idx}
