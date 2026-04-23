@@ -21,7 +21,6 @@ import type {
 import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS,
   getKGRInterpretation, getEKGRInterpretation, getKDROIInterpretation,
   calculateEKGR, calculateKDROI, generateGTCompareUrl } from "@/lib/types";
-import { usePushSubscription } from "@/lib/usePushSubscription";
 import { useReadItems } from "@/lib/useReadItems";
 import { AchievementSummary } from "@/lib/AchievementPanel";
 
@@ -242,7 +241,6 @@ export default function Home() {
   const [showBatchImport, setShowBatchImport] = useState(false);
   const [kgrFilter, setKgrFilter] = useState<'all' | 'good-kgr' | 'good-ekgr' | 'good-kdroi'>('all');
   const [kgrSort, setKgrSort] = useState<'added' | 'kgr' | 'ekgr' | 'kdroi'>('added');
-  const push = usePushSubscription();
   const { fetchReadStatus, markAsRead, isRead } = useReadItems();
 
   // Toast notification
@@ -938,20 +936,6 @@ export default function Home() {
               >
                 批量 GT
               </a>
-              {push.supported && (
-                <button
-                  onClick={push.subscribed ? push.unsubscribe : push.subscribe}
-                  disabled={push.loading}
-                  className="rounded-md px-2 py-1 text-xs font-medium transition-colors hover:opacity-80"
-                  style={{
-                    background: push.subscribed ? "rgba(39, 166, 68, 0.1)" : "var(--bg-elevated)",
-                    color: push.subscribed ? "var(--accent-green-bright)" : "var(--text-tertiary)",
-                  }}
-                  title={push.subscribed ? "关闭推送" : "开启推送通知"}
-                >
-                  {push.loading ? "..." : push.subscribed ? "🔔 已订阅" : "🔕 推送"}
-                </button>
-              )}
             </div>
             <div className="flex items-center gap-2">
               <AchievementSummary />
@@ -971,50 +955,47 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Keywords */}
-          <div className="mt-2 flex items-center gap-1.5 sm:mt-4 sm:gap-2">
-            <span className="hidden text-xs font-medium sm:block" style={{ color: "var(--text-secondary)" }}>KEYWORDS</span>
+          {/* Keywords — desktop only */}
+          <div className="hidden mt-4 items-center gap-2 sm:flex">
+            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>KEYWORDS</span>
             <input
               type="text"
               value={keywordsInput}
               onChange={(e) => setKeywordsInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleKeywordsSubmit(); }}
               placeholder={DEFAULT_KEYWORDS}
-              className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm outline-none transition-colors sm:py-1.5 sm:text-xs"
+              className="min-w-0 flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none transition-colors"
               style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)", borderRadius: "var(--radius-md)" }}
             />
             <button
               onClick={handleKeywordsSubmit}
-              className="shrink-0 rounded-lg border px-3 py-2 text-xs font-medium transition-colors sm:py-1.5"
+              className="shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
               style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)", borderColor: "var(--border)", borderRadius: "var(--radius-md)" }}
             >
               Apply
             </button>
           </div>
+
+          {/* Mobile Tab Bar — inside header so it sticks together */}
+          <div className="mt-1 sm:hidden">
+            <div className="flex">
+              {MOBILE_TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setMobileTab(tab.key)}
+                  className="flex-1 py-2 text-center text-xs font-medium transition-colors"
+                  style={{
+                    color: mobileTab === tab.key ? "var(--accent-blue-hover)" : "var(--text-tertiary)",
+                    borderBottom: mobileTab === tab.key ? "2px solid var(--accent-blue-hover)" : "2px solid transparent",
+                  }}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </header>
-
-      {/* ===== Mobile Tab Bar ===== */}
-      <div
-        className="sticky z-10 sm:hidden"
-        style={{ top: "auto", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-primary)" }}
-      >
-        <div className="flex">
-          {MOBILE_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setMobileTab(tab.key)}
-              className="flex-1 py-2 text-center text-xs font-medium transition-colors"
-              style={{
-                color: mobileTab === tab.key ? "var(--accent-blue-hover)" : "var(--text-tertiary)",
-                borderBottom: mobileTab === tab.key ? "2px solid var(--accent-blue-hover)" : "2px solid transparent",
-              }}
-            >
-              {tab.icon} {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* ===== KGR Workbench Panel ===== */}
       {kgrExpanded && (
