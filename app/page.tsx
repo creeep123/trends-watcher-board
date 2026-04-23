@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type {
   TrendsResponse,
   TrendKeyword,
@@ -204,6 +204,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forceRefresh, setForceRefresh] = useState(false);
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const [trendingGeo, setTrendingGeo] = useState("US");
   const [trendingItems, setTrendingItems] = useState<TrendingItem[]>([]);
@@ -453,6 +456,19 @@ export default function Home() {
   useEffect(() => {
     fetchRootKeywords();
   }, []);
+
+  // Close mobile dropdown menu on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
 
   useEffect(() => {
     if (!data || data.google.length === 0) return;
@@ -931,7 +947,7 @@ export default function Home() {
               </h1>
               <a
                 href="/batch-gt"
-                className="rounded-md px-2 py-1 text-xs font-medium transition-colors hover:opacity-80"
+                className="hidden rounded-md px-2 py-1 text-xs font-medium transition-colors hover:opacity-80 sm:inline-block"
                 style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}
               >
                 批量 GT
@@ -939,6 +955,43 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-2">
               <AchievementSummary />
+              {/* Mobile-only dropdown menu */}
+              <div ref={menuRef} className="relative sm:hidden">
+                <button
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className="rounded-lg p-1.5 transition-colors"
+                  style={{ color: "var(--text-tertiary)" }}
+                  aria-label="More options"
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg>
+                </button>
+                {menuOpen && (
+                  <div
+                    className="absolute right-0 top-full mt-1"
+                    style={{
+                      width: 180,
+                      padding: 4,
+                      background: "var(--bg-elevated)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-md)",
+                      boxShadow: "var(--shadow-dialog)",
+                      zIndex: 20,
+                    }}
+                  >
+                    <a
+                      href="/batch-gt"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition-colors"
+                      style={{ color: "var(--text-secondary)" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-secondary)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      批量 GT 浏览器
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 4l4 4-4 4"/></svg>
+                    </a>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => { fetchData(); fetchTrending(); fetchReddit(); fetchHackerNews(); fetchTechNews(); }}
                 disabled={loading}
