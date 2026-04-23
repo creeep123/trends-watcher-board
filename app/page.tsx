@@ -399,14 +399,14 @@ export default function Home() {
   // Fetch read status for all visible items after data loads
   useEffect(() => {
     const items: { item_type: "trending" | "queries" | "reddit" | "hn" | "technews" | "github"; item_key: string }[] = [];
-    data?.trending?.forEach(k => items.push({ item_type: "trending", item_key: k.name }));
-    data?.queries?.forEach(k => items.push({ item_type: "queries", item_key: k.name }));
+    trendingItems.forEach(k => items.push({ item_type: "trending", item_key: k.name }));
+    data?.google?.forEach(k => items.push({ item_type: "queries", item_key: k.name }));
     redditPosts.forEach(p => { if (p.url) items.push({ item_type: "reddit", item_key: p.url }); });
     hnPosts.forEach(p => items.push({ item_type: "hn", item_key: String(p.id) }));
     techNewsPosts.forEach(a => { if (a.url) items.push({ item_type: "technews", item_key: a.url }); });
     data?.github?.forEach(g => items.push({ item_type: "github", item_key: g.name }));
     if (items.length > 0) fetchReadStatus(items);
-  }, [data, redditPosts, hnPosts, techNewsPosts, fetchReadStatus]);
+  }, [data, trendingItems, redditPosts, hnPosts, techNewsPosts, fetchReadStatus]);
 
   // Load KGR workbench on mount - try Supabase first, fallback to localStorage
   useEffect(() => {
