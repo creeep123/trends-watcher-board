@@ -174,7 +174,7 @@ function ProgressRing({
 
 // --- Heatmap ---
 
-const WEEKDAY_LABELS = ["", "\u4e00", "\u4e8c", "\u4e09", "\u56db", "\u4e94", "\u516d"];
+const WEEKDAY_LABELS = ["", "一", "二", "三", "四", "五", "六"];
 const HEATMAP_LEVELS = [
   { min: 0, color: "var(--bg-elevated)", border: "var(--border-subtle)" },
   { min: 0.01, max: 0.25, color: "rgba(94, 106, 210, 0.15)" },
@@ -194,7 +194,7 @@ function getHeatLevel(count: number, goal: number) {
 
 function formatDateLabel(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
-  return `${d.getMonth() + 1}\u6708${d.getDate()}\u65e5`;
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 function Heatmap({
@@ -282,7 +282,7 @@ function Heatmap({
                 return (
                   <div
                     key={rowIdx}
-                    title={count > 0 ? `${dateLabel} \u00b7 ${count}\u6761` : dateLabel}
+                    title={count > 0 ? `${dateLabel} · ${count}条` : dateLabel}
                     style={{
                       width: 11,
                       height: 11,
@@ -380,7 +380,7 @@ export function AchievementSummary() {
           trackColor="var(--border-subtle)"
         />
         <span>
-          \u4eca\u65e5 {total}/{goal}
+          今日 {total}/{goal}
         </span>
       </button>
 
@@ -440,7 +440,7 @@ function DetailPanel({
         padding: 16,
       }}
     >
-      {/* Backdrop */}
+      {/* Backdrop — click to close */}
       <div
         onClick={onClose}
         style={{
@@ -452,6 +452,7 @@ function DetailPanel({
 
       {/* Panel */}
       <div
+        className="max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-auto max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:max-h-[85vh] max-sm:pt-8"
         style={{
           position: "relative",
           background: "var(--bg-secondary)",
@@ -459,7 +460,7 @@ function DetailPanel({
           borderRadius: "var(--radius-xl)",
           maxWidth: 448,
           width: "100%",
-          maxHeight: "85vh",
+          maxHeight: "90vh",
           overflowY: "auto",
           padding: 24,
           boxShadow: "var(--shadow-dialog)",
@@ -495,7 +496,7 @@ function DetailPanel({
           }}
           aria-label="Close"
         >
-          {"\u2715"}
+          {"✕"}
         </button>
 
         {/* Section A — Today's Progress */}
@@ -535,7 +536,7 @@ function DetailPanel({
               fontWeight: 400,
             }}
           >
-            / {goal} {"\u4eca\u65e5\u5df2\u8bfb"}
+            / {goal} 今日已读
           </span>
 
           {/* Stacked bars */}
@@ -548,7 +549,7 @@ function DetailPanel({
             }}
           >
             <StackedBar
-              label="\u65b0\u8bcd"
+              label="新词"
               segments={[
                 { name: "trending", value: nw?.trending ?? 0, color: "var(--accent-blue)" },
                 { name: "queries", value: nw?.queries ?? 0, color: "var(--accent-blue-hover)" },
@@ -557,7 +558,7 @@ function DetailPanel({
               goal={nwGoal}
             />
             <StackedBar
-              label="\u8d44\u8baf"
+              label="资讯"
               segments={[
                 { name: "reddit", value: info?.reddit ?? 0, color: "var(--accent-blue)" },
                 { name: "hn", value: info?.hn ?? 0, color: "var(--accent-blue-hover)" },
@@ -587,7 +588,7 @@ function DetailPanel({
               fontWeight: 500,
             }}
           >
-            {"\u8fd1 12 \u5468"}
+            {"近 12 周"}
           </div>
           <Heatmap data={heatmapData} goal={heatmapGoal} />
         </div>
@@ -612,15 +613,15 @@ function DetailPanel({
           {[
             {
               value: cumulative?.total_reads ?? 0,
-              label: "\u603b\u5df2\u8bfb",
+              label: "总已读",
             },
             {
               value: cumulative?.streak ?? 0,
-              label: "\u8fde\u7eed\u5929\u6570",
+              label: "连续天数",
             },
             {
               value: cumulative?.best_day ?? 0,
-              label: "\u6700\u9ad8\u5355\u65e5",
+              label: "最高单日",
             },
           ].map((metric, idx) => (
             <div
