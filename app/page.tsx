@@ -570,9 +570,9 @@ export default function Home() {
   };
 
   const toggleExpand = (name: string) => {
-    const willExpand = expandedKeyword !== name;
-    setExpandedKeyword(willExpand ? name : null);
-    if (willExpand) {
+    const wasExpanded = expandedKeyword === name;
+    setExpandedKeyword(wasExpanded ? null : name);
+    if (wasExpanded) {
       markAsRead("trending", name);
       markAsRead("queries", name);
     }
@@ -945,10 +945,9 @@ export default function Home() {
           {/* Title row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <h1 className="text-lg font-medium sm:text-xl">
-                <span style={{ color: "var(--accent-blue-hover)", letterSpacing: "-0.02em" }}>Trends</span>{" "}
-                <span className="hidden sm:inline">Watcher Board</span>
-                <span className="sm:hidden">Board</span>
+              <h1 className="font-medium sm:text-xl" style={{ fontSize: 15 }}>
+                <span style={{ color: "var(--accent-blue-hover)", letterSpacing: "-0.02em" }}>TWB</span>
+                <span className="hidden sm:inline" style={{ marginLeft: 6, fontSize: 18 }}>Trends Watcher Board</span>
               </h1>
               <a
                 href="/batch-gt"
@@ -965,7 +964,7 @@ export default function Home() {
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
                   className="rounded-lg p-1.5 transition-colors"
-                  style={{ color: "var(--text-tertiary)" }}
+                  style={{ color: "var(--text-tertiary)", background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
                   aria-label="More options"
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg>
