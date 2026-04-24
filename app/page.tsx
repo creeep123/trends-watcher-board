@@ -1912,7 +1912,7 @@ function TrendingCard({
         )}
         <Chevron open={isExpanded} />
       </button>
-      {isExpanded && <DecisionPanel keyword={item.name} points={interestData} loading={interestLoading} onAddToKGR={onAddToKGR} />}
+      {isExpanded && <DecisionPanel keyword={item.name} points={interestData} loading={interestLoading} onAddToKGR={onAddToKGR} onRead={onRead} />}
     </div>
   );
 }
@@ -2130,6 +2130,7 @@ function KeywordCard({
           multiGeoLoading={!!multiGeoLoading}
           enrichData={enrichData}
           onAddToKGR={onAddToKGR}
+          onRead={onRead}
         />
       )}
     </div>
@@ -2143,13 +2144,14 @@ function EnrichedDecisionPanel({
   freshnessData, freshnessLoading,
   multiGeoData, multiGeoLoading,
   enrichData,
-  onAddToKGR,
+  onAddToKGR, onRead,
 }: {
   keyword: string; points: InterestPoint[]; loading: boolean;
   freshnessData: FreshnessData | null; freshnessLoading: boolean;
   multiGeoData: MultiGeoData | null; multiGeoLoading: boolean;
   enrichData?: EnrichData;
   onAddToKGR?: (keyword: string) => void;
+  onRead?: () => void;
 }) {
   const [supplyInput, setSupplyInput] = useState("");
   const [storedSupply, setStoredSupply] = useState<number | null>(null);
@@ -2330,15 +2332,15 @@ function EnrichedDecisionPanel({
 
       {/* Simplified Links - grid layout for mobile, row for desktop */}
       <div className="grid grid-cols-4 gap-1 sm:gap-2">
-        <JumpLink href={googleAiUrl(keyword)} label="AI" color="#8b5cf6" />
-        <JumpLink href={googleSearchUrl(keyword)} label="G" color="#4285f4" />
-        <JumpLink href={googleTrendsUrl(keyword)} label="GT" color="#34a853" />
-        <JumpLink href={semrushUrl(keyword)} label="Sem" color="#ff642d" />
-        <JumpLink href={allintitleUrl(keyword)} label="allint" color="#ea4335" />
-        <JumpLink href={domainSearchUrl(keyword)} label="域" color="#de5833" />
-        <JumpLink href={generateGTCompareUrl(keyword)} label="vs gpts" color="#4285f4" />
+        <JumpLink href={googleAiUrl(keyword)} label="AI" color="#8b5cf6" onRead={onRead} />
+        <JumpLink href={googleSearchUrl(keyword)} label="G" color="#4285f4" onRead={onRead} />
+        <JumpLink href={googleTrendsUrl(keyword)} label="GT" color="#34a853" onRead={onRead} />
+        <JumpLink href={semrushUrl(keyword)} label="Sem" color="#ff642d" onRead={onRead} />
+        <JumpLink href={allintitleUrl(keyword)} label="allint" color="#ea4335" onRead={onRead} />
+        <JumpLink href={domainSearchUrl(keyword)} label="域" color="#de5833" onRead={onRead} />
+        <JumpLink href={generateGTCompareUrl(keyword)} label="vs gpts" color="#4285f4" onRead={onRead} />
         {onAddToKGR && (
-          <button onClick={() => onAddToKGR(keyword)}
+          <button onClick={() => { onAddToKGR(keyword); onRead?.(); }}
             className="rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
             style={{ background: "rgba(94, 106, 210, 0.15)", color: "var(--accent-blue-hover)" }}
             title="添加到 KGR 工作台">
@@ -2351,7 +2353,7 @@ function EnrichedDecisionPanel({
 }
 
 // Original simple DecisionPanel for TrendingCard
-function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: string; points: InterestPoint[]; loading: boolean; onAddToKGR?: (keyword: string) => void }) {
+function DecisionPanel({ keyword, points, loading, onAddToKGR, onRead }: { keyword: string; points: InterestPoint[]; loading: boolean; onAddToKGR?: (keyword: string) => void; onRead?: () => void }) {
   return (
     <div className="min-w-0 px-2.5 py-2" style={{ overflowWrap: "break-word" }}>
       {/* Divider */}
@@ -2369,15 +2371,15 @@ function DecisionPanel({ keyword, points, loading, onAddToKGR }: { keyword: stri
         )}
       </div>
       <div className="grid grid-cols-4 gap-1 sm:gap-2">
-        <JumpLink href={googleAiUrl(keyword)} label="AI" color="#8b5cf6" />
-        <JumpLink href={googleSearchUrl(keyword)} label="G" color="#4285f4" />
-        <JumpLink href={googleTrendsUrl(keyword)} label="GT" color="#34a853" />
-        <JumpLink href={semrushUrl(keyword)} label="Sem" color="#ff642d" />
-        <JumpLink href={allintitleUrl(keyword)} label="allint" color="#ea4335" />
-        <JumpLink href={domainSearchUrl(keyword)} label="域" color="#de5833" />
-        <JumpLink href={generateGTCompareUrl(keyword)} label="vs gpts" color="#4285f4" />
+        <JumpLink href={googleAiUrl(keyword)} label="AI" color="#8b5cf6" onRead={onRead} />
+        <JumpLink href={googleSearchUrl(keyword)} label="G" color="#4285f4" onRead={onRead} />
+        <JumpLink href={googleTrendsUrl(keyword)} label="GT" color="#34a853" onRead={onRead} />
+        <JumpLink href={semrushUrl(keyword)} label="Sem" color="#ff642d" onRead={onRead} />
+        <JumpLink href={allintitleUrl(keyword)} label="allint" color="#ea4335" onRead={onRead} />
+        <JumpLink href={domainSearchUrl(keyword)} label="域" color="#de5833" onRead={onRead} />
+        <JumpLink href={generateGTCompareUrl(keyword)} label="vs gpts" color="#4285f4" onRead={onRead} />
         {onAddToKGR && (
-          <button onClick={() => onAddToKGR(keyword)}
+          <button onClick={() => { onAddToKGR(keyword); onRead?.(); }}
             className="rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
             style={{ background: "rgba(94, 106, 210, 0.15)", color: "var(--accent-blue-hover)" }}
             title="添加到 KGR 工作台">
@@ -2463,9 +2465,10 @@ function MiniChart({ points }: { points: InterestPoint[] }) {
   );
 }
 
-function JumpLink({ href, label, color }: { href: string; label: string; color: string }) {
+function JumpLink({ href, label, color, onRead }: { href: string; label: string; color: string; onRead?: () => void }) {
   return (
     <a href={href} target="_blank" rel="noopener noreferrer"
+      onClick={onRead}
       className="flex-1 rounded-md py-1 px-1 text-center text-xs font-medium transition-opacity sm:py-1.5 sm:px-2.5 sm:text-xs hover:opacity-90 active:scale-95"
       style={{
         background: `${color}15`,
