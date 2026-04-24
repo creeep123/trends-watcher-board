@@ -293,7 +293,7 @@ export default function BatchGTPage() {
               <button
                 onClick={() => window.location.href = '/'}
                 className="flex items-center justify-center w-8 h-8 rounded-md transition-colors"
-                style={{ color: "var(--text-tertiary)", background: "transparent", border: "none", cursor: "pointer" }}
+                style={{ color: "var(--text-tertiary)", background: "var(--bg-elevated)", border: "1px solid var(--border)", cursor: "pointer" }}
                 aria-label="返回"
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

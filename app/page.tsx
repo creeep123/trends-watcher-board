@@ -570,7 +570,12 @@ export default function Home() {
   };
 
   const toggleExpand = (name: string) => {
-    setExpandedKeyword(expandedKeyword === name ? null : name);
+    const willExpand = expandedKeyword !== name;
+    setExpandedKeyword(willExpand ? name : null);
+    if (willExpand) {
+      markAsRead("trending", name);
+      markAsRead("queries", name);
+    }
   };
 
   // KGR Workbench handlers
@@ -969,7 +974,7 @@ export default function Home() {
                   <div
                     className="absolute right-0 top-full mt-1"
                     style={{
-                      width: 180,
+                      width: 200,
                       padding: 4,
                       background: "var(--bg-elevated)",
                       border: "1px solid var(--border)",
@@ -989,6 +994,26 @@ export default function Home() {
                       批量 GT 浏览器
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 4l4 4-4 4"/></svg>
                     </a>
+                    {/* Mobile keyword search */}
+                    <div style={{ borderTop: "1px solid var(--border)", margin: "4px 0" }} />
+                    <div style={{ padding: "4px 12px 8px" }}>
+                      <input
+                        type="text"
+                        value={keywordsInput}
+                        onChange={(e) => setKeywordsInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { handleKeywordsSubmit(); setMenuOpen(false); } }}
+                        placeholder={DEFAULT_KEYWORDS}
+                        className="w-full rounded-md border px-2 py-1.5 text-xs outline-none transition-colors"
+                        style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                      />
+                      <button
+                        onClick={() => { handleKeywordsSubmit(); setMenuOpen(false); }}
+                        className="w-full mt-1.5 rounded-md py-1 text-xs font-medium transition-colors"
+                        style={{ background: "var(--accent-blue)", color: "var(--text-primary)" }}
+                      >
+                        Apply
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
