@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
+/** 9AM Beijing time = 1AM UTC */
+function getCycleStart(): string {
+  const now = new Date();
+  const utcH = now.getUTCHours();
+  // If UTC hour < 1, the 9AM BJT boundary hasn't been crossed yet today
+  const day = utcH < 1 ? new Date(now.getTime() - 24 * 60 * 60 * 1000) : now;
+  return `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, "0")}-${String(day.getUTCDate()).padStart(2, "0")}T01:00:00Z`;
+}
+
 export async function GET(request: NextRequest) {
   const itemsParam = request.nextUrl.searchParams.get("items");
   if (!itemsParam) {
@@ -22,7 +31,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ read: [] });
   }
 
-  // Build OR filter: match any (item_type, item_key) pair
+  // Build OR filter: match any (item_type, item_key) pair within current daily cycle
+  const cycleStart = getCycleStart();
   const conditions = pairs.map(p =>
     `item_type.eq.${p.item_type},item_key.eq.${encodeURIComponent(p.item_key)}`
   ).join(",");
@@ -30,7 +40,8 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from("twb_read_items")
     .select("item_type, item_key")
-    .or(conditions);
+    .or(conditions)
+    .gte("read_at", cycleStart);
 
   if (error) {
     console.error("Read items query error:", error);
@@ -53,7 +64,7 @@ export async function POST(request: NextRequest) {
 
   const { error } = await supabase
     .from("twb_read_items")
-    .upsert({ item_type, item_key }, { onConflict: "item_type,item_key" });
+    .upsert({ item_type, item_key, read_at: new Date().toISOString() }, { onConflict: "item_type,item_key" });
 
   if (error) {
     console.error("Read items upsert error:", error);
