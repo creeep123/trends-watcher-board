@@ -325,7 +325,8 @@ export default function Home() {
       const res = await fetch("/api/reddit?sort=hot");
       if (res.ok) {
         const json = await res.json();
-        setRedditPosts(json.posts || []);
+        const posts = (json.posts || []).sort((a: RedditPost, b: RedditPost) => new Date(b.published).getTime() - new Date(a.published).getTime());
+        setRedditPosts(posts);
         setRedditKeywords(json.keywords || []);
       }
     } catch {
@@ -357,7 +358,8 @@ export default function Home() {
       const res = await fetch("/api/technews");
       if (res.ok) {
         const json = await res.json();
-        setTechNewsPosts(json.articles || []);
+        const articles = (json.articles || []).sort((a: TechNewsPost, b: TechNewsPost) => new Date(b.published).getTime() - new Date(a.published).getTime());
+        setTechNewsPosts(articles);
       }
     } catch {
       setTechNewsPosts([]);
