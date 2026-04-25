@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-/** 9AM Beijing time = 1AM UTC */
-function getCycleStart(): string {
-  const now = new Date();
-  const utcH = now.getUTCHours();
-  // If UTC hour < 1, the 9AM BJT boundary hasn't been crossed yet today
-  const day = utcH < 1 ? new Date(now.getTime() - 24 * 60 * 60 * 1000) : now;
-  return `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, "0")}-${String(day.getUTCDate()).padStart(2, "0")}T01:00:00Z`;
+/** Read items expire after 7 days */
+function getReadExpiry(): string {
+  return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 }
 
 export async function GET(request: NextRequest) {
@@ -31,8 +27,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ read: [] });
   }
 
-  // Build OR filter: match any (item_type, item_key) pair within current daily cycle
-  const cycleStart = getCycleStart();
+  // Build OR filter: match any (item_type, item_key) pair read within 7 days
+  const expiry = getReadExpiry();
   const conditions = pairs.map(p =>
     `item_type.eq.${p.item_type},item_key.eq.${encodeURIComponent(p.item_key)}`
   ).join(",");
@@ -41,7 +37,7 @@ export async function GET(request: NextRequest) {
     .from("twb_read_items")
     .select("item_type, item_key")
     .or(conditions)
-    .gte("read_at", cycleStart);
+    .gte("read_at", expiry);
 
   if (error) {
     console.error("Read items query error:", error);
