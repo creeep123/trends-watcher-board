@@ -17,6 +17,9 @@ import type {
   EnrichResponse,
   KGRItem,
   RootKeyword,
+  ProductHuntProduct,
+  HuggingFaceModel,
+  IndieHackersPost,
 } from "@/lib/types";
 import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS,
   getKGRInterpretation, getEKGRInterpretation, getKDROIInterpretation,
@@ -191,7 +194,7 @@ function domainSearchUrl(kw: string) {
 
 // --- Mobile tab type ---
 
-type MobileTab = "trending" | "queries" | "reddit" | "github" | "hn" | "technews";
+type MobileTab = "trending" | "queries" | "reddit" | "github" | "hn" | "technews" | "ph" | "hf" | "ih";
 
 // --- Main ---
 
@@ -230,6 +233,19 @@ export default function Home() {
 
   const [techNewsPosts, setTechNewsPosts] = useState<TechNewsPost[]>([]);
   const [techNewsLoading, setTechNewsLoading] = useState(true);
+
+  const [phProducts, setPhProducts] = useState<ProductHuntProduct[]>([]);
+  const [phLoading, setPhLoading] = useState(true);
+
+  const [hfModels, setHfModels] = useState<HuggingFaceModel[]>([]);
+  const [hfLoading, setHfLoading] = useState(true);
+
+  const [ihPosts, setIhPosts] = useState<IndieHackersPost[]>([]);
+  const [ihLoading, setIhLoading] = useState(true);
+
+  const [expandedPH, setExpandedPH] = useState<string | null>(null);
+  const [expandedHF, setExpandedHF] = useState<string | null>(null);
+  const [expandedIH, setExpandedIH] = useState<string | null>(null);
 
   const [enrichMap, setEnrichMap] = useState<Record<string, EnrichData>>({});
   const [enrichLoading, setEnrichLoading] = useState(false);
@@ -368,6 +384,51 @@ export default function Home() {
     }
   }, []);
 
+  const fetchProductHunt = useCallback(async () => {
+    setPhLoading(true);
+    try {
+      const res = await fetch("/api/producthunt");
+      if (res.ok) {
+        const json = await res.json();
+        setPhProducts(json.products || []);
+      }
+    } catch {
+      setPhProducts([]);
+    } finally {
+      setPhLoading(false);
+    }
+  }, []);
+
+  const fetchHuggingFace = useCallback(async () => {
+    setHfLoading(true);
+    try {
+      const res = await fetch("/api/huggingface");
+      if (res.ok) {
+        const json = await res.json();
+        setHfModels(json.models || []);
+      }
+    } catch {
+      setHfModels([]);
+    } finally {
+      setHfLoading(false);
+    }
+  }, []);
+
+  const fetchIndieHackers = useCallback(async () => {
+    setIhLoading(true);
+    try {
+      const res = await fetch("/api/indiehackers");
+      if (res.ok) {
+        const json = await res.json();
+        setIhPosts(json.posts || []);
+      }
+    } catch {
+      setIhPosts([]);
+    } finally {
+      setIhLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     // 页面加载时不主动获取数据，只从 localStorage 读取缓存
     if (forceRefresh) {
@@ -399,18 +460,24 @@ export default function Home() {
   useEffect(() => { fetchReddit(); }, [fetchReddit]);
   useEffect(() => { fetchHackerNews(); }, [fetchHackerNews]);
   useEffect(() => { fetchTechNews(); }, [fetchTechNews]);
+  useEffect(() => { fetchProductHunt(); }, [fetchProductHunt]);
+  useEffect(() => { fetchHuggingFace(); }, [fetchHuggingFace]);
+  useEffect(() => { fetchIndieHackers(); }, [fetchIndieHackers]);
 
   // Fetch read status for all visible items after data loads
   useEffect(() => {
-    const items: { item_type: "trending" | "queries" | "reddit" | "hn" | "technews" | "github"; item_key: string }[] = [];
+    const items: { item_type: "trending" | "queries" | "reddit" | "hn" | "technews" | "github" | "ph" | "hf" | "ih"; item_key: string }[] = [];
     trendingItems.forEach(k => items.push({ item_type: "trending", item_key: k.name }));
     data?.google?.forEach(k => items.push({ item_type: "queries", item_key: k.name }));
     redditPosts.forEach(p => { if (p.url) items.push({ item_type: "reddit", item_key: p.url }); });
     hnPosts.forEach(p => items.push({ item_type: "hn", item_key: String(p.id) }));
     techNewsPosts.forEach(a => { if (a.url) items.push({ item_type: "technews", item_key: a.url }); });
     data?.github?.forEach(g => items.push({ item_type: "github", item_key: g.name }));
+    phProducts.forEach(p => items.push({ item_type: "ph", item_key: p.name }));
+    hfModels.forEach(m => items.push({ item_type: "hf", item_key: m.modelId }));
+    ihPosts.forEach(p => { if (p.url) items.push({ item_type: "ih", item_key: p.url }); });
     if (items.length > 0) fetchReadStatus(items);
-  }, [data, trendingItems, redditPosts, hnPosts, techNewsPosts, fetchReadStatus]);
+  }, [data, trendingItems, redditPosts, hnPosts, techNewsPosts, phProducts, hfModels, ihPosts, fetchReadStatus]);
 
   // Load KGR workbench on mount - try Supabase first, fallback to localStorage
   useEffect(() => {
@@ -934,6 +1001,9 @@ export default function Home() {
     { key: "reddit", label: "Reddit", icon: "💬" },
     { key: "hn", label: "HN", icon: "🍊" },
     { key: "technews", label: "Tech", icon: "📰" },
+    { key: "ph", label: "PH", icon: "🚀" },
+    { key: "ih", label: "IH", icon: "🏪" },
+    { key: "hf", label: "HF", icon: "🤗" },
   ];
 
   return (
@@ -1019,7 +1089,7 @@ export default function Home() {
                 )}
               </div>
               <button
-                onClick={() => { fetchData(); fetchTrending(); fetchReddit(); fetchHackerNews(); fetchTechNews(); }}
+                onClick={() => { fetchData(); fetchTrending(); fetchReddit(); fetchHackerNews(); fetchTechNews(); fetchProductHunt(); fetchHuggingFace(); fetchIndieHackers(); }}
                 disabled={loading}
                 className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm"
                 style={{
@@ -1057,12 +1127,12 @@ export default function Home() {
 
           {/* Mobile Tab Bar — inside header so it sticks together */}
           <div className="mt-1 sm:hidden">
-            <div className="flex">
+            <div className="flex overflow-x-auto">
               {MOBILE_TABS.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setMobileTab(tab.key)}
-                  className="flex-1 py-2 text-center text-xs font-medium transition-colors"
+                  className="flex-shrink-0 px-3 py-2 text-center text-xs font-medium transition-colors"
                   style={{
                     color: mobileTab === tab.key ? "var(--accent-blue-hover)" : "var(--text-tertiary)",
                     borderBottom: mobileTab === tab.key ? "2px solid var(--accent-blue-hover)" : "2px solid transparent",
@@ -1734,6 +1804,84 @@ export default function Home() {
                 )}
               </div>
             </section>
+
+            {/* --- Product Hunt --- */}
+            <section className={`${mobileTab !== "ph" ? "hidden" : ""} sm:block`}>
+              <SectionHeader title="Product Hunt" icon="🚀" count={phProducts.length} />
+              <div className="min-w-0 mt-2 space-y-2 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+                {phLoading ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="h-14 animate-pulse rounded-lg" style={{ background: "var(--bg-card)", opacity: 1 - i * 0.12 }} />
+                  ))
+                ) : phProducts.length === 0 ? (
+                  <EmptyState text="No Product Hunt data" />
+                ) : (
+                  phProducts.map((product, i) => (
+                    <ProductHuntCard
+                      key={`ph-${i}`}
+                      product={product}
+                      index={i}
+                      isExpanded={expandedPH === product.name}
+                      onToggle={() => setExpandedPH(expandedPH === product.name ? null : product.name)}
+                      read={isRead("ph", product.name)}
+                      onRead={() => markAsRead("ph", product.name)}
+                    />
+                  ))
+                )}
+              </div>
+            </section>
+
+            {/* --- HuggingFace --- */}
+            <section className={`${mobileTab !== "hf" ? "hidden" : ""} sm:block`}>
+              <SectionHeader title="HuggingFace" icon="🤗" count={hfModels.length} />
+              <div className="min-w-0 mt-2 space-y-2 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+                {hfLoading ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="h-12 animate-pulse rounded-lg" style={{ background: "var(--bg-card)", opacity: 1 - i * 0.12 }} />
+                  ))
+                ) : hfModels.length === 0 ? (
+                  <EmptyState text="No HuggingFace data" />
+                ) : (
+                  hfModels.map((model, i) => (
+                    <HuggingFaceCard
+                      key={`hf-${i}`}
+                      model={model}
+                      index={i}
+                      isExpanded={expandedHF === model.modelId}
+                      onToggle={() => setExpandedHF(expandedHF === model.modelId ? null : model.modelId)}
+                      read={isRead("hf", model.modelId)}
+                      onRead={() => markAsRead("hf", model.modelId)}
+                    />
+                  ))
+                )}
+              </div>
+            </section>
+
+            {/* --- Indie Hackers --- */}
+            <section className={`${mobileTab !== "ih" ? "hidden" : ""} sm:block`}>
+              <SectionHeader title="Indie Hackers" icon="🏪" count={ihPosts.length} />
+              <div className="min-w-0 mt-2 space-y-2 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
+                {ihLoading ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="h-12 animate-pulse rounded-lg" style={{ background: "var(--bg-card)", opacity: 1 - i * 0.12 }} />
+                  ))
+                ) : ihPosts.length === 0 ? (
+                  <EmptyState text="No Indie Hackers data" />
+                ) : (
+                  ihPosts.map((post, i) => (
+                    <IndieHackersCard
+                      key={`ih-${i}`}
+                      post={post}
+                      index={i}
+                      isExpanded={expandedIH === post.url}
+                      onToggle={() => setExpandedIH(expandedIH === post.url ? null : post.url)}
+                      read={isRead("ih", post.url)}
+                      onRead={() => markAsRead("ih", post.url)}
+                    />
+                  ))
+                )}
+              </div>
+            </section>
           </div>
       </main>
 
@@ -1915,6 +2063,263 @@ function TrendingCard({
         <Chevron open={isExpanded} />
       </button>
       {isExpanded && <DecisionPanel keyword={item.name} points={interestData} loading={interestLoading} onAddToKGR={onAddToKGR} onRead={onRead} />}
+    </div>
+  );
+}
+
+function formatNum(n: number | undefined): string {
+  if (typeof n !== "number" || isNaN(n)) return "0";
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return n.toString();
+}
+
+function ExpandableSummary({ summary, tags }: { summary?: string; tags?: string[] }) {
+  if (!summary && (!tags || tags.length === 0)) return null;
+  return (
+    <div className="mt-2 border-t px-3 py-2" style={{ borderColor: "var(--border)" }}>
+      {summary && (
+        <p className="text-xs leading-relaxed break-words" style={{ color: "var(--text-secondary)" }}>
+          {summary}
+        </p>
+      )}
+      {tags && tags.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {tags.map((tag, i) => (
+            <span
+              key={i}
+              className="rounded-md px-1.5 py-0.5 text-xs font-medium"
+              style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProductHuntCard({ product, index, isExpanded, onToggle, read, onRead }: {
+  product: ProductHuntProduct;
+  index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+  read: boolean;
+  onRead: () => void;
+}) {
+  return (
+    <div
+      className="group min-w-0 overflow-hidden border transition-all"
+      style={{
+        background: "var(--bg-card)",
+        borderColor: isExpanded ? "var(--accent-blue-hover)" : "var(--border)",
+        borderRadius: "var(--radius-lg)",
+        opacity: read ? 0.4 : 1,
+      }}
+    >
+      <button onClick={() => { onToggle(); if (isExpanded) onRead(); }} className="flex min-w-0 w-full items-center gap-2.5 p-2.5 text-left sm:gap-3">
+        <Rank n={index + 1} />
+        {product.thumbnail && (
+          <img src={product.thumbnail} alt="" className="h-8 w-8 rounded object-cover flex-shrink-0" loading="lazy" />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+              {product.name}
+            </span>
+          </div>
+          <div className="mt-0.5 line-clamp-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
+            {product.tagline}
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+            ▲ {formatNum(product.votesCount)}
+          </span>
+          {product.url && (
+            <a
+              href={product.url}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center h-8 w-8 -mr-1.5 rounded transition-colors sm:h-auto sm:w-auto sm:p-1"
+              style={{ color: "var(--text-tertiary)" }}
+              onClick={(e) => { e.stopPropagation(); onRead(); }}
+            >
+              <ExternalIcon />
+            </a>
+          )}
+        </div>
+      </button>
+      {isExpanded && (
+        <>
+          <ExpandableSummary summary={product.summary} tags={product.tags} />
+          {product.url ? (
+            <a
+              href={product.url}
+              target="_blank" rel="noopener noreferrer"
+              className="group border-t px-3 py-2.5 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:hover:bg-[var(--bg-card-hover)]"
+              style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
+              onClick={() => onRead()}
+            >
+              <div className="flex gap-3 text-xs">
+                <span>💬 {product.commentsCount}</span>
+                {product.topics.length > 0 && <span>{product.topics.slice(0, 3).join(", ")}</span>}
+              </div>
+              <ExternalIcon />
+            </a>
+          ) : (
+            <div className="border-t px-3 py-2.5 flex gap-3 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}>
+              <span>💬 {product.commentsCount}</span>
+              {product.topics.length > 0 && <span>{product.topics.slice(0, 3).join(", ")}</span>}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function HuggingFaceCard({ model, index, isExpanded, onToggle, read, onRead }: {
+  model: HuggingFaceModel;
+  index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+  read: boolean;
+  onRead: () => void;
+}) {
+  return (
+    <div
+      className="group min-w-0 overflow-hidden border transition-all"
+      style={{
+        background: "var(--bg-card)",
+        borderColor: isExpanded ? "var(--accent-blue-hover)" : "var(--border)",
+        borderRadius: "var(--radius-lg)",
+        opacity: read ? 0.4 : 1,
+      }}
+    >
+      <button onClick={() => { onToggle(); if (isExpanded) onRead(); }} className="flex min-w-0 w-full items-center gap-2.5 p-2.5 text-left sm:gap-3">
+        <Rank n={index + 1} />
+        <div className="min-w-0 flex-1">
+          <div className="min-w-0 truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+            {model.modelId}
+          </div>
+          <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
+            <span>{model.pipelineTag || "unknown"}</span>
+            <span>·</span>
+            <span>↓ {formatNum(model.downloads)}</span>
+            <span>·</span>
+            <span>♥ {formatNum(model.likes)}</span>
+          </div>
+        </div>
+        <a
+          href={model.url}
+          target="_blank" rel="noopener noreferrer"
+          className="flex items-center justify-center h-8 w-8 -mr-1.5 rounded transition-colors sm:h-auto sm:w-auto sm:p-1"
+          style={{ color: "var(--text-tertiary)" }}
+          onClick={(e) => { e.stopPropagation(); onRead(); }}
+        >
+          <ExternalIcon />
+        </a>
+      </button>
+      {isExpanded && (
+        <>
+          <ExpandableSummary summary={model.summary} tags={model.aiTags} />
+          <a
+            href={model.url}
+            target="_blank" rel="noopener noreferrer"
+            className="group border-t px-3 py-2.5 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:hover:bg-[var(--bg-card-hover)]"
+            style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
+            onClick={() => onRead()}
+          >
+            <span className="text-xs">by {model.author}</span>
+            <ExternalIcon />
+          </a>
+        </>
+      )}
+    </div>
+  );
+}
+
+function IndieHackersCard({ post, index, isExpanded, onToggle, read, onRead }: {
+  post: IndieHackersPost;
+  index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+  read: boolean;
+  onRead: () => void;
+}) {
+  return (
+    <div
+      className="group min-w-0 overflow-hidden border transition-all"
+      style={{
+        background: "var(--bg-card)",
+        borderColor: isExpanded ? "var(--accent-blue-hover)" : "var(--border)",
+        borderRadius: "var(--radius-lg)",
+        opacity: read ? 0.4 : 1,
+      }}
+    >
+      <button onClick={() => { onToggle(); if (isExpanded) onRead(); }} className="flex min-w-0 w-full items-center gap-2.5 p-2.5 text-left sm:gap-3">
+        <Rank n={index + 1} />
+        <div className="min-w-0 flex-1">
+          <div className="min-w-0 truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+            {post.title}
+          </div>
+          <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
+            <span
+              className="rounded px-1 py-0.5"
+              style={{
+                background: post.type === "product" ? "rgba(52, 211, 153, 0.1)" : "var(--bg-elevated)",
+                color: post.type === "product" ? "#34d399" : "var(--text-tertiary)",
+              }}
+            >
+              {post.type === "product" ? "🛍️ Product" : post.groupName}
+            </span>
+            <span>by {post.author}</span>
+            {post.revenue && (
+              <>
+                <span>·</span>
+                <span style={{ color: "#34d399" }}>{post.revenue}</span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+            ▲ {formatNum(post.votes)}
+          </span>
+          {post.url && (
+            <a
+              href={post.url}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center h-8 w-8 -mr-1.5 rounded transition-colors sm:h-auto sm:w-auto sm:p-1"
+              style={{ color: "var(--text-tertiary)" }}
+              onClick={(e) => { e.stopPropagation(); onRead(); }}
+            >
+              <ExternalIcon />
+            </a>
+          )}
+        </div>
+      </button>
+      {isExpanded && (
+        <>
+          <ExpandableSummary summary={post.summary} tags={post.tags} />
+          {post.url ? (
+            <a
+              href={post.url}
+              target="_blank" rel="noopener noreferrer"
+              className="group border-t px-3 py-2.5 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:hover:bg-[var(--bg-card-hover)]"
+              style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
+              onClick={() => onRead()}
+            >
+              <span className="text-xs">💬 {post.comments} comments</span>
+              <ExternalIcon />
+            </a>
+          ) : (
+            <div className="border-t px-3 py-2.5 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}>
+              💬 {post.comments} comments
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

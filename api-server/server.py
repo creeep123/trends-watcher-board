@@ -28,11 +28,9 @@ from pytrends.request import TrendReq
 from TikTokApi import TikTokApi
 from supabase import create_client, Client as SupabaseClient
 
-OPENROUTER_API_KEY = os.environ.get(
-    "OPENROUTER_API_KEY",
-    "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",
-)
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 LLM_MODEL = "z-ai/glm-4.5-air:free"
+PRODUCT_HUNT_TOKEN = os.environ.get("PRODUCT_HUNT_TOKEN", "")
 
 # Supabase & Push config
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
@@ -56,6 +54,9 @@ CACHE_TTL_MAP = {
     "tiktok":    1800,   # 30min — TikTok videos
     "enrich":    3600,   # 1h — composite scoring
     "allintitle": 7200,  # 2h — competition changes slowly
+    "producthunt": 86400,  # 24h — daily product launches
+    "huggingface": 3600,   # 1h — model trends update moderately
+    "indiehackers": 3600,  # 1h — posts update moderately
 }
 DEFAULT_TTL = 3600  # 1h fallback
 
@@ -384,6 +385,63 @@ def _classify_tech_terms(names: list[str]) -> set[str]:
         print(f"[LLM] classification error: {e}")
 
     return set()
+
+
+def _generate_batch_summaries(items: list[dict], source: str) -> list[dict]:
+    """Use LLM to generate 2-3 sentence summaries and tags for a batch of items."""
+    if not items or not OPENROUTER_API_KEY:
+        return items
+
+    # Build item list for prompt
+    item_texts = []
+    for i, item in enumerate(items):
+        if source == "producthunt":
+            item_texts.append(f"{i+1}. Name: {item.get('name','')}\n   Tagline: {item.get('tagline','')}\n   Topics: {', '.join(item.get('topics',[]))}\n   Votes: {item.get('votesCount',0)}")
+        elif source == "huggingface":
+            item_texts.append(f"{i+1}. Model: {item.get('modelId','')}\n   Author: {item.get('author','')}\n   Pipeline: {item.get('pipelineTag','')}\n   Downloads: {item.get('downloads',0)}\n   Tags: {', '.join(item.get('tags',[])[:5])}")
+        elif source == "indiehackers":
+            item_texts.append(f"{i+1}. Title: {item.get('title','')}\n   Author: {item.get('author','')}\n   Group: {item.get('groupName','')}\n   Votes: {item.get('votes',0)}\n   Type: {item.get('type','post')}\n   Revenue: {item.get('revenue','N/A')}")
+
+    prompt = (
+        f"For each of these {source} items, provide:\n"
+        "- A 2-3 sentence description of what it is and why it matters to builders/makers\n"
+        "- 3-5 relevant tags (AI, SaaS, open-source, etc.)\n\n"
+        "Reply ONLY with a JSON object mapping item NUMBER (as string) to {\"summary\": \"...\", \"tags\": [\"...\", \"...\"]}.\n"
+        "No explanation, just the JSON object.\n\n"
+        "Items:\n" + "\n".join(item_texts)
+    )
+
+    try:
+        resp = http_requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": LLM_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 2000,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"].strip()
+        # Extract JSON object
+        start = content.find("{")
+        end = content.rfind("}")
+        if start != -1 and end != -1:
+            summaries = json.loads(content[start:end + 1])
+            for i, item in enumerate(items):
+                key = str(i + 1)
+                if key in summaries:
+                    item["summary"] = summaries[key].get("summary", "")
+                    item["tags"] = summaries[key].get("tags", [])
+    except Exception as e:
+        print(f"[LLM] {source} summary error: {e}")
+
+    return items
 
 
 @app.get("/api/trending")
@@ -802,6 +860,221 @@ def get_reddit(
         "subreddits": REDDIT_SUB_NAMES,
         "sort": sort,
         "total_posts": len(filtered),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    _set_cache(cache_key, response)
+    return response
+
+
+# --- Product Hunt ---
+
+PH_API_URL = "https://api.producthunt.com/v2/api/graphql"
+
+
+@app.get("/api/producthunt")
+def get_producthunt():
+    """Fetch today's top products from Product Hunt."""
+    cache_key = "producthunt|daily"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    if not PRODUCT_HUNT_TOKEN:
+        return {"products": [], "timestamp": datetime.now(timezone.utc).isoformat(), "_status": "PRODUCT_HUNT_TOKEN not configured"}
+
+    try:
+        headers = {"Authorization": f"Bearer {PRODUCT_HUNT_TOKEN}"}
+        # Fetch today's posts
+        query = """
+        { posts(order: VOTES, first: 20) {
+          edges {
+            node {
+              name
+              tagline
+              votesCount
+              commentsCount
+              website
+              thumbnail { url }
+              topics { edges { node { name } } }
+              createdAt
+            }
+          }
+        }}
+        """
+        resp = http_requests.post(PH_API_URL, headers=headers, json={"query": query}, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        if "errors" in data:
+            print(f"[PH] GraphQL errors: {data['errors']}")
+            raise Exception(f"GraphQL error: {data['errors']}")
+
+        products = []
+        for edge in data.get("data", {}).get("posts", {}).get("edges", []):
+            node = edge["node"]
+            topics = [t["node"]["name"] for t in node.get("topics", {}).get("edges", [])]
+            products.append({
+                "name": node.get("name", ""),
+                "tagline": node.get("tagline", ""),
+                "votesCount": node.get("votesCount", 0),
+                "commentsCount": node.get("commentsCount", 0),
+                "url": node.get("website", ""),
+                "thumbnail": node.get("thumbnail", {}).get("url", ""),
+                "topics": topics,
+                "createdAt": node.get("createdAt", ""),
+            })
+
+        # Generate AI summaries
+        products = _generate_batch_summaries(products, "producthunt")
+
+        response = {
+            "products": products,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        _set_cache(cache_key, response)
+        return response
+
+    except Exception as e:
+        print(f"[PH] Error: {e}")
+        stale = _get_stale(cache_key)
+        if stale:
+            return {**stale, "_stale": True, "_status": f"Product Hunt 暂时不可用: {str(e)}"}
+        return {"products": [], "timestamp": datetime.now(timezone.utc).isoformat(), "_status": f"Product Hunt 暂时不可用: {str(e)}"}
+
+
+# --- HuggingFace ---
+
+
+@app.get("/api/huggingface")
+def get_huggingface():
+    """Fetch trending models from HuggingFace Hub."""
+    cache_key = "huggingface|trending"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    try:
+        # Use the public HF Hub API - trending models by recent downloads
+        resp = http_requests.get(
+            "https://huggingface.co/api/models",
+            params={"sort": "downloads", "limit": "20"},
+            headers={"User-Agent": "TrendsWatcher/1.0"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        raw_models = resp.json()
+
+        models = []
+        for m in raw_models[:20]:
+            model_id = m.get("id", m.get("modelId", ""))
+            models.append({
+                "modelId": model_id,
+                "author": m.get("author", m.get("_id", "").split("/")[0] if "/" in m.get("_id", "") else ""),
+                "downloads": m.get("downloads", 0),
+                "likes": m.get("likes", 0),
+                "tags": m.get("tags", [])[:8],
+                "pipelineTag": m.get("pipeline_tag", ""),
+                "createdAt": m.get("createdAt", m.get("lastModified", "")),
+                "url": f"https://huggingface.co/{model_id}",
+            })
+
+        # Generate AI summaries
+        models = _generate_batch_summaries(models, "huggingface")
+
+        response = {
+            "models": models,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        _set_cache(cache_key, response)
+        return response
+
+    except Exception as e:
+        print(f"[HF] Error: {e}")
+        stale = _get_stale(cache_key)
+        if stale:
+            return {**stale, "_stale": True, "_status": f"HuggingFace 暂时不可用: {str(e)}"}
+        return {"models": [], "timestamp": datetime.now(timezone.utc).isoformat(), "_status": f"HuggingFace 暂时不可用: {str(e)}"}
+
+
+# --- Indie Hackers ---
+
+
+IH_ALGOLIA_ID = "N86T1R3OWZ"
+IH_ALGOLIA_KEY = "5140dac5e87f47346abbda1a34ee70c3"
+
+
+def _fetch_indiehackers_posts() -> list[dict]:
+    """Fetch IH posts via Jina Reader (renders the JS-heavy SPA)."""
+    try:
+        resp = http_requests.get(
+            "https://r.jina.ai/https://www.indiehackers.com/page/latest",
+            headers={"Accept": "text/markdown"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        markdown = resp.text
+
+        posts: list[dict] = []
+        # Parse post links from markdown: [Title](url)
+        # Pattern: [Title text](https://www.indiehackers.com/post/...) or .../product/...)
+        pattern = r'\[([^\]]+)\]\((https://www\.indiehackers\.com/(?:post|product)/[^)]+)\)'
+        matches = re.findall(pattern, markdown)
+
+        # Parse stats from markdown: "X upvotes" and "Y comments"
+        upvotes_pattern = r'(\d+)\s*upvotes'
+        comments_pattern = r'(\d+)\s*comments'
+
+        seen_titles: set[str] = set()
+        for title, url in matches:
+            title = title.strip()
+            key = title.lower()
+            # Skip comment/upvote count lines and very short titles
+            if key in seen_titles or len(title) < 15:
+                continue
+            if re.match(r'^\d+\s+(upvote|comment|reply)', key):
+                continue
+            seen_titles.add(key)
+
+            # Determine type from URL
+            is_product = "/product/" in url
+
+            posts.append({
+                "title": title[:200],
+                "url": url,
+                "votes": 0,
+                "comments": 0,
+                "author": "unknown",
+                "groupName": "",
+                "type": "product" if is_product else "post",
+                "revenue": "",
+            })
+
+        return posts
+    except Exception as e:
+        print(f"[IH] Jina fetch error: {e}")
+        return []
+
+
+@app.get("/api/indiehackers")
+def get_indiehackers():
+    """Fetch posts and products from Indie Hackers."""
+    cache_key = "indiehackers|latest"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    posts = _fetch_indiehackers_posts()
+
+    if not posts:
+        stale = _get_stale(cache_key)
+        if stale:
+            return {**stale, "_stale": True, "_status": "Indie Hackers 暂时不可用"}
+        return {"posts": [], "timestamp": datetime.now(timezone.utc).isoformat(), "_status": "Indie Hackers 暂时不可用"}
+
+    # Generate AI summaries
+    posts = _generate_batch_summaries(posts, "indiehackers")
+
+    response = {
+        "posts": posts[:20],
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     _set_cache(cache_key, response)

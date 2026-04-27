@@ -404,3 +404,60 @@ export interface RootKeywordLibrary {
     lowPriorityFrequency: number;
   };
 }
+
+// Product Hunt
+export interface ProductHuntProduct {
+  name: string;
+  tagline: string;
+  votesCount: number;
+  commentsCount: number;
+  url: string;
+  thumbnail: string;
+  topics: string[];
+  createdAt: string;
+  summary?: string;
+  tags?: string[];
+}
+
+export interface ProductHuntResponse {
+  products: ProductHuntProduct[];
+  timestamp: string;
+}
+
+// HuggingFace
+export interface HuggingFaceModel {
+  modelId: string;
+  author: string;
+  downloads: number;
+  likes: number;
+  tags: string[];
+  pipelineTag: string;
+  createdAt: string;
+  url: string;
+  summary?: string;
+  aiTags?: string[];
+}
+
+export interface HuggingFaceResponse {
+  models: HuggingFaceModel[];
+  timestamp: string;
+}
+
+// Indie Hackers
+export interface IndieHackersPost {
+  title: string;
+  url: string;
+  votes: number;
+  comments: number;
+  author: string;
+  groupName: string;
+  type: "post" | "product";
+  revenue?: string;
+  summary?: string;
+  tags?: string[];
+}
+
+export interface IndieHackersResponse {
+  posts: IndieHackersPost[];
+  timestamp: string;
+}
