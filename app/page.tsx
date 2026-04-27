@@ -1002,8 +1002,8 @@ export default function Home() {
     { key: "hn", label: "HN", icon: "🍊" },
     { key: "technews", label: "Tech", icon: "📰" },
     { key: "ph", label: "PH", icon: "🚀" },
-    { key: "hf", label: "HF", icon: "🤗" },
     { key: "ih", label: "IH", icon: "🏪" },
+    { key: "hf", label: "HF", icon: "🤗" },
   ];
 
   return (
@@ -2078,7 +2078,7 @@ function ExpandableSummary({ summary, tags }: { summary?: string; tags?: string[
   return (
     <div className="mt-2 border-t px-3 py-2" style={{ borderColor: "var(--border)" }}>
       {summary && (
-        <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+        <p className="text-xs leading-relaxed break-words" style={{ color: "var(--text-secondary)" }}>
           {summary}
         </p>
       )}
@@ -2109,7 +2109,7 @@ function ProductHuntCard({ product, index, isExpanded, onToggle, read, onRead }:
 }) {
   return (
     <div
-      className="min-w-0 overflow-hidden border transition-all"
+      className="group min-w-0 overflow-hidden border transition-all"
       style={{
         background: "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : "var(--border)",
@@ -2128,37 +2128,50 @@ function ProductHuntCard({ product, index, isExpanded, onToggle, read, onRead }:
               {product.name}
             </span>
           </div>
-          <div className="mt-0.5 truncate text-xs" style={{ color: "var(--text-tertiary)" }}>
+          <div className="mt-0.5 line-clamp-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
             {product.tagline}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
             ▲ {formatNum(product.votesCount)}
           </span>
-          <Chevron open={isExpanded} />
+          {product.url && (
+            <a
+              href={product.url}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center h-8 w-8 -mr-1.5 rounded transition-colors sm:h-auto sm:w-auto sm:p-1"
+              style={{ color: "var(--text-tertiary)" }}
+              onClick={(e) => { e.stopPropagation(); onRead(); }}
+            >
+              <ExternalIcon />
+            </a>
+          )}
         </div>
       </button>
       {isExpanded && (
         <>
           <ExpandableSummary summary={product.summary} tags={product.tags} />
-          <div className="border-t px-3 py-2 flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-            <div className="flex gap-3 text-xs" style={{ color: "var(--text-tertiary)" }}>
+          {product.url ? (
+            <a
+              href={product.url}
+              target="_blank" rel="noopener noreferrer"
+              className="group border-t px-3 py-2.5 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:hover:bg-[var(--bg-card-hover)]"
+              style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
+              onClick={() => onRead()}
+            >
+              <div className="flex gap-3 text-xs">
+                <span>💬 {product.commentsCount}</span>
+                {product.topics.length > 0 && <span>{product.topics.slice(0, 3).join(", ")}</span>}
+              </div>
+              <ExternalIcon />
+            </a>
+          ) : (
+            <div className="border-t px-3 py-2.5 flex gap-3 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}>
               <span>💬 {product.commentsCount}</span>
               {product.topics.length > 0 && <span>{product.topics.slice(0, 3).join(", ")}</span>}
             </div>
-            {product.url && (
-              <a
-                href={product.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-medium"
-                style={{ color: "var(--accent)" }}
-              >
-                Visit →
-              </a>
-            )}
-          </div>
+          )}
         </>
       )}
     </div>
@@ -2175,7 +2188,7 @@ function HuggingFaceCard({ model, index, isExpanded, onToggle, read, onRead }: {
 }) {
   return (
     <div
-      className="min-w-0 overflow-hidden border transition-all"
+      className="group min-w-0 overflow-hidden border transition-all"
       style={{
         background: "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : "var(--border)",
@@ -2197,25 +2210,29 @@ function HuggingFaceCard({ model, index, isExpanded, onToggle, read, onRead }: {
             <span>♥ {formatNum(model.likes)}</span>
           </div>
         </div>
-        <Chevron open={isExpanded} />
+        <a
+          href={model.url}
+          target="_blank" rel="noopener noreferrer"
+          className="flex items-center justify-center h-8 w-8 -mr-1.5 rounded transition-colors sm:h-auto sm:w-auto sm:p-1"
+          style={{ color: "var(--text-tertiary)" }}
+          onClick={(e) => { e.stopPropagation(); onRead(); }}
+        >
+          <ExternalIcon />
+        </a>
       </button>
       {isExpanded && (
         <>
           <ExpandableSummary summary={model.summary} tags={model.aiTags} />
-          <div className="border-t px-3 py-2 flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-            <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-              by {model.author}
-            </span>
-            <a
-              href={model.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-medium"
-              style={{ color: "var(--accent)" }}
-            >
-              View →
-            </a>
-          </div>
+          <a
+            href={model.url}
+            target="_blank" rel="noopener noreferrer"
+            className="group border-t px-3 py-2.5 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:hover:bg-[var(--bg-card-hover)]"
+            style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
+            onClick={() => onRead()}
+          >
+            <span className="text-xs">by {model.author}</span>
+            <ExternalIcon />
+          </a>
         </>
       )}
     </div>
@@ -2232,7 +2249,7 @@ function IndieHackersCard({ post, index, isExpanded, onToggle, read, onRead }: {
 }) {
   return (
     <div
-      className="min-w-0 overflow-hidden border transition-all"
+      className="group min-w-0 overflow-hidden border transition-all"
       style={{
         background: "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : "var(--border)",
@@ -2265,32 +2282,42 @@ function IndieHackersCard({ post, index, isExpanded, onToggle, read, onRead }: {
             )}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
             ▲ {formatNum(post.votes)}
           </span>
-          <Chevron open={isExpanded} />
+          {post.url && (
+            <a
+              href={post.url}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center h-8 w-8 -mr-1.5 rounded transition-colors sm:h-auto sm:w-auto sm:p-1"
+              style={{ color: "var(--text-tertiary)" }}
+              onClick={(e) => { e.stopPropagation(); onRead(); }}
+            >
+              <ExternalIcon />
+            </a>
+          )}
         </div>
       </button>
       {isExpanded && (
         <>
           <ExpandableSummary summary={post.summary} tags={post.tags} />
-          <div className="border-t px-3 py-2 flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-            <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+          {post.url ? (
+            <a
+              href={post.url}
+              target="_blank" rel="noopener noreferrer"
+              className="group border-t px-3 py-2.5 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:hover:bg-[var(--bg-card-hover)]"
+              style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
+              onClick={() => onRead()}
+            >
+              <span className="text-xs">💬 {post.comments} comments</span>
+              <ExternalIcon />
+            </a>
+          ) : (
+            <div className="border-t px-3 py-2.5 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}>
               💬 {post.comments} comments
-            </span>
-            {post.url && (
-              <a
-                href={post.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-medium"
-                style={{ color: "var(--accent)" }}
-              >
-                Read →
-              </a>
-            )}
-          </div>
+            </div>
+          )}
         </>
       )}
     </div>
