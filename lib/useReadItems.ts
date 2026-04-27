@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 
-export type ItemType = "trending" | "queries" | "reddit" | "hn" | "technews" | "github";
+export type ItemType = "trending" | "queries" | "reddit" | "hn" | "technews" | "github" | "ph" | "hf" | "ih";
 
 export function useReadItems() {
   const [readSet, setReadSet] = useState<Set<string>>(new Set());
