@@ -893,7 +893,7 @@ def get_producthunt():
               tagline
               votesCount
               commentsCount
-              websiteUrl
+              website
               thumbnail { url }
               topics { edges { node { name } } }
               createdAt
@@ -904,6 +904,9 @@ def get_producthunt():
         resp = http_requests.post(PH_API_URL, headers=headers, json={"query": query}, timeout=15)
         resp.raise_for_status()
         data = resp.json()
+        if "errors" in data:
+            print(f"[PH] GraphQL errors: {data['errors']}")
+            raise Exception(f"GraphQL error: {data['errors']}")
 
         products = []
         for edge in data.get("data", {}).get("posts", {}).get("edges", []):
@@ -914,7 +917,7 @@ def get_producthunt():
                 "tagline": node.get("tagline", ""),
                 "votesCount": node.get("votesCount", 0),
                 "commentsCount": node.get("commentsCount", 0),
-                "url": node.get("websiteUrl", ""),
+                "url": node.get("website", ""),
                 "thumbnail": node.get("thumbnail", {}).get("url", ""),
                 "topics": topics,
                 "createdAt": node.get("createdAt", ""),
@@ -950,10 +953,10 @@ def get_huggingface():
         return cached
 
     try:
-        # Use the public HF Hub API - trending models sorted by downloads
+        # Use the public HF Hub API - trending models by recent downloads
         resp = http_requests.get(
             "https://huggingface.co/api/models",
-            params={"sort": "trending", "limit": "20", "filter": "text-generation"},
+            params={"sort": "downloads", "limit": "20"},
             headers={"User-Agent": "TrendsWatcher/1.0"},
             timeout=15,
         )
@@ -995,6 +998,62 @@ def get_huggingface():
 # --- Indie Hackers ---
 
 
+IH_ALGOLIA_ID = "N86T1R3OWZ"
+IH_ALGOLIA_KEY = "5140dac5e87f47346abbda1a34ee70c3"
+
+
+def _fetch_indiehackers_posts() -> list[dict]:
+    """Fetch IH posts via Jina Reader (renders the JS-heavy SPA)."""
+    try:
+        resp = http_requests.get(
+            "https://r.jina.ai/https://www.indiehackers.com/page/latest",
+            headers={"Accept": "text/markdown"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        markdown = resp.text
+
+        posts: list[dict] = []
+        # Parse post links from markdown: [Title](url)
+        # Pattern: [Title text](https://www.indiehackers.com/post/...) or .../product/...)
+        pattern = r'\[([^\]]+)\]\((https://www\.indiehackers\.com/(?:post|product)/[^)]+)\)'
+        matches = re.findall(pattern, markdown)
+
+        # Parse stats from markdown: "X upvotes" and "Y comments"
+        upvotes_pattern = r'(\d+)\s*upvotes'
+        comments_pattern = r'(\d+)\s*comments'
+
+        seen_titles: set[str] = set()
+        for title, url in matches:
+            title = title.strip()
+            key = title.lower()
+            # Skip comment/upvote count lines and very short titles
+            if key in seen_titles or len(title) < 15:
+                continue
+            if re.match(r'^\d+\s+(upvote|comment|reply)', key):
+                continue
+            seen_titles.add(key)
+
+            # Determine type from URL
+            is_product = "/product/" in url
+
+            posts.append({
+                "title": title[:200],
+                "url": url,
+                "votes": 0,
+                "comments": 0,
+                "author": "unknown",
+                "groupName": "",
+                "type": "product" if is_product else "post",
+                "revenue": "",
+            })
+
+        return posts
+    except Exception as e:
+        print(f"[IH] Jina fetch error: {e}")
+        return []
+
+
 @app.get("/api/indiehackers")
 def get_indiehackers():
     """Fetch posts and products from Indie Hackers."""
@@ -1003,65 +1062,16 @@ def get_indiehackers():
     if cached:
         return cached
 
-    posts: list[dict] = []
-    seen_titles: set[str] = set()
+    posts = _fetch_indiehackers_posts()
 
-    try:
-        # Fetch from Indie Hackers RSS feed
-        resp = http_requests.get(
-            "https://www.indiehackers.com/feed",
-            headers={"User-Agent": "TrendsWatcher/1.0"},
-            timeout=15,
-        )
-        if resp.status_code == 200:
-            root = ET.fromstring(resp.text)
-            items = root.findall(".//item")
-            for item in items[:25]:
-                title_el = item.find("title")
-                link_el = item.find("link")
-                creator_el = item.find("{http://purl.org/dc/elements/1.1/}creator")
-                pub_date_el = item.find("pubDate")
-                desc_el = item.find("description")
-
-                if title_el is not None and title_el.text:
-                    title = title_el.text.strip()
-                    key = title.lower().strip()
-                    if key in seen_titles:
-                        continue
-                    seen_titles.add(key)
-
-                    # Try to detect if it's a "product" post from description
-                    desc_text = desc_el.text if desc_el is not None and desc_el.text else ""
-                    is_product = any(kw in desc_text.lower() for kw in ["revenue", "mrr", "arr", "profit", "$", "earnings"])
-                    # Extract revenue hint
-                    import re as _re
-                    revenue_match = _re.search(r'\$[\d,.]+(?:/mo|/yr| MRR| ARR)?', desc_text)
-                    revenue = revenue_match.group(0) if revenue_match else ""
-
-                    # Detect group from link
-                    link = link_el.text if link_el is not None else ""
-                    group = "General"
-                    if "/group/" in link:
-                        group_match = _re.search(r'/group/([^/?]+)', link)
-                        if group_match:
-                            group = group_match.group(1).replace("-", " ").title()
-
-                    posts.append({
-                        "title": title,
-                        "url": link,
-                        "votes": 0,
-                        "comments": 0,
-                        "author": creator_el.text if creator_el is not None and creator_el.text else "unknown",
-                        "groupName": group,
-                        "type": "product" if is_product else "post",
-                        "revenue": revenue,
-                    })
-    except Exception as e:
-        print(f"[IH] RSS error: {e}")
+    if not posts:
+        stale = _get_stale(cache_key)
+        if stale:
+            return {**stale, "_stale": True, "_status": "Indie Hackers 暂时不可用"}
+        return {"posts": [], "timestamp": datetime.now(timezone.utc).isoformat(), "_status": "Indie Hackers 暂时不可用"}
 
     # Generate AI summaries
-    if posts:
-        posts = _generate_batch_summaries(posts, "indiehackers")
+    posts = _generate_batch_summaries(posts, "indiehackers")
 
     response = {
         "posts": posts[:20],
