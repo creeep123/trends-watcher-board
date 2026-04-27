@@ -33,6 +33,7 @@ OPENROUTER_API_KEY = os.environ.get(
     "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",
 )
 LLM_MODEL = "z-ai/glm-4.5-air:free"
+PRODUCT_HUNT_TOKEN = os.environ.get("PRODUCT_HUNT_TOKEN", "")
 
 # Supabase & Push config
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
@@ -56,6 +57,9 @@ CACHE_TTL_MAP = {
     "tiktok":    1800,   # 30min — TikTok videos
     "enrich":    3600,   # 1h — composite scoring
     "allintitle": 7200,  # 2h — competition changes slowly
+    "producthunt": 21600,  # 6h — daily product launches
+    "huggingface": 1800,   # 30min — trending models
+    "indiehackers": 3600,  # 1h — community posts
 }
 DEFAULT_TTL = 3600  # 1h fallback
 
@@ -802,6 +806,393 @@ def get_reddit(
         "subreddits": REDDIT_SUB_NAMES,
         "sort": sort,
         "total_posts": len(filtered),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    _set_cache(cache_key, response)
+    return response
+
+
+def _generate_batch_summaries(source: str, items: list[dict]) -> list[dict]:
+    """Generate AI summaries with tags for a batch of items.
+
+    Args:
+        source: "producthunt", "huggingface", or "indiehackers"
+        items: list of dicts, each with fields relevant to the source
+
+    Returns:
+        list of dicts aligned by index: [{"summary": str, "tags": [str], "relevance": str}, ...]
+    """
+    if not items:
+        return []
+
+    prompts = {
+        "producthunt": (
+            "Below are Product Hunt launches. For each product, write a 2-3 sentence description "
+            "of what it does and who it's for, plus 2-4 relevant tags.\n"
+            "Reply ONLY with a JSON array of objects, each with:\n"
+            '- "summary": 2-3 sentence description\n'
+            '- "tags": array of 2-4 lowercase tags (e.g. ["ai", "saas", "productivity"])\n'
+            '- "relevance": "high" or "medium" or "low" (relevance to AI/tech/startups)\n\n'
+            "Products:\n"
+        ),
+        "huggingface": (
+            "Below are trending AI models from HuggingFace. For each model, write a 2-3 sentence "
+            "description of what the model does and its key capabilities, plus 2-4 relevant tags.\n"
+            "Reply ONLY with a JSON array of objects, each with:\n"
+            '- "summary": 2-3 sentence description\n'
+            '- "tags": array of 2-4 lowercase tags (e.g. ["nlp", "vision", "open-source"])\n'
+            '- "relevance": "high" or "medium" or "low" (relevance to AI/tech)\n\n'
+            "Models:\n"
+        ),
+        "indiehackers": (
+            "Below are Indie Hackers posts and products. For each item, write a 2-3 sentence "
+            "summary of the key insight or product, plus 2-4 relevant tags.\n"
+            "Reply ONLY with a JSON array of objects, each with:\n"
+            '- "summary": 2-3 sentence summary\n'
+            '- "tags": array of 2-4 lowercase tags (e.g. ["saas", "indie", "revenue"])\n'
+            '- "relevance": "high" or "medium" or "low" (relevance to AI/tech/startups)\n\n'
+            "Items:\n"
+        ),
+    }
+
+    if source not in prompts:
+        return [{} for _ in items]
+
+    # Format items for the prompt based on source
+    lines = []
+    for item in items:
+        if source == "producthunt":
+            lines.append(f'- Name: {item.get("name", "")} | Tagline: {item.get("tagline", "")} | Topics: {", ".join(item.get("topics", []))}')
+        elif source == "huggingface":
+            lines.append(f'- Model: {item.get("modelId", "")} | Task: {item.get("pipelineTag", "")} | Tags: {", ".join(item.get("tags", [])[:5])}')
+        elif source == "indiehackers":
+            rev = f' | Revenue: {item.get("revenue", "")}' if item.get("revenue") else ""
+            lines.append(f'- Title: {item.get("title", "")} | Author: {item.get("author", "")} | Votes: {item.get("votes", 0)}{rev}')
+
+    prompt = prompts[source] + "\n".join(lines)
+
+    # Process in batches of 8 to keep response size manageable
+    batch_size = 8
+    all_summaries = []
+
+    for i in range(0, len(items), batch_size):
+        batch_items = items[i:i + batch_size]
+        batch_lines = lines[i:i + batch_size]
+        batch_prompt = prompts[source] + "\n".join(batch_lines)
+
+        try:
+            resp = http_requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": LLM_MODEL,
+                    "messages": [{"role": "user", "content": batch_prompt}],
+                    "max_tokens": 1500,
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"].strip()
+            start = content.find("[")
+            end = content.rfind("]")
+            if start != -1 and end != -1:
+                arr = json.loads(content[start:end + 1])
+                for item in arr:
+                    if isinstance(item, dict):
+                        all_summaries.append({
+                            "summary": item.get("summary", ""),
+                            "tags": item.get("tags", []),
+                            "relevance": item.get("relevance", "medium"),
+                        })
+                    else:
+                        all_summaries.append({})
+            else:
+                all_summaries.extend([{} for _ in batch_items])
+        except Exception as e:
+            print(f"[LLM] batch summary error ({source}, batch {i//batch_size + 1}): {e}")
+            all_summaries.extend([{} for _ in batch_items])
+
+    # Pad if final batch was incomplete
+    while len(all_summaries) < len(items):
+        all_summaries.append({})
+
+    return all_summaries
+
+
+# --- Product Hunt ---
+
+PH_API_URL = "https://api.producthunt.com/v2/api/graphql"
+PH_QUERY = """
+query {
+  posts(order: VOTES, first: 20) {
+    edges {
+      node {
+        name
+        tagline
+        votesCount
+        commentsCount
+        websiteUrl
+        thumbnail {
+          url
+        }
+        topics {
+          edges {
+            node {
+              name
+            }
+          }
+        }
+        createdAt
+      }
+    }
+  }
+}
+"""
+
+
+def _fetch_producthunt() -> list[dict]:
+    """Fetch today's top products from Product Hunt GraphQL API."""
+    if not PRODUCT_HUNT_TOKEN:
+        print("[PH] No PRODUCT_HUNT_TOKEN configured")
+        return []
+
+    try:
+        resp = http_requests.post(
+            PH_API_URL,
+            headers={
+                "Authorization": f"Bearer {PRODUCT_HUNT_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            json={"query": PH_QUERY},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        products = []
+        edges = data.get("data", {}).get("posts", {}).get("edges", [])
+        for edge in edges:
+            node = edge.get("node", {})
+            topics = [
+                t.get("node", {}).get("name", "")
+                for t in node.get("topics", {}).get("edges", [])
+            ]
+            thumbnail = node.get("thumbnail", {}).get("url", "")
+            products.append({
+                "name": node.get("name", ""),
+                "tagline": node.get("tagline", ""),
+                "votesCount": node.get("votesCount", 0),
+                "commentsCount": node.get("commentsCount", 0),
+                "url": node.get("websiteUrl", "") or f"https://www.producthunt.com/posts/{node.get('slug', node.get('name', '').lower().replace(' ', '-'))}",
+                "thumbnail": thumbnail,
+                "topics": topics,
+                "createdAt": node.get("createdAt", ""),
+            })
+
+        return products
+
+    except Exception as e:
+        print(f"[PH] Fetch error: {e}")
+        return []
+
+
+@app.get("/api/producthunt")
+def get_producthunt():
+    """Fetch today's top products from Product Hunt with AI summaries."""
+    cache_key = "producthunt|today"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    products = _fetch_producthunt()
+
+    # Generate AI summaries
+    if products:
+        summaries = _generate_batch_summaries("producthunt", products)
+        for i, summary in enumerate(summaries):
+            if summary.get("summary"):
+                products[i]["summary"] = summary["summary"]
+            if summary.get("tags"):
+                products[i]["tags"] = summary["tags"]
+
+    response = {
+        "products": products,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    _set_cache(cache_key, response)
+    return response
+
+
+# --- HuggingFace ---
+
+HF_API_URL = "https://huggingface.co/api/models"
+
+
+def _fetch_huggingface() -> list[dict]:
+    """Fetch trending models from HuggingFace public API."""
+    try:
+        resp = http_requests.get(
+            f"{HF_API_URL}?sort=downloads&limit=20",
+            headers={"User-Agent": "TrendsWatcherBoard/1.0"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        models = resp.json()
+
+        result = []
+        for m in models:
+            model_id = m.get("id", "")
+            parts = model_id.split("/", 1)
+            author = parts[0] if len(parts) > 1 else ""
+
+            result.append({
+                "modelId": model_id,
+                "author": author,
+                "downloads": m.get("downloads", 0),
+                "likes": m.get("likes", 0),
+                "tags": m.get("tags", []),
+                "pipelineTag": m.get("pipeline_tag", ""),
+                "createdAt": m.get("createdAt", ""),
+                "url": f"https://huggingface.co/{model_id}",
+            })
+
+        return result
+
+    except Exception as e:
+        print(f"[HF] Fetch error: {e}")
+        return []
+
+
+@app.get("/api/huggingface")
+def get_huggingface():
+    """Fetch trending models from HuggingFace with AI summaries."""
+    cache_key = "huggingface|trending"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    models = _fetch_huggingface()
+
+    # Generate AI summaries
+    if models:
+        summaries = _generate_batch_summaries("huggingface", models)
+        for i, summary in enumerate(summaries):
+            if summary.get("summary"):
+                models[i]["summary"] = summary["summary"]
+            if summary.get("tags"):
+                models[i]["aiTags"] = summary["tags"]
+
+    response = {
+        "models": models,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    _set_cache(cache_key, response)
+    return response
+
+
+# --- Indie Hackers ---
+
+IH_ALGOLIA_APP_ID = "N86T1R3OWZ"
+IH_ALGOLIA_API_KEY = "5140dac5e87f47346abbda1a34ee70c3"
+IH_ALGOLIA_BASE = f"https://{IH_ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes"
+
+
+def _algolia_search(index: str, query: str = "", hits_per_page: int = 15) -> list[dict]:
+    """Search Indie Hackers via Algolia API."""
+    try:
+        payload: dict = {"hitsPerPage": hits_per_page}
+        if query:
+            payload["query"] = query
+        else:
+            payload["filters"] = ""
+
+        resp = http_requests.post(
+            f"{IH_ALGOLIA_BASE}/{index}/search",
+            headers={
+                "X-Algolia-Application-Id": IH_ALGOLIA_APP_ID,
+                "X-Algolia-API-Key": IH_ALGOLIA_API_KEY,
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("hits", [])
+
+    except Exception as e:
+        print(f"[IH] Algolia search error ({index}): {e}")
+        return []
+
+
+def _fetch_indiehackers() -> list[dict]:
+    """Fetch posts and products from Indie Hackers."""
+    items: list[dict] = []
+
+    # Fetch posts
+    post_hits = _algolia_search("Post_production", hits_per_page=12)
+    for hit in post_hits:
+        items.append({
+            "title": hit.get("title", ""),
+            "url": f"https://www.indiehackers.com/post/{hit.get('slug', '')}" if hit.get("slug") else "",
+            "votes": hit.get("score", 0) or 0,
+            "comments": hit.get("commentCount", 0) or 0,
+            "author": hit.get("createdBy", {}).get("username", hit.get("createdByName", "")),
+            "groupName": hit.get("groupName", ""),
+            "type": "post",
+            "revenue": None,
+        })
+
+    # Fetch products
+    product_hits = _algolia_search("Product_production", hits_per_page=10)
+    for hit in product_hits:
+        revenue = hit.get("revenue", None)
+        revenue_str = ""
+        if revenue:
+            revenue_str = f"${revenue:,}/mo" if revenue >= 1000 else f"${revenue}/mo"
+
+        items.append({
+            "title": hit.get("name", hit.get("productName", "")),
+            "url": f"https://www.indiehackers.com/products/{hit.get('slug', '')}" if hit.get("slug") else "",
+            "votes": hit.get("numberOfUpvotes", 0) or 0,
+            "comments": hit.get("reviewCount", 0) or 0,
+            "author": hit.get("maker", {}).get("username", hit.get("makerName", "")),
+            "groupName": "Show IH",
+            "type": "product",
+            "revenue": revenue_str or None,
+        })
+
+    # Sort by votes descending
+    items.sort(key=lambda x: x.get("votes", 0), reverse=True)
+
+    return items
+
+
+@app.get("/api/indiehackers")
+def get_indiehackers():
+    """Fetch Indie Hackers posts and products with AI summaries."""
+    cache_key = "indiehackers|latest"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    posts = _fetch_indiehackers()
+
+    # Generate AI summaries
+    if posts:
+        summaries = _generate_batch_summaries("indiehackers", posts)
+        for i, summary in enumerate(summaries):
+            if summary.get("summary"):
+                posts[i]["summary"] = summary["summary"]
+            if summary.get("tags"):
+                posts[i]["tags"] = summary["tags"]
+
+    response = {
+        "posts": posts,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     _set_cache(cache_key, response)
