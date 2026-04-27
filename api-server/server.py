@@ -28,10 +28,7 @@ from pytrends.request import TrendReq
 from TikTokApi import TikTokApi
 from supabase import create_client, Client as SupabaseClient
 
-OPENROUTER_API_KEY = os.environ.get(
-    "OPENROUTER_API_KEY",
-    "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",
-)
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 LLM_MODEL = "z-ai/glm-4.5-air:free"
 PRODUCT_HUNT_TOKEN = os.environ.get("PRODUCT_HUNT_TOKEN", "")
 
@@ -935,7 +932,7 @@ query {
         tagline
         votesCount
         commentsCount
-        websiteUrl
+        website
         thumbnail {
           url
         }
@@ -987,7 +984,7 @@ def _fetch_producthunt() -> list[dict]:
                 "tagline": node.get("tagline", ""),
                 "votesCount": node.get("votesCount", 0),
                 "commentsCount": node.get("commentsCount", 0),
-                "url": node.get("websiteUrl", "") or f"https://www.producthunt.com/posts/{node.get('slug', node.get('name', '').lower().replace(' ', '-'))}",
+                "url": node.get("website", "") or f"https://www.producthunt.com/posts/{node.get('slug', node.get('name', '').lower().replace(' ', '-'))}",
                 "thumbnail": thumbnail,
                 "topics": topics,
                 "createdAt": node.get("createdAt", ""),
