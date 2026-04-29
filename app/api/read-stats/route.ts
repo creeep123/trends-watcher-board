@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 // --- Helpers ---
 
 const NEW_WORD_TYPES = ["trending", "queries", "github"];
-const INFO_TYPES = ["reddit", "hn", "technews"];
+const INFO_TYPES = ["reddit", "hn", "technews", "ph", "hf", "ih"];
 
 function todayStartISO(): string {
   return new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
@@ -52,15 +52,18 @@ export async function GET() {
     const reddit = typeCounts["reddit"] || 0;
     const hn = typeCounts["hn"] || 0;
     const technews = typeCounts["technews"] || 0;
+    const ph = typeCounts["ph"] || 0;
+    const hf = typeCounts["hf"] || 0;
+    const ih = typeCounts["ih"] || 0;
 
     const newWordsTotal = trending + queries + github;
-    const infoTotal = reddit + hn + technews;
+    const infoTotal = reddit + hn + technews + ph + hf + ih;
     const todayTotal = newWordsTotal + infoTotal;
 
     // 2. Heatmap (last 84 days) + best day
     const { data: heatmapItems, error: heatmapErr } = await supabase
       .from("twb_read_items")
-      .select("read_at")
+      .select("item_type, read_at")
       .gte("read_at", heatmapStart);
 
     if (heatmapErr) {
@@ -68,20 +71,23 @@ export async function GET() {
       return NextResponse.json({ error: "Failed to fetch heatmap data" }, { status: 500 });
     }
 
-    // Group by date
-    const dateCounts: Record<string, number> = {};
+    // Group by (date, item_type)
+    const dateTypeCounts: Record<string, Record<string, number>> = {};
     for (const item of heatmapItems || []) {
       const key = toDateKey(item.read_at);
-      dateCounts[key] = (dateCounts[key] || 0) + 1;
+      if (!dateTypeCounts[key]) dateTypeCounts[key] = {};
+      dateTypeCounts[key][item.item_type] = (dateTypeCounts[key][item.item_type] || 0) + 1;
     }
 
     // Build heatmap array for last 84 days
-    const heatmap: { date: string; count: number }[] = [];
+    const heatmap: { date: string; count: number; by_type: Record<string, number> }[] = [];
     for (let i = 83; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const key = toDateKey(d.toISOString());
-      heatmap.push({ date: key, count: dateCounts[key] || 0 });
+      const byType = dateTypeCounts[key] || {};
+      const count = Object.values(byType).reduce((sum, n) => sum + n, 0);
+      heatmap.push({ date: key, count, by_type: byType });
     }
 
     // Best day
@@ -132,7 +138,7 @@ export async function GET() {
       today: {
         total: todayTotal,
         new_words: { total: newWordsTotal, trending, queries, github },
-        info: { total: infoTotal, reddit, hn, technews },
+        info: { total: infoTotal, reddit, hn, technews, ph, hf, ih },
       },
       heatmap,
       cumulative: {
