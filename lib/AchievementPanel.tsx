@@ -4,15 +4,33 @@ import { useState, useEffect, useCallback, useLayoutEffect } from "react";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import { createPortal } from "react-dom";
 
+// --- Inject heatmap entrance animation keyframes ---
+if (typeof document !== "undefined" && !document.getElementById("heatmap-keyframes")) {
+  const style = document.createElement("style");
+  style.id = "heatmap-keyframes";
+  style.textContent = `
+    @keyframes heatmapFadeIn {
+      from { opacity: 0; transform: scale(0.8); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .heatmap-cell { animation: none !important; opacity: 1 !important; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 // --- Data Types ---
+
+type HeatmapDay = { date: string; count: number; by_type: Record<string, number> };
 
 interface ReadStats {
   today: {
     total: number;
     new_words: { total: number; trending: number; queries: number; github: number };
-    info: { total: number; reddit: number; hn: number; technews: number };
+    info: { total: number; reddit: number; hn: number; technews: number; ph: number; hf: number; ih: number };
   };
-  heatmap: { date: string; count: number }[];
+  heatmap: HeatmapDay[];
   cumulative: { total_reads: number; streak: number; best_day: number };
   goals: { total: number; new_words: number; info: number };
 }
@@ -111,7 +129,6 @@ function ProgressRing({
 
 // --- Heatmap ---
 
-const WEEKDAY_LABELS = ["", "一", "二", "三", "四", "五", "六"];
 const HEATMAP_LEVELS = [
   { min: 0, color: "var(--bg-elevated)", border: "var(--border-subtle)" },
   { min: 0.01, max: 0.25, color: "rgba(94, 106, 210, 0.15)" },
@@ -129,14 +146,76 @@ function getHeatLevel(count: number, goal: number) {
   return HEATMAP_LEVELS[4];
 }
 
+const MONTH_NAMES = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+const WEEKDAY_NAMES = ["一", "", "三", "", "五", "", ""];
+const WEEKDAY_LABELS_CN = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+const TYPE_LABELS: Record<string, string> = {
+  trending: "Trending", queries: "Queries", github: "GitHub",
+  reddit: "Reddit", hn: "HN", technews: "TechNews",
+  ph: "Product Hunt", hf: "HuggingFace", ih: "Indie Hackers",
+};
+
 function formatDateLabel(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
-function Heatmap({ data, goal }: { data: { date: string; count: number }[]; goal: number }) {
-  const weeks: { date: string; count: number; row: number }[][] = [];
-  let cur: { date: string; count: number; row: number }[] = [];
+// --- HeatmapTooltip ---
+
+function HeatmapTooltip({ cell, goal, x, y }: {
+  cell: HeatmapDay & { row: number };
+  goal: number;
+  x: number;
+  y: number;
+}) {
+  if (cell.count === 0) return null;
+
+  const d = new Date(cell.date + "T00:00:00");
+  const dateStr = `${d.getMonth() + 1}月${d.getDate()}日`;
+  const weekday = WEEKDAY_LABELS_CN[d.getDay()];
+
+  const activeTypes = Object.entries(cell.by_type)
+    .filter(([, v]) => v > 0)
+    .map(([k, v]) => `${TYPE_LABELS[k] || k}: ${v}`)
+    .join(" · ");
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        left: x,
+        top: y - 8,
+        transform: "translate(-50%, -100%)",
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        padding: "6px 10px",
+        fontSize: 12,
+        lineHeight: 1.5,
+        color: "var(--text-primary)",
+        pointerEvents: "none",
+        whiteSpace: "nowrap",
+        zIndex: 1002,
+        boxShadow: "var(--shadow-sm)",
+      }}
+    >
+      <div style={{ fontWeight: 500, marginBottom: 2 }}>
+        {dateStr} {weekday} · <span style={{ color: cell.count >= goal ? "var(--accent-green-bright)" : "var(--text-secondary)" }}>{cell.count} 条已读</span>
+      </div>
+      {activeTypes && (
+        <div style={{ color: "var(--text-tertiary)", fontSize: 11 }}>{activeTypes}</div>
+      )}
+    </div>
+  );
+}
+
+// --- Heatmap ---
+
+function Heatmap({ data, goal }: { data: HeatmapDay[]; goal: number }) {
+  const [tooltip, setTooltip] = useState<{ cell: HeatmapDay & { row: number }; x: number; y: number } | null>(null);
+
+  const weeks: (HeatmapDay & { row: number })[][] = [];
+  let cur: (HeatmapDay & { row: number })[] = [];
   for (const entry of data) {
     const dow = new Date(entry.date + "T00:00:00").getDay();
     cur.push({ ...entry, row: dow === 0 ? 6 : dow - 1 });
@@ -144,21 +223,36 @@ function Heatmap({ data, goal }: { data: { date: string; count: number }[]; goal
   }
   if (cur.length > 0) weeks.push(cur);
 
+  // Compute month labels: show label when month changes
+  const monthLabels: (string | null)[] = [];
+  let lastMonth = -1;
+  for (const week of weeks) {
+    const firstDay = week.reduce((a, b) => a.row <= b.row ? a : b);
+    const month = new Date(firstDay.date + "T00:00:00").getMonth();
+    if (month !== lastMonth) {
+      monthLabels.push(MONTH_NAMES[month]);
+      lastMonth = month;
+    } else {
+      monthLabels.push(null);
+    }
+  }
+
   return (
     <div style={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
-      <div style={{
-        display: "flex", flexDirection: "column", gap: 2,
-        height: 7 * 11 + 6 * 2, justifyContent: "space-between", marginRight: 4,
-      }}>
-        {[1, 3, 5].map((r) => (
-          <span key={r} style={{ fontSize: 9, fontFamily: "monospace", color: "var(--text-quaternary)", lineHeight: "11px", height: 11, display: "flex", alignItems: "center" }}>
-            {WEEKDAY_LABELS[r]}
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, marginRight: 4 }}>
+        <span style={{ height: 12, lineHeight: "12px" }} />
+        {WEEKDAY_NAMES.map((label, ri) => (
+          <span key={ri} style={{ fontSize: 9, fontFamily: "monospace", color: "var(--text-quaternary)", lineHeight: "11px", height: 11, display: "flex", alignItems: "center" }}>
+            {label}
           </span>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 2 }}>
+      <div style={{ display: "flex", gap: 2 }} onMouseLeave={() => setTooltip(null)}>
         {weeks.map((week, wi) => (
           <div key={wi} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ height: 12, lineHeight: "12px", fontSize: 9, color: "var(--text-quaternary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {monthLabels[wi]}
+            </div>
             {Array.from({ length: 7 }).map((_, ri) => {
               const cell = week.find((c) => c.row === ri);
               const count = cell?.count ?? 0;
@@ -166,11 +260,20 @@ function Heatmap({ data, goal }: { data: { date: string; count: number }[]; goal
               return (
                 <div
                   key={ri}
-                  title={count > 0 ? `${cell ? formatDateLabel(cell.date) : ""} · ${count}条` : ""}
+                  className="heatmap-cell"
+                  onMouseEnter={(e) => {
+                    if (cell) {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setTooltip({ cell, x: rect.left + rect.width / 2, y: rect.top });
+                    }
+                  }}
                   style={{
                     width: 11, height: 11, borderRadius: 2, background: level.color,
                     border: level.border ? `1px solid ${level.border}` : "1px solid transparent",
                     transition: "background 0.2s ease",
+                    animation: "heatmapFadeIn 0.3s ease forwards",
+                    animationDelay: `${wi * 20}ms`,
+                    opacity: 0,
                   }}
                 />
               );
@@ -178,6 +281,7 @@ function Heatmap({ data, goal }: { data: { date: string; count: number }[]; goal
           </div>
         ))}
       </div>
+      {tooltip && <HeatmapTooltip cell={tooltip.cell} goal={goal} x={tooltip.x} y={tooltip.y} />}
     </div>
   );
 }
@@ -305,6 +409,9 @@ function DetailPanel({ stats, onClose, onRefresh }: {
             { name: "reddit", value: info?.reddit ?? 0, color: "var(--accent-blue)" },
             { name: "hn", value: info?.hn ?? 0, color: "var(--accent-blue-hover)" },
             { name: "technews", value: info?.technews ?? 0, color: "var(--accent-blue-muted)" },
+            { name: "ph", value: info?.ph ?? 0, color: "#da552f" },
+            { name: "hf", value: info?.hf ?? 0, color: "#ffbd45" },
+            { name: "ih", value: info?.ih ?? 0, color: "#34d399" },
           ]} goal={infoGoal} />
         </div>
       </div>
@@ -316,19 +423,12 @@ function DetailPanel({ stats, onClose, onRefresh }: {
         <Heatmap data={heatmapData} goal={heatmapGoal} />
       </div>
 
-      <div style={{ height: 1, background: "var(--border-subtle)", margin: "0 0 20px 0" }} />
+      <div style={{ height: 1, background: "var(--border-subtle)", margin: "0 0 16px 0" }} />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        {[
-          { value: cumulative?.total_reads ?? 0, label: "总已读" },
-          { value: cumulative?.streak ?? 0, label: "连续天数" },
-          { value: cumulative?.best_day ?? 0, label: "最高单日" },
-        ].map((m, i) => (
-          <div key={i} style={{ flex: 1, textAlign: "center", borderRight: i < 2 ? "1px solid var(--border-subtle)" : "none" }}>
-            <div style={{ fontSize: 20, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.2 }}>{m.value}</div>
-            <div style={{ fontSize: 12, color: "var(--text-quaternary)", marginTop: 2 }}>{m.label}</div>
-          </div>
-        ))}
+      <div style={{ fontSize: 12, color: "var(--text-tertiary)", lineHeight: 1.6 }}>
+        过去 12 周共阅读 <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>{cumulative?.total_reads ?? 0}</span> 条
+        {" · "}最长连续 <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>{cumulative?.streak ?? 0}</span> 天
+        {" · "}最高单日 <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>{cumulative?.best_day ?? 0}</span> 条
       </div>
     </>
   );
