@@ -24,9 +24,8 @@ export async function getSupabaseCache<T>(key: string): Promise<T | null> {
  */
 export async function setSupabaseCache(key: string, data: unknown, ttlMs: number): Promise<void> {
   const expiresAt = new Date(Date.now() + ttlMs).toISOString();
-  supabase
+  // Fire-and-forget: wrap in void to handle PromiseLike
+  void supabase
     .from("twb_cache")
-    .upsert({ key, data, expires_at: expiresAt })
-    .then()
-    .catch(() => {});
+    .upsert({ key, data, expires_at: expiresAt });
 }

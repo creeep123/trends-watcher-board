@@ -236,6 +236,7 @@ export default function Home() {
 
   const [phProducts, setPhProducts] = useState<ProductHuntProduct[]>([]);
   const [phLoading, setPhLoading] = useState(true);
+  const [phPeriod, setPhPeriod] = useState<"daily" | "weekly" | "monthly">("daily");
 
   const [hfModels, setHfModels] = useState<HuggingFaceModel[]>([]);
   const [hfLoading, setHfLoading] = useState(true);
@@ -294,7 +295,7 @@ export default function Home() {
         params.set('bypassCache', 'true');
       }
 
-      const res = await fetch(`/api/trends?${params}`);
+      const res = await fetch(`/api/trends?${params}${bypassCache ? "&refresh=1" : ""}`);
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: TrendsResponse & { enrich?: Record<string, EnrichData> } = await res.json();
@@ -320,10 +321,10 @@ export default function Home() {
     }
   }, [timeframe, geo, keywords]);
 
-  const fetchTrending = useCallback(async () => {
+  const fetchTrending = useCallback(async (refresh = false) => {
     setTrendingLoading(true);
     try {
-      const res = await fetch(`/api/trending?geo=${trendingGeo}`);
+      const res = await fetch(`/api/trending?geo=${trendingGeo}${refresh ? "&refresh=1" : ""}`);
       if (res.ok) {
         const json = await res.json();
         setTrendingItems(json.trending || []);
@@ -335,10 +336,10 @@ export default function Home() {
     }
   }, [trendingGeo]);
 
-  const fetchReddit = useCallback(async () => {
+  const fetchReddit = useCallback(async (refresh = false) => {
     setRedditLoading(true);
     try {
-      const res = await fetch("/api/reddit?sort=hot");
+      const res = await fetch(`/api/reddit?sort=hot${refresh ? "&refresh=1" : ""}`);
       if (res.ok) {
         const json = await res.json();
         const posts = (json.posts || []).sort((a: RedditPost, b: RedditPost) => new Date(b.published).getTime() - new Date(a.published).getTime());
@@ -353,10 +354,10 @@ export default function Home() {
     }
   }, []);
 
-  const fetchHackerNews = useCallback(async () => {
+  const fetchHackerNews = useCallback(async (refresh = false) => {
     setHnLoading(true);
     try {
-      const res = await fetch("/api/hackernews");
+      const res = await fetch(`/api/hackernews${refresh ? "?refresh=1" : ""}`);
       if (res.ok) {
         const json = await res.json();
         setHnPosts(json.posts || []);
@@ -368,10 +369,10 @@ export default function Home() {
     }
   }, []);
 
-  const fetchTechNews = useCallback(async () => {
+  const fetchTechNews = useCallback(async (refresh = false) => {
     setTechNewsLoading(true);
     try {
-      const res = await fetch("/api/technews");
+      const res = await fetch(`/api/technews${refresh ? "?refresh=1" : ""}`);
       if (res.ok) {
         const json = await res.json();
         const articles = (json.articles || []).sort((a: TechNewsPost, b: TechNewsPost) => new Date(b.published).getTime() - new Date(a.published).getTime());
@@ -384,10 +385,10 @@ export default function Home() {
     }
   }, []);
 
-  const fetchProductHunt = useCallback(async () => {
+  const fetchProductHunt = useCallback(async (period: string = phPeriod) => {
     setPhLoading(true);
     try {
-      const res = await fetch("/api/producthunt");
+      const res = await fetch(`/api/producthunt?period=${encodeURIComponent(period)}`);
       if (res.ok) {
         const json = await res.json();
         setPhProducts(json.products || []);
@@ -397,12 +398,12 @@ export default function Home() {
     } finally {
       setPhLoading(false);
     }
-  }, []);
+  }, [phPeriod]);
 
-  const fetchHuggingFace = useCallback(async () => {
+  const fetchHuggingFace = useCallback(async (refresh = false) => {
     setHfLoading(true);
     try {
-      const res = await fetch("/api/huggingface");
+      const res = await fetch(`/api/huggingface${refresh ? "?refresh=1" : ""}`);
       if (res.ok) {
         const json = await res.json();
         setHfModels(json.models || []);
@@ -414,10 +415,10 @@ export default function Home() {
     }
   }, []);
 
-  const fetchIndieHackers = useCallback(async () => {
+  const fetchIndieHackers = useCallback(async (refresh = false) => {
     setIhLoading(true);
     try {
-      const res = await fetch("/api/indiehackers");
+      const res = await fetch(`/api/indiehackers${refresh ? "?refresh=1" : ""}`);
       if (res.ok) {
         const json = await res.json();
         setIhPosts(json.posts || []);
@@ -433,6 +434,13 @@ export default function Home() {
     // 页面加载时不主动获取数据，只从 localStorage 读取缓存
     if (forceRefresh) {
       fetchData(true);
+      fetchTrending(true);
+      fetchReddit(true);
+      fetchHackerNews(true);
+      fetchTechNews(true);
+      fetchProductHunt(phPeriod);
+      fetchHuggingFace(true);
+      fetchIndieHackers(true);
       setForceRefresh(false);
     } else {
       // 尝试从 localStorage 读取缓存
@@ -1514,8 +1522,9 @@ export default function Home() {
       <main className="mx-auto min-w-0 max-w-7xl px-3 py-2 sm:px-4 sm:py-6">
         {data && !loading && (
           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs sm:mb-4 sm:gap-3" style={{ color: "var(--text-tertiary)" }}>
-            <span>{currentGeo?.flag || "🌍"} {currentGeo?.label || "Global"} · {currentTimeframe?.description}</span>
-            <span className="hidden sm:inline">·</span>
+            {(mobileTab === "trending" || mobileTab === "queries") && (
+              <span>{currentGeo?.flag || "🌍"} {currentGeo?.label || "Global"} · {currentTimeframe?.description}</span>
+            )}
             <span className="hidden sm:inline">Updated {new Date(data.timestamp).toLocaleTimeString()}</span>
           </div>
         )}
@@ -1807,7 +1816,23 @@ export default function Home() {
 
             {/* --- Product Hunt --- */}
             <section className={`${mobileTab !== "ph" ? "hidden" : ""} sm:block`}>
-              <SectionHeader title="Product Hunt" icon="🚀" count={phProducts.length} />
+              <SectionHeader title="Product Hunt" icon="🚀" count={phProducts.length}>
+                <div className="flex gap-0.5 rounded-md p-0.5" style={{ background: "var(--bg-secondary)" }}>
+                  {([["daily", "日"], ["weekly", "周"], ["monthly", "月"]] as const).map(([val, label]) => (
+                    <button
+                      key={val}
+                      onClick={() => { setPhPeriod(val); fetchProductHunt(val); }}
+                      className="rounded px-1.5 py-0.5 text-xs font-medium transition-colors"
+                      style={{
+                        background: phPeriod === val ? "var(--accent-blue)" : "transparent",
+                        color: phPeriod === val ? "var(--text-primary)" : "var(--text-tertiary)",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </SectionHeader>
               <div className="min-w-0 mt-2 space-y-2 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {phLoading ? (
                   Array.from({ length: 6 }).map((_, i) => (
@@ -2044,7 +2069,7 @@ function TrendingCard({
         background: isTech ? "rgba(94, 106, 210, 0.06)" : "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : isTech ? "rgba(94, 106, 210, 0.3)" : "var(--border)",
         borderRadius: "var(--radius-lg)",
-        opacity: read ? 0.4 : 1,
+        opacity: read ? 0.55 : 1,
         transition: "opacity 0.3s",
       }}>
       <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2 p-2.5 text-left sm:gap-3">
@@ -2076,7 +2101,7 @@ function formatNum(n: number | undefined): string {
 function ExpandableSummary({ summary, tags }: { summary?: string; tags?: string[] }) {
   if (!summary && (!tags || tags.length === 0)) return null;
   return (
-    <div className="mt-2 border-t px-3 py-2" style={{ borderColor: "var(--border)" }}>
+    <div className="mt-2 border-t px-2 py-2 sm:px-3" style={{ borderColor: "var(--border)" }}>
       {summary && (
         <p className="text-xs leading-relaxed break-words" style={{ color: "var(--text-secondary)" }}>
           {summary}
@@ -2114,25 +2139,28 @@ function ProductHuntCard({ product, index, isExpanded, onToggle, read, onRead }:
         background: "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : "var(--border)",
         borderRadius: "var(--radius-lg)",
-        opacity: read ? 0.4 : 1,
+        opacity: read ? 0.55 : 1,
       }}
     >
-      <button onClick={() => { onToggle(); if (isExpanded) onRead(); }} className="flex min-w-0 w-full items-center gap-2.5 p-2.5 text-left sm:gap-3">
-        <Rank n={index + 1} />
+      <button onClick={() => { onToggle(); if (isExpanded) onRead(); }} className="flex min-w-0 w-full items-center gap-2 overflow-hidden px-2 py-2 text-left sm:gap-3 sm:p-2.5">
+        <span className="hidden sm:block"><Rank n={index + 1} /></span>
         {product.thumbnail && (
-          <img src={product.thumbnail} alt="" className="h-8 w-8 rounded object-cover flex-shrink-0" loading="lazy" />
+          <img src={product.thumbnail} alt="" className="h-6 w-6 rounded object-cover flex-shrink-0 sm:h-8 sm:w-8" loading="lazy" />
         )}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 overflow-hidden">
           <div className="flex items-center gap-2">
             <span className="min-w-0 truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
               {product.name}
+            </span>
+            <span className="text-xs font-medium flex-shrink-0 sm:hidden" style={{ color: "var(--text-tertiary)" }}>
+              ▲{formatNum(product.votesCount)}
             </span>
           </div>
           <div className="mt-0.5 line-clamp-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
             {product.tagline}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="hidden items-center gap-1.5 flex-shrink-0 sm:flex">
           <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
             ▲ {formatNum(product.votesCount)}
           </span>
@@ -2156,20 +2184,20 @@ function ProductHuntCard({ product, index, isExpanded, onToggle, read, onRead }:
             <a
               href={product.url}
               target="_blank" rel="noopener noreferrer"
-              className="group border-t px-3 py-2.5 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:hover:bg-[var(--bg-card-hover)]"
+              className="group border-t px-2 py-2 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:px-3 sm:py-2.5 sm:hover:bg-[var(--bg-card-hover)]"
               style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
               onClick={() => onRead()}
             >
-              <div className="flex gap-3 text-xs">
+              <div className="flex gap-3 text-xs min-w-0">
                 <span>💬 {product.commentsCount}</span>
-                {product.topics.length > 0 && <span>{product.topics.slice(0, 3).join(", ")}</span>}
+                {product.topics.length > 0 && <span className="min-w-0 truncate">{product.topics.slice(0, 3).join(", ")}</span>}
               </div>
               <ExternalIcon />
             </a>
           ) : (
-            <div className="border-t px-3 py-2.5 flex gap-3 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}>
+            <div className="border-t px-2 py-2 flex gap-3 text-xs sm:px-3 sm:py-2.5" style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}>
               <span>💬 {product.commentsCount}</span>
-              {product.topics.length > 0 && <span>{product.topics.slice(0, 3).join(", ")}</span>}
+              {product.topics.length > 0 && <span className="min-w-0 truncate">{product.topics.slice(0, 3).join(", ")}</span>}
             </div>
           )}
         </>
@@ -2193,27 +2221,27 @@ function HuggingFaceCard({ model, index, isExpanded, onToggle, read, onRead }: {
         background: "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : "var(--border)",
         borderRadius: "var(--radius-lg)",
-        opacity: read ? 0.4 : 1,
+        opacity: read ? 0.55 : 1,
       }}
     >
-      <button onClick={() => { onToggle(); if (isExpanded) onRead(); }} className="flex min-w-0 w-full items-center gap-2.5 p-2.5 text-left sm:gap-3">
-        <Rank n={index + 1} />
-        <div className="min-w-0 flex-1">
+      <button onClick={() => { onToggle(); if (isExpanded) onRead(); }} className="flex min-w-0 w-full items-center gap-2 overflow-hidden px-2 py-2 text-left sm:gap-3 sm:p-2.5">
+        <span className="hidden sm:block"><Rank n={index + 1} /></span>
+        <div className="min-w-0 flex-1 overflow-hidden">
           <div className="min-w-0 truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
             {model.modelId}
           </div>
-          <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
-            <span>{model.pipelineTag || "unknown"}</span>
-            <span>·</span>
-            <span>↓ {formatNum(model.downloads)}</span>
-            <span>·</span>
-            <span>♥ {formatNum(model.likes)}</span>
+          <div className="mt-0.5 flex items-center gap-1.5 overflow-hidden text-xs" style={{ color: "var(--text-tertiary)" }}>
+            <span className="shrink-0 truncate max-w-[60px] sm:max-w-[80px]">{model.pipelineTag || "unknown"}</span>
+            <span className="shrink-0">·</span>
+            <span className="truncate">↓ {formatNum(model.downloads)}</span>
+            <span className="shrink-0">·</span>
+            <span className="shrink-0">♥ {formatNum(model.likes)}</span>
           </div>
         </div>
         <a
           href={model.url}
           target="_blank" rel="noopener noreferrer"
-          className="flex items-center justify-center h-8 w-8 -mr-1.5 rounded transition-colors sm:h-auto sm:w-auto sm:p-1"
+          className="hidden flex-shrink-0 items-center justify-center h-8 w-8 -mr-1.5 rounded transition-colors sm:flex sm:h-auto sm:w-auto sm:p-1"
           style={{ color: "var(--text-tertiary)" }}
           onClick={(e) => { e.stopPropagation(); onRead(); }}
         >
@@ -2226,11 +2254,11 @@ function HuggingFaceCard({ model, index, isExpanded, onToggle, read, onRead }: {
           <a
             href={model.url}
             target="_blank" rel="noopener noreferrer"
-            className="group border-t px-3 py-2.5 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:hover:bg-[var(--bg-card-hover)]"
+            className="group border-t px-2 py-2 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:px-3 sm:py-2.5 sm:hover:bg-[var(--bg-card-hover)]"
             style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
             onClick={() => onRead()}
           >
-            <span className="text-xs">by {model.author}</span>
+            <span className="text-xs min-w-0 truncate">by {model.author}</span>
             <ExternalIcon />
           </a>
         </>
@@ -2254,16 +2282,16 @@ function IndieHackersCard({ post, index, isExpanded, onToggle, read, onRead }: {
         background: "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : "var(--border)",
         borderRadius: "var(--radius-lg)",
-        opacity: read ? 0.4 : 1,
+        opacity: read ? 0.55 : 1,
       }}
     >
-      <button onClick={() => { onToggle(); if (isExpanded) onRead(); }} className="flex min-w-0 w-full items-center gap-2.5 p-2.5 text-left sm:gap-3">
-        <Rank n={index + 1} />
-        <div className="min-w-0 flex-1">
-          <div className="min-w-0 truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+      <button onClick={() => { onToggle(); if (isExpanded) onRead(); }} className="flex min-w-0 w-full items-center gap-2 overflow-hidden px-2 py-2 text-left sm:gap-3 sm:p-2.5">
+        <span className="hidden sm:block"><Rank n={index + 1} /></span>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="min-w-0 line-clamp-2 text-sm font-medium" style={{ color: "var(--text-primary)" }}>
             {post.title}
           </div>
-          <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
             <span
               className="rounded px-1 py-0.5"
               style={{
@@ -2271,9 +2299,9 @@ function IndieHackersCard({ post, index, isExpanded, onToggle, read, onRead }: {
                 color: post.type === "product" ? "#34d399" : "var(--text-tertiary)",
               }}
             >
-              {post.type === "product" ? "🛍️ Product" : post.groupName}
+              {post.type === "product" ? "🛍️" : ""}
             </span>
-            <span>by {post.author}</span>
+            <span className="truncate">by {post.author}</span>
             {post.revenue && (
               <>
                 <span>·</span>
@@ -2282,7 +2310,7 @@ function IndieHackersCard({ post, index, isExpanded, onToggle, read, onRead }: {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="hidden items-center gap-1.5 flex-shrink-0 sm:flex">
           <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
             ▲ {formatNum(post.votes)}
           </span>
@@ -2306,7 +2334,7 @@ function IndieHackersCard({ post, index, isExpanded, onToggle, read, onRead }: {
             <a
               href={post.url}
               target="_blank" rel="noopener noreferrer"
-              className="group border-t px-3 py-2.5 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:hover:bg-[var(--bg-card-hover)]"
+              className="group border-t px-2 py-2 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:px-3 sm:py-2.5 sm:hover:bg-[var(--bg-card-hover)]"
               style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
               onClick={() => onRead()}
             >
@@ -2314,7 +2342,7 @@ function IndieHackersCard({ post, index, isExpanded, onToggle, read, onRead }: {
               <ExternalIcon />
             </a>
           ) : (
-            <div className="border-t px-3 py-2.5 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}>
+            <div className="border-t px-2 py-2 text-xs sm:px-3 sm:py-2.5" style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}>
               💬 {post.comments} comments
             </div>
           )}
