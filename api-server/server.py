@@ -29,7 +29,7 @@ from TikTokApi import TikTokApi
 from supabase import create_client, Client as SupabaseClient
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
-LLM_MODEL = "z-ai/glm-4.5-air:free"
+LLM_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
 PRODUCT_HUNT_TOKEN = os.environ.get("PRODUCT_HUNT_TOKEN", "")
 
 # Supabase & Push config
@@ -81,6 +81,56 @@ def _rate_limit_pytrends():
 # --- Cache with stale fallback ---
 # _cache[key] = {"data": dict, "timestamp": float}
 _cache: dict[str, dict] = {}
+
+
+_llm_last_call = 0.0
+_LLM_MIN_INTERVAL = 5.0  # seconds between LLM calls
+
+
+def _call_llm(prompt: str, max_tokens: int = 2000, timeout: int = 60) -> str | None:
+    """Call OpenRouter LLM with retry on 429 and rate limiting. Returns content string or None."""
+    global _llm_last_call
+    if not OPENROUTER_API_KEY:
+        return None
+
+    # Rate-limit: wait if last call was too recent
+    elapsed = time.time() - _llm_last_call
+    if elapsed < _LLM_MIN_INTERVAL:
+        time.sleep(_LLM_MIN_INTERVAL - elapsed)
+
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            resp = http_requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": LLM_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": max_tokens,
+                },
+                timeout=timeout,
+            )
+            if resp.status_code == 429:
+                wait = (attempt + 1) * 15 + random.uniform(0, 5)
+                print(f"[LLM] 429 rate limited, retrying in {wait:.0f}s (attempt {attempt+1}/{max_retries})")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            _llm_last_call = time.time()
+            data = resp.json()
+            return (data["choices"][0]["message"]["content"] or "").strip()
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait = (attempt + 1) * 8
+                print(f"[LLM] error: {e}, retrying in {wait:.0f}s (attempt {attempt+1}/{max_retries})")
+                time.sleep(wait)
+            else:
+                print(f"[LLM] all retries failed: {e}")
+    return None
 
 
 def _cache_key(keywords: list[str], timeframe: str, geo: str) -> str:
@@ -359,22 +409,9 @@ def _classify_tech_terms(names: list[str]) -> set[str]:
     )
 
     try:
-        resp = http_requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": LLM_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 500,
-            },
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"].strip()
+        content = _call_llm(prompt, max_tokens=500, timeout=15)
+        if not content:
+            return set()
         # Extract JSON array from response
         start = content.find("[")
         end = content.rfind("]")
@@ -388,58 +425,59 @@ def _classify_tech_terms(names: list[str]) -> set[str]:
 
 
 def _generate_batch_summaries(items: list[dict], source: str) -> list[dict]:
-    """Use LLM to generate 2-3 sentence summaries and tags for a batch of items."""
+    """Use LLM to generate summaries and tags for items, processing in small chunks."""
     if not items or not OPENROUTER_API_KEY:
         return items
 
-    # Build item list for prompt
-    item_texts = []
-    for i, item in enumerate(items):
-        if source == "producthunt":
-            item_texts.append(f"{i+1}. Name: {item.get('name','')}\n   Tagline: {item.get('tagline','')}\n   Topics: {', '.join(item.get('topics',[]))}\n   Votes: {item.get('votesCount',0)}")
-        elif source == "huggingface":
-            item_texts.append(f"{i+1}. Model: {item.get('modelId','')}\n   Author: {item.get('author','')}\n   Pipeline: {item.get('pipelineTag','')}\n   Downloads: {item.get('downloads',0)}\n   Tags: {', '.join(item.get('tags',[])[:5])}")
-        elif source == "indiehackers":
-            item_texts.append(f"{i+1}. Title: {item.get('title','')}\n   Author: {item.get('author','')}\n   Group: {item.get('groupName','')}\n   Votes: {item.get('votes',0)}\n   Type: {item.get('type','post')}\n   Revenue: {item.get('revenue','N/A')}")
+    CHUNK_SIZE = 7  # smaller chunks for reliable JSON output
 
-    prompt = (
-        f"For each of these {source} items, provide:\n"
-        "- A 2-3 sentence description of what it is and why it matters to builders/makers\n"
-        "- 3-5 relevant tags (AI, SaaS, open-source, etc.)\n\n"
-        "Reply ONLY with a JSON object mapping item NUMBER (as string) to {\"summary\": \"...\", \"tags\": [\"...\", \"...\"]}.\n"
-        "No explanation, just the JSON object.\n\n"
-        "Items:\n" + "\n".join(item_texts)
-    )
+    for chunk_start in range(0, len(items), CHUNK_SIZE):
+        chunk = items[chunk_start:chunk_start + CHUNK_SIZE]
+        item_texts = []
+        for i, item in enumerate(chunk):
+            idx = chunk_start + i + 1
+            if source == "producthunt":
+                item_texts.append(f"{idx}. Name: {item.get('name','')}\n   Tagline: {item.get('tagline','')}\n   Topics: {', '.join(item.get('topics',[]))}\n   Votes: {item.get('votesCount',0)}")
+            elif source == "huggingface":
+                item_texts.append(f"{idx}. Model: {item.get('modelId','')}\n   Author: {item.get('author','')}\n   Pipeline: {item.get('pipelineTag','')}\n   Downloads: {item.get('downloads',0)}\n   Tags: {', '.join(item.get('tags',[])[:5])}")
+            elif source == "indiehackers":
+                item_texts.append(f"{idx}. Title: {item.get('title','')}\n   Author: {item.get('author','')}\n   Votes: {item.get('votes',0)}")
 
-    try:
-        resp = http_requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": LLM_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 2000,
-            },
-            timeout=30,
+        prompt = (
+            f"For each of these {source} items, provide:\n"
+            "- A 1-2 sentence description\n"
+            "- 3-5 relevant tags\n\n"
+            "Reply ONLY with a JSON object mapping item NUMBER to {\"summary\": \"...\", \"tags\": [...]}\n\n"
+            "Items:\n" + "\n".join(item_texts)
         )
-        resp.raise_for_status()
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"].strip()
-        # Extract JSON object
-        start = content.find("{")
-        end = content.rfind("}")
-        if start != -1 and end != -1:
-            summaries = json.loads(content[start:end + 1])
-            for i, item in enumerate(items):
-                key = str(i + 1)
-                if key in summaries:
-                    item["summary"] = summaries[key].get("summary", "")
-                    item["tags"] = summaries[key].get("tags", [])
-    except Exception as e:
-        print(f"[LLM] {source} summary error: {e}")
+
+        try:
+            content = _call_llm(prompt, max_tokens=1500, timeout=60)
+            if content:
+                print(f"[LLM] {source} chunk {chunk_start+1}-{chunk_start+len(chunk)}: raw={len(content)} chars")
+            if content:
+                start = content.find("{")
+                end = content.rfind("}")
+                if start != -1 and end != -1:
+                    raw = content[start:end + 1]
+                    try:
+                        summaries = json.loads(raw)
+                    except json.JSONDecodeError:
+                        fixed = re.sub(r',\s*([}\]])', r'\1', raw)
+                        fixed = re.sub(r'([{,]\s*)(\w+)(\s*:)', r'\1"\2"\3', fixed)
+                        try:
+                            summaries = json.loads(fixed)
+                        except json.JSONDecodeError:
+                            summaries = {}
+                    if isinstance(summaries, dict):
+                        for i, item in enumerate(chunk):
+                            key = str(chunk_start + i + 1)
+                            if key in summaries:
+                                item["summary"] = summaries[key].get("summary", "")
+                                item["tags"] = summaries[key].get("tags", [])
+        except Exception as e:
+            print(f"[LLM] {source} chunk {chunk_start}-{chunk_start+len(chunk)} error: {e}")
+        time.sleep(_LLM_MIN_INTERVAL)  # rate limit between chunks
 
     return items
 
@@ -773,27 +811,13 @@ def _extract_reddit_keywords(posts: list[dict]) -> list[dict]:
     )
 
     try:
-        resp = http_requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": LLM_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 800,
-            },
-            timeout=20,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"].strip()
-        start = content.find("[")
-        end = content.rfind("]")
-        if start != -1 and end != -1:
-            arr = json.loads(content[start:end + 1])
-            return [
+        content = _call_llm(prompt, max_tokens=800, timeout=20)
+        if content:
+            start = content.find("[")
+            end = content.rfind("]")
+            if start != -1 and end != -1:
+                arr = json.loads(content[start:end + 1])
+                return [
                 {
                     "keyword": item.get("keyword", ""),
                     "context": item.get("context", ""),
@@ -872,9 +896,11 @@ PH_API_URL = "https://api.producthunt.com/v2/api/graphql"
 
 
 @app.get("/api/producthunt")
-def get_producthunt():
-    """Fetch today's top products from Product Hunt."""
-    cache_key = "producthunt|daily"
+def get_producthunt(period: str = "daily"):
+    """Fetch top products from Product Hunt. period: daily|weekly|monthly."""
+    if period not in ("daily", "weekly", "monthly"):
+        period = "daily"
+    cache_key = f"producthunt|{period}"
     cached = _get_cached(cache_key)
     if cached:
         return cached
@@ -882,11 +908,20 @@ def get_producthunt():
     if not PRODUCT_HUNT_TOKEN:
         return {"products": [], "timestamp": datetime.now(timezone.utc).isoformat(), "_status": "PRODUCT_HUNT_TOKEN not configured"}
 
+    # Compute postedAfter based on period
+    now = datetime.now(timezone.utc)
+    if period == "daily":
+        posted_after = now - timedelta(hours=24)
+    elif period == "weekly":
+        posted_after = now - timedelta(days=7)
+    else:
+        posted_after = now - timedelta(days=30)
+    posted_after_str = posted_after.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     try:
         headers = {"Authorization": f"Bearer {PRODUCT_HUNT_TOKEN}"}
-        # Fetch today's posts
         query = """
-        { posts(order: VOTES, first: 20) {
+        { posts(order: VOTES, first: 20, postedAfter: "%s") {
           edges {
             node {
               name
@@ -900,7 +935,7 @@ def get_producthunt():
             }
           }
         }}
-        """
+        """ % posted_after_str
         resp = http_requests.post(PH_API_URL, headers=headers, json={"query": query}, timeout=15)
         resp.raise_for_status()
         data = resp.json()
@@ -956,7 +991,7 @@ def get_huggingface():
         # Use the public HF Hub API - trending models by recent downloads
         resp = http_requests.get(
             "https://huggingface.co/api/models",
-            params={"sort": "downloads", "limit": "20"},
+            params={"sort": "trendingScore", "limit": "20"},
             headers={"User-Agent": "TrendsWatcher/1.0"},
             timeout=15,
         )
@@ -1006,7 +1041,7 @@ def _fetch_indiehackers_posts() -> list[dict]:
     """Fetch IH posts via Jina Reader (renders the JS-heavy SPA)."""
     try:
         resp = http_requests.get(
-            "https://r.jina.ai/https://www.indiehackers.com/page/latest",
+            "https://r.jina.ai/https://www.indiehackers.com/page/latest?skip_consent=1",
             headers={"Accept": "text/markdown"},
             timeout=30,
         )
@@ -1014,35 +1049,41 @@ def _fetch_indiehackers_posts() -> list[dict]:
         markdown = resp.text
 
         posts: list[dict] = []
-        # Parse post links from markdown: [Title](url)
-        # Pattern: [Title text](https://www.indiehackers.com/post/...) or .../product/...)
-        pattern = r'\[([^\]]+)\]\((https://www\.indiehackers\.com/(?:post|product)/[^)]+)\)'
-        matches = re.findall(pattern, markdown)
 
-        # Parse stats from markdown: "X upvotes" and "Y comments"
-        upvotes_pattern = r'(\d+)\s*upvotes'
-        comments_pattern = r'(\d+)\s*comments'
+        # Each post block in the Jina markdown:
+        #   ### [Title](https://www.indiehackers.com/post/... or /product/...)
+        #   [AuthorName](https://www.indiehackers.com/AuthorName?id=...)
+        #   [![Image...](...)  (avatar)
+        #   [X upvotes](...)  [Y comments](...)
+        block_re = re.compile(
+            r'\[([^\]]+)\]\((https://www\.indiehackers\.com/(?:post|product)/[^)]+)\)\s*'
+            r'\[([^\]]+)\]\((https://www\.indiehackers\.com/[^)]+)\)\s*'
+            r'\[!\[.*?\]\([^\)]*\)\]\([^\)]*\)\s*'
+            r'\[(\d+)\s*upvotes?\][^\[]*\[(\d+)\s*comments?\]',
+            re.IGNORECASE,
+        )
 
         seen_titles: set[str] = set()
-        for title, url in matches:
-            title = title.strip()
+        for m in block_re.finditer(markdown):
+            title = m.group(1).strip()
+            url = m.group(2)
+            author = m.group(3).strip()
+            votes = int(m.group(5))
+            comments = int(m.group(6))
+
             key = title.lower()
-            # Skip comment/upvote count lines and very short titles
             if key in seen_titles or len(title) < 15:
-                continue
-            if re.match(r'^\d+\s+(upvote|comment|reply)', key):
                 continue
             seen_titles.add(key)
 
-            # Determine type from URL
             is_product = "/product/" in url
 
             posts.append({
                 "title": title[:200],
                 "url": url,
-                "votes": 0,
-                "comments": 0,
-                "author": "unknown",
+                "votes": votes,
+                "comments": comments,
+                "author": author,
                 "groupName": "",
                 "type": "product" if is_product else "post",
                 "revenue": "",
@@ -1717,16 +1758,8 @@ def _warmup_once():
                         name = title_el.text.strip()
                         traffic = traffic_el.text.strip() if traffic_el is not None and traffic_el.text else ""
                         items.append({"name": name, "traffic": traffic, "url": f"https://www.google.com/search?q={quote_plus(name)}&udm=50", "is_tech": False})
-                # LLM classification
-                if items:
-                    names = [it["name"] for it in items]
-                    tech_set = _classify_tech_terms(names)
-                    for it in items:
-                        if it["name"].lower().strip() in tech_set:
-                            it["is_tech"] = True
-                    tech_items = [it for it in items if it["is_tech"]]
-                    other_items = [it for it in items if not it["is_tech"]]
-                    items = tech_items + other_items
+                # Skip LLM classification during warmup to avoid rate limits.
+                # Classification will happen lazily on first user request via cache miss.
                 result = {"trending": items, "timestamp": datetime.now(timezone.utc).isoformat(), "geo": geo}
                 _set_cache(cache_key, result)
                 print(f"[warmup] trending {geo}: {len(items)} items")
@@ -1799,14 +1832,177 @@ def _warmup_once():
         except Exception as e:
             print(f"[warmup] trends {combo['desc']} error: {e}")
 
+    # 4. Warm up Product Hunt, HuggingFace, Indie Hackers (raw data only, no LLM summaries)
+    warmup_endpoints = [
+        ("/api/producthunt?period=daily", "producthunt|daily", "products"),
+        ("/api/huggingface", "huggingface|trending", "models"),
+        ("/api/indiehackers", "indiehackers|latest", "posts"),
+    ]
+    for endpoint, cache_key, items_key in warmup_endpoints:
+        try:
+            if not _get_cached(cache_key):
+                print(f"[warmup] {cache_key}: prefetching raw data...")
+                # Note: these endpoints generate LLM summaries internally.
+                # Skip during warmup to avoid exhausting OpenRouter free tier rate limits.
+                # The first user request will trigger summary generation + caching.
+                pass
+        except Exception as e:
+            print(f"[warmup] {cache_key} error: {e}")
+
     print(f"[warmup] Done at {datetime.now(timezone.utc).isoformat()}")
 
 
+# --- Prefetch: persist all board data into Supabase twb_cache ---
+
+PREFETCH_INTERVAL = 4 * 3600  # 4 hours
+_last_prefetch = 0.0
+
+
+def _prefetch_upsert(key: str, data: dict, ttl_hours: int = 4):
+    """Upsert a cache entry to Supabase + in-memory cache."""
+    if not supabase_client:
+        return
+    try:
+        supabase_client.table("twb_cache").upsert({
+            "key": key,
+            "data": data,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(hours=ttl_hours)).isoformat(),
+        }).execute()
+        _set_cache(key, data)
+    except Exception as e:
+        print(f"[prefetch] upsert {key} error: {e}")
+
+
+def prefetch_all():
+    """Fetch all board data and persist to Supabase twb_cache."""
+    global _last_prefetch
+    if not supabase_client:
+        print("[prefetch] No Supabase client, skipping")
+        return
+
+    print(f"[prefetch] Starting at {datetime.now(timezone.utc).isoformat()}")
+    written = 0
+    base = "http://127.0.0.1:8765"
+
+    # 1. Trending for default geos (RSS, fast)
+    for geo in WARMUP_TRENDING_GEOS:
+        cache_key = f"trending|{geo}"
+        try:
+            resp = http_requests.get(f"{base}/api/trending?geo={geo}", timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                _prefetch_upsert(cache_key, data, 4)
+                written += 1
+                print(f"[prefetch] {cache_key}: {len(data.get('trending', []))} items")
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"[prefetch] {cache_key} error: {e}")
+
+    # 2. Reddit
+    try:
+        cache_key = "reddit|hot"
+        resp = http_requests.get(f"{base}/api/reddit?sort=hot", timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            _prefetch_upsert(cache_key, data, 4)
+            written += 1
+            print(f"[prefetch] {cache_key}: {data.get('total_posts', 0)} posts")
+    except Exception as e:
+        print(f"[prefetch] reddit error: {e}")
+
+    # 3. HackerNews
+    try:
+        cache_key = "hackernews|top"
+        resp = http_requests.get(f"{base}/api/hackernews", timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            _prefetch_upsert(cache_key, data, 4)
+            written += 1
+            print(f"[prefetch] {cache_key}: {len(data.get('posts', []))} posts")
+    except Exception as e:
+        print(f"[prefetch] hackernews error: {e}")
+
+    # 4. TechNews
+    try:
+        cache_key = "technews|latest"
+        resp = http_requests.get(f"{base}/api/technews", timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            _prefetch_upsert(cache_key, data, 4)
+            written += 1
+            print(f"[prefetch] {cache_key}: {data.get('total', 0)} articles")
+    except Exception as e:
+        print(f"[prefetch] technews error: {e}")
+
+    # 5. Product Hunt (daily + weekly + monthly)
+    for period in ["daily", "weekly", "monthly"]:
+        cache_key = f"ph|{period}"
+        try:
+            resp = http_requests.get(f"{base}/api/producthunt?period={period}", timeout=120)
+            if resp.status_code == 200:
+                data = resp.json()
+                ttl = 8 if period == "daily" else 4
+                _prefetch_upsert(cache_key, data, ttl)
+                written += 1
+                print(f"[prefetch] {cache_key}: {len(data.get('products', []))} products")
+        except Exception as e:
+            print(f"[prefetch] {cache_key} error: {e}")
+
+    # 6. HuggingFace
+    try:
+        cache_key = "huggingface"
+        resp = http_requests.get(f"{base}/api/huggingface", timeout=120)
+        if resp.status_code == 200:
+            data = resp.json()
+            _prefetch_upsert(cache_key, data, 4)
+            written += 1
+            print(f"[prefetch] {cache_key}: {len(data.get('models', []))} models")
+    except Exception as e:
+        print(f"[prefetch] huggingface error: {e}")
+
+    # 7. IndieHackers
+    try:
+        cache_key = "indiehackers"
+        resp = http_requests.get(f"{base}/api/indiehackers", timeout=120)
+        if resp.status_code == 200:
+            data = resp.json()
+            _prefetch_upsert(cache_key, data, 4)
+            written += 1
+            print(f"[prefetch] {cache_key}: {len(data.get('posts', []))} posts")
+    except Exception as e:
+        print(f"[prefetch] indiehackers error: {e}")
+
+    # 8. Trends (default combination only)
+    try:
+        cache_key = "trends|AI,LLM,maker,generator,creator,filter:now 1-d:US"
+        resp = http_requests.get(f"{base}/api/trends?keywords=AI,LLM,maker,generator,creator,filter&timeframe=now%201-d&geo=US", timeout=120)
+        if resp.status_code == 200:
+            data = resp.json()
+            _prefetch_upsert(cache_key, data, 4)
+            written += 1
+            print(f"[prefetch] {cache_key}: {len(data.get('google', []))} items")
+    except Exception as e:
+        print(f"[prefetch] trends error: {e}")
+
+    _last_prefetch = time.time()
+    print(f"[prefetch] Done: {written} keys written to Supabase")
+
+
+@app.get("/api/refresh-all")
+def refresh_all():
+    """Manual trigger for full prefetch."""
+    t = threading.Thread(target=prefetch_all, daemon=True)
+    t.start()
+    return {"status": "started"}
+
+
 def _warmup_loop():
-    """Run warmup and schedule next run."""
+    """Run warmup and schedule next run. Also run prefetch if interval elapsed."""
     global _warmup_timer
     try:
         _warmup_once()
+        if time.time() - _last_prefetch >= PREFETCH_INTERVAL:
+            prefetch_all()
     except Exception as e:
         print(f"[warmup] Unexpected error: {e}")
     _warmup_timer = threading.Timer(WARMUP_INTERVAL, _warmup_loop)
