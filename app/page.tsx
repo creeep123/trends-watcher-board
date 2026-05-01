@@ -227,6 +227,7 @@ export default function Home() {
   const [redditPosts, setRedditPosts] = useState<RedditPost[]>([]);
   const [redditKeywords, setRedditKeywords] = useState<RedditKeyword[]>([]);
   const [redditLoading, setRedditLoading] = useState(true);
+  const [redditKwFilter, setRedditKwFilter] = useState<string | null>(null);
 
   const [hnPosts, setHnPosts] = useState<HackerNewsPost[]>([]);
   const [hnLoading, setHnLoading] = useState(true);
@@ -1692,29 +1693,54 @@ export default function Home() {
                   <>
                     {redditKeywords.length > 0 && (
                       <div className="rounded-lg border p-2.5" style={{ background: "rgba(255, 69, 0, 0.04)", borderColor: "rgba(255, 69, 0, 0.2)" }}>
-                        <div className="mb-1.5 text-xs font-medium" style={{ color: "#ff4500" }}>
-                          LLM Extracted Keywords
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {redditKeywords.map((kw, i) => (
-                            <a
-                              key={i}
-                              href={`https://www.google.com/search?q=${encodeURIComponent(kw.keyword)}&udm=50`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="rounded-md px-2 py-1 text-xs font-medium transition-opacity hover:opacity-80"
-                              style={{ background: "rgba(255, 69, 0, 0.12)", color: "#ff6b35" }}
-                              title={kw.context}
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <span className="text-xs font-medium" style={{ color: "#ff4500" }}>
+                            LLM Extracted Keywords
+                          </span>
+                          {redditKwFilter && (
+                            <button
+                              onClick={() => setRedditKwFilter(null)}
+                              className="text-xs opacity-60 hover:opacity-100 transition-opacity"
+                              style={{ color: "#ff4500" }}
                             >
-                              {kw.keyword} ({kw.posts})
-                            </a>
-                          ))}
+                              Clear filter
+                            </button>
+                          )}
+                        </div>
+                        {redditKwFilter && (
+                          <div className="mb-1.5 text-xs" style={{ color: "var(--text-secondary)" }}>
+                            Showing posts matching "<span style={{ color: "#ff6b35", fontWeight: 500 }}>{redditKwFilter}</span>"
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-1.5">
+                          {redditKeywords.map((kw, i) => {
+                            const active = redditKwFilter === kw.keyword;
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => setRedditKwFilter(active ? null : kw.keyword)}
+                                className="rounded-md px-2 py-1 text-xs font-medium transition-all"
+                                style={{
+                                  background: active ? "rgba(255, 69, 0, 0.3)" : "rgba(255, 69, 0, 0.12)",
+                                  color: "#ff6b35",
+                                  outline: active ? "1.5px solid #ff4500" : "none",
+                                  outlineOffset: "-1.5px",
+                                }}
+                                title={kw.context}
+                              >
+                                {kw.keyword} ({kw.posts})
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
-                    {redditPosts.map((post, i) => (
-                      <RedditCard key={`r-${i}`} post={post} index={i} read={isRead("reddit", post.url)} onRead={() => markAsRead("reddit", post.url)} />
-                    ))}
+                    {redditPosts
+                      .filter(post => !redditKwFilter || post.title.toLowerCase().includes(redditKwFilter.toLowerCase()))
+                      .map((post, i) => (
+                        <RedditCard key={`r-${i}`} post={post} index={i} read={isRead("reddit", post.url)} onRead={() => markAsRead("reddit", post.url)} />
+                      ))
+                    }
                   </>
                 )}
               </div>
@@ -2101,14 +2127,14 @@ function formatNum(n: number | undefined): string {
 function ExpandableSummary({ summary, tags }: { summary?: string; tags?: string[] }) {
   if (!summary && (!tags || tags.length === 0)) return null;
   return (
-    <div className="mt-2 border-t px-2 py-2 sm:px-3" style={{ borderColor: "var(--border)" }}>
+    <div className="mt-1.5 border-t px-2 py-1.5 sm:px-3" style={{ borderColor: "var(--border)" }}>
       {summary && (
         <p className="text-xs leading-relaxed break-words" style={{ color: "var(--text-secondary)" }}>
           {summary}
         </p>
       )}
       {tags && tags.length > 0 && (
-        <div className="mt-1.5 flex flex-wrap gap-1">
+        <div className="mt-1 flex flex-wrap gap-1">
           {tags.map((tag, i) => (
             <span
               key={i}
@@ -2184,7 +2210,7 @@ function ProductHuntCard({ product, index, isExpanded, onToggle, read, onRead }:
             <a
               href={product.url}
               target="_blank" rel="noopener noreferrer"
-              className="group border-t px-2 py-2 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:px-3 sm:py-2.5 sm:hover:bg-[var(--bg-card-hover)]"
+              className="group border-t px-2 py-1.5 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:px-3 sm:py-2.5 sm:hover:bg-[var(--bg-card-hover)]"
               style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
               onClick={() => onRead()}
             >
@@ -2254,7 +2280,7 @@ function HuggingFaceCard({ model, index, isExpanded, onToggle, read, onRead }: {
           <a
             href={model.url}
             target="_blank" rel="noopener noreferrer"
-            className="group border-t px-2 py-2 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:px-3 sm:py-2.5 sm:hover:bg-[var(--bg-card-hover)]"
+            className="group border-t px-2 py-1.5 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:px-3 sm:py-2.5 sm:hover:bg-[var(--bg-card-hover)]"
             style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
             onClick={() => onRead()}
           >
@@ -2334,7 +2360,7 @@ function IndieHackersCard({ post, index, isExpanded, onToggle, read, onRead }: {
             <a
               href={post.url}
               target="_blank" rel="noopener noreferrer"
-              className="group border-t px-2 py-2 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:px-3 sm:py-2.5 sm:hover:bg-[var(--bg-card-hover)]"
+              className="group border-t px-2 py-1.5 flex items-center justify-between transition-colors active:bg-[var(--bg-card-hover)] sm:px-3 sm:py-2.5 sm:hover:bg-[var(--bg-card-hover)]"
               style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}
               onClick={() => onRead()}
             >
