@@ -2221,9 +2221,12 @@ def prefetch_all():
         resp = http_requests.get(f"{base}/api/trends?keywords=AI,LLM,maker,generator,creator,filter&timeframe=now%201-d&geo=US", timeout=60)
         if resp.status_code == 200:
             data = resp.json()
-            _prefetch_upsert(cache_key, data, 4)
-            written += 1
-            print(f"[prefetch] {cache_key}: {len(data.get('google', []))} items")
+            if data.get("google") and len(data["google"]) > 0:
+                _prefetch_upsert(cache_key, data, 4)
+                written += 1
+                print(f"[prefetch] {cache_key}: {len(data.get('google', []))} items")
+            else:
+                print(f"[prefetch] {cache_key}: skipped (empty google data)")
     except Exception as e:
         print(f"[prefetch] trends error: {e}")
 

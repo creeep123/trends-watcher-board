@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchGoogleTrends } from "@/lib/googleTrends";
 import { getCached, setCache } from "@/lib/cache";
-import { getSupabaseCache, setSupabaseCache } from "@/lib/supabase-cache";
+import { getSupabaseCache, getSupabaseCacheFallback, setSupabaseCache } from "@/lib/supabase-cache";
 import type { TrendsResponse } from "@/lib/types";
 
 export const maxDuration = 30;
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   // cacheOnly mode: only return Supabase cache (including expired), skip backend
   if (cacheOnly) {
-    const cached = await getSupabaseCache<TrendsResponse>(cacheKey);
+    const cached = await getSupabaseCacheFallback<TrendsResponse>(cacheKey, keywords.join(","));
     if (cached && cached.google && cached.google.length > 0) {
       return NextResponse.json({ ...cached, _cached: true, _cacheFallback: true });
     }
