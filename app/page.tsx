@@ -10,13 +10,13 @@ import type {
   MultiGeoData,
   RedditPost,
   RedditKeyword,
+  LLMKeyword,
   HackerNewsPost,
   HackerNewsResponse,
   TechNewsPost,
   EnrichData,
   EnrichResponse,
   KGRItem,
-  RootKeyword,
   ProductHuntProduct,
   HuggingFaceModel,
   IndieHackersPost,
@@ -206,6 +206,8 @@ export default function Home() {
   const [data, setData] = useState<TrendsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [githubData, setGithubData] = useState<TrendKeyword[]>([]);
+  const [githubLoading, setGithubLoading] = useState(true);
   const [forceRefresh, setForceRefresh] = useState(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -231,9 +233,13 @@ export default function Home() {
 
   const [hnPosts, setHnPosts] = useState<HackerNewsPost[]>([]);
   const [hnLoading, setHnLoading] = useState(true);
+  const [hnKeywords, setHnKeywords] = useState<LLMKeyword[]>([]);
+  const [hnKwFilter, setHnKwFilter] = useState<string | null>(null);
 
   const [techNewsPosts, setTechNewsPosts] = useState<TechNewsPost[]>([]);
   const [techNewsLoading, setTechNewsLoading] = useState(true);
+  const [techNewsKeywords, setTechNewsKeywords] = useState<LLMKeyword[]>([]);
+  const [techNewsKwFilter, setTechNewsKwFilter] = useState<string | null>(null);
 
   const [phProducts, setPhProducts] = useState<ProductHuntProduct[]>([]);
   const [phLoading, setPhLoading] = useState(true);
@@ -267,13 +273,7 @@ export default function Home() {
   // Toast notification
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  // Root Keywords Monitoring state
-  const [rootsExpanded, setRootsExpanded] = useState(false);
-  const [rootKeywords, setRootKeywords] = useState<RootKeyword[]>([]);
-  const [rootsLoading, setRootsLoading] = useState(false);
-  const [rootsImportText, setRootsImportText] = useState("");
-  const [showRootsImport, setShowRootsImport] = useState(false);
-  const [scanProgress, setScanProgress] = useState({ scanned: 0, total: 0 });
+
 
   // Helper function to format timestamps
   const timeAgo = (timestamp: string) => {
@@ -287,13 +287,16 @@ export default function Home() {
     return `${Math.floor(hours / 24)}天前`;
   };
 
-  const fetchData = useCallback(async (bypassCache = false) => {
+  const fetchData = useCallback(async (bypassCache = false, cacheOnly = false) => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({ timeframe, geo, keywords });
       if (bypassCache) {
         params.set('bypassCache', 'true');
+      }
+      if (cacheOnly) {
+        params.set('cacheOnly', '1');
       }
 
       const res = await fetch(`/api/trends?${params}${bypassCache ? "&refresh=1" : ""}`);
@@ -308,19 +311,26 @@ export default function Home() {
         setEnrichMap(json.enrich);
         setEnrichLoading(false);
       }
-
-      // 保存到 localStorage
-      try {
-        localStorage.setItem('trends_cache', JSON.stringify(json));
-      } catch (e) {
-        console.error('Failed to save cache to localStorage:', e);
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to fetch");
     } finally {
       setLoading(false);
     }
   }, [timeframe, geo, keywords]);
+
+  const fetchGithub = useCallback(async (refresh = false) => {
+    setGithubLoading(true);
+    try {
+      const res = await fetch(`/api/github-trends${refresh ? "?refresh=1" : ""}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setGithubData(json.github || []);
+    } catch {
+      // silently fail, keep existing data
+    } finally {
+      setGithubLoading(false);
+    }
+  }, []);
 
   const fetchTrending = useCallback(async (refresh = false) => {
     setTrendingLoading(true);
@@ -343,7 +353,7 @@ export default function Home() {
       const res = await fetch(`/api/reddit?sort=hot${refresh ? "&refresh=1" : ""}`);
       if (res.ok) {
         const json = await res.json();
-        const posts = (json.posts || []).sort((a: RedditPost, b: RedditPost) => new Date(b.published).getTime() - new Date(a.published).getTime());
+        const posts = json.posts || [];
         setRedditPosts(posts);
         setRedditKeywords(json.keywords || []);
       }
@@ -362,6 +372,7 @@ export default function Home() {
       if (res.ok) {
         const json = await res.json();
         setHnPosts(json.posts || []);
+        setHnKeywords(json.keywords || []);
       }
     } catch {
       setHnPosts([]);
@@ -378,6 +389,7 @@ export default function Home() {
         const json = await res.json();
         const articles = (json.articles || []).sort((a: TechNewsPost, b: TechNewsPost) => new Date(b.published).getTime() - new Date(a.published).getTime());
         setTechNewsPosts(articles);
+        setTechNewsKeywords(json.keywords || []);
       }
     } catch {
       setTechNewsPosts([]);
@@ -432,9 +444,9 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // 页面加载时不主动获取数据，只从 localStorage 读取缓存
     if (forceRefresh) {
       fetchData(true);
+      fetchGithub(true);
       fetchTrending(true);
       fetchReddit(true);
       fetchHackerNews(true);
@@ -444,25 +456,8 @@ export default function Home() {
       fetchIndieHackers(true);
       setForceRefresh(false);
     } else {
-      // 尝试从 localStorage 读取缓存
-      try {
-        const cached = localStorage.getItem('trends_cache');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          // 检查缓存是否在1小时内
-          const cacheTime = new Date(parsed.timestamp).getTime();
-          const now = Date.now();
-          if (now - cacheTime < 3600000) { // 1小时内
-            setData(parsed);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch (e) {
-        console.error('Failed to read cache from localStorage:', e);
-      }
-      // 没有缓存或缓存过期，自动获取数据
       fetchData();
+      fetchGithub();
     }
   }, [fetchData, forceRefresh]);
   useEffect(() => { fetchTrending(); }, [fetchTrending]);
@@ -481,12 +476,12 @@ export default function Home() {
     redditPosts.forEach(p => { if (p.url) items.push({ item_type: "reddit", item_key: p.url }); });
     hnPosts.forEach(p => items.push({ item_type: "hn", item_key: String(p.id) }));
     techNewsPosts.forEach(a => { if (a.url) items.push({ item_type: "technews", item_key: a.url }); });
-    data?.github?.forEach(g => items.push({ item_type: "github", item_key: g.name }));
+    githubData.forEach(g => items.push({ item_type: "github", item_key: g.name }));
     phProducts.forEach(p => items.push({ item_type: "ph", item_key: p.name }));
     hfModels.forEach(m => items.push({ item_type: "hf", item_key: m.modelId }));
     ihPosts.forEach(p => { if (p.url) items.push({ item_type: "ih", item_key: p.url }); });
     if (items.length > 0) fetchReadStatus(items);
-  }, [data, trendingItems, redditPosts, hnPosts, techNewsPosts, phProducts, hfModels, ihPosts, fetchReadStatus]);
+  }, [data, githubData, trendingItems, redditPosts, hnPosts, techNewsPosts, phProducts, hfModels, ihPosts, fetchReadStatus]);
 
   // Load KGR workbench on mount - try Supabase first, fallback to localStorage
   useEffect(() => {
@@ -529,11 +524,6 @@ export default function Home() {
       });
     }
   }, [kgrItems]);
-
-  // Fetch enrich scores when google data is available
-  useEffect(() => {
-    fetchRootKeywords();
-  }, []);
 
   // Close mobile dropdown menu on click outside
   useEffect(() => {
@@ -907,90 +897,6 @@ export default function Home() {
     window.open(url, "_blank");
   };
 
-  // Root Keywords Monitoring handlers
-  const fetchRootKeywords = async () => {
-    try {
-      const res = await fetch("/api/roots");
-      if (res.ok) {
-        const data = await res.json();
-        setRootKeywords(data.keywords || []);
-      }
-    } catch (e) {
-      console.error("Failed to fetch root keywords:", e);
-    }
-  };
-
-  const addRootKeyword = async (keyword: string) => {
-    try {
-      const res = await fetch(`/api/roots?keyword=${encodeURIComponent(keyword)}`, {
-        method: "POST"
-      });
-      if (res.ok) {
-        await fetchRootKeywords();
-      }
-    } catch (e) {
-      console.error("Failed to add root keyword:", e);
-    }
-  };
-
-  const deleteRootKeyword = async (keyword: string) => {
-    try {
-      const res = await fetch(`/api/roots/${encodeURIComponent(keyword)}`, {
-        method: "DELETE"
-      });
-      if (res.ok) {
-        await fetchRootKeywords();
-      }
-    } catch (e) {
-      console.error("Failed to delete root keyword:", e);
-    }
-  };
-
-  const importRootKeywords = async () => {
-    const keywords = rootsImportText
-      .split('\n')
-      .map(k => k.trim())
-      .filter(k => k.length > 0);
-
-    if (keywords.length === 0) return;
-
-    try {
-      const res = await fetch("/api/roots/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(keywords)
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        await fetchRootKeywords();
-        setRootsImportText("");
-        setShowRootsImport(false);
-      }
-    } catch (e) {
-      console.error("Failed to import root keywords:", e);
-    }
-  };
-
-  const scanRootKeywords = async (limit: number = 5) => {
-    setRootsLoading(true);
-    try {
-      const res = await fetch(`/api/roots/scan?limit=${limit}`, {
-        method: "POST"
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        await fetchRootKeywords();
-        setScanProgress({ scanned: data.scanned, total: rootKeywords.length });
-      }
-    } catch (e) {
-      console.error("Failed to scan root keywords:", e);
-    } finally {
-      setRootsLoading(false);
-    }
-  };
-
   const currentTimeframe = TIMEFRAME_OPTIONS.find((t) => t.value === timeframe);
   const currentGeo = GEO_OPTIONS.find((g) => g.value === geo);
   // Memoize sort: only re-sort when enrich batch completes, not on progressive updates
@@ -1098,7 +1004,7 @@ export default function Home() {
                 )}
               </div>
               <button
-                onClick={() => { fetchData(); fetchTrending(); fetchReddit(); fetchHackerNews(); fetchTechNews(); fetchProductHunt(); fetchHuggingFace(); fetchIndieHackers(); }}
+                onClick={() => { fetchData(); fetchGithub(); fetchTrending(); fetchReddit(); fetchHackerNews(); fetchTechNews(); fetchProductHunt(); fetchHuggingFace(); fetchIndieHackers(); }}
                 disabled={loading}
                 className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm"
                 style={{
@@ -1370,125 +1276,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Root Keywords Monitoring Panel */}
-      {rootsExpanded && (
-        <div className="mx-auto max-w-7xl px-3 py-3 sm:px-4">
-          <div className="border" style={{
-            background: "var(--bg-card)",
-            borderColor: "var(--border)",
-            borderRadius: "var(--radius-lg)",
-            boxShadow: "var(--shadow-surface)"
-          }}>
-            <div className="p-3" style={{ borderBottom: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🌱</span>
-                  <h2 className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                    词根监控
-                  </h2>
-                  <span className="rounded-full px-2 py-0.5 text-xs"
-                    style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}>
-                    {rootKeywords.length}
-                  </span>
-                </div>
-                <button onClick={() => setRootsExpanded(false)}
-                  className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80"
-                  style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}>
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            {/* Add keyword input */}
-            <div className="p-3" style={{ borderBottom: "1px solid var(--border)" }}>
-              <input type="text" placeholder="添加词根，按回车确认..."
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                    addRootKeyword(e.currentTarget.value.trim());
-                    e.currentTarget.value = "";
-                  }
-                }}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors"
-                style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
-              />
-            </div>
-
-            {/* Root keywords list */}
-            <div className="max-h-96 overflow-y-auto p-3">
-              {rootsLoading ? (
-                <div className="text-center py-4" style={{ color: "var(--text-tertiary)" }}>加载中...</div>
-              ) : rootKeywords.length === 0 ? (
-                <div className="text-center py-4 text-sm" style={{ color: "var(--text-tertiary)" }}>
-                  暂无词根，请添加
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {rootKeywords.map((root) => (
-                    <div key={root.id} className="flex items-center justify-between border p-2 text-sm"
-                      style={{ borderColor: "var(--border)", background: "var(--bg-secondary)", borderRadius: "var(--radius-md)" }}>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium" style={{ color: "var(--text-primary)" }}>{root.keyword}</span>
-                        {root.category && (
-                          <span className="rounded px-1.5 py-0.5 text-xs"
-                            style={{ background: "var(--accent-blue)", color: "var(--text-primary)" }}>
-                            {root.category}
-                          </span>
-                        )}
-                        <span className="rounded px-1.5 py-0.5 text-xs"
-                          style={{
-                            background: root.priority === "high" ? "rgba(239, 68, 68, 0.1)" :
-                                         root.priority === "medium" ? "rgba(251, 191, 36, 0.1)" :
-                                         "rgba(255, 255, 255, 0.05)",
-                            color: root.priority === "high" ? "#f87171" :
-                                   root.priority === "medium" ? "#fbbf24" :
-                                   "var(--text-tertiary)"
-                          }}>
-                          {root.priority === "high" ? "高" : root.priority === "medium" ? "中" : "低"}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => deleteRootKeyword(root.keyword)}
-                        className="rounded px-2 py-1 text-xs transition-colors hover:opacity-80"
-                        style={{ background: "var(--accent-red)", color: "var(--text-primary)" }}>
-                        删除
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Toggle buttons when collapsed - combined toolbar */}
-      {!kgrExpanded && !rootsExpanded && (
-        <div className="mx-auto max-w-7xl flex gap-2 px-3 pb-3 pt-4 sm:px-4">
-          <button onClick={() => setKgrExpanded(true)}
-            className="flex-1 border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 sm:flex-none sm:min-w-0"
-            style={{
-              background: "var(--bg-elevated)",
-              borderColor: "var(--border)",
-              borderRadius: "var(--radius-md)",
-              color: kgrItems.length > 0 ? "var(--accent-blue-hover)" : "var(--text-tertiary)"
-            }}>
-            🎯 KGR {kgrItems.length > 0 && `(${kgrItems.length})`}
-          </button>
-          <button onClick={() => setRootsExpanded(true)}
-            className="flex-1 border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 sm:flex-none sm:min-w-0"
-            style={{
-              background: "var(--bg-elevated)",
-              borderColor: "var(--border)",
-              borderRadius: "var(--radius-md)",
-              color: rootKeywords.length > 0 ? "var(--accent-blue-hover)" : "var(--text-tertiary)"
-            }}>
-            🌱 词根监控 {rootKeywords.length > 0 && `(${rootKeywords.length})`}
-          </button>
-        </div>
-      )}
-
-      {/* Toggle button when only KGR is collapsed */}
-      {!kgrExpanded && rootsExpanded && (
+      {/* Toggle button when KGR is collapsed */}
+      {!kgrExpanded && (
         <div className="mx-auto max-w-7xl px-3 pb-3 pt-4 sm:px-4">
           <button onClick={() => setKgrExpanded(true)}
             className="border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
@@ -1499,22 +1288,6 @@ export default function Home() {
               color: kgrItems.length > 0 ? "var(--accent-blue-hover)" : "var(--text-tertiary)"
             }}>
             🎯 KGR {kgrItems.length > 0 && `(${kgrItems.length})`}
-          </button>
-        </div>
-      )}
-
-      {/* Toggle button when only roots is collapsed */}
-      {kgrExpanded && !rootsExpanded && (
-        <div className="mx-auto max-w-7xl px-3 pb-3 pt-4 sm:px-4">
-          <button onClick={() => setRootsExpanded(true)}
-            className="border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
-            style={{
-              background: "var(--bg-elevated)",
-              borderColor: "var(--border)",
-              borderRadius: "var(--radius-md)",
-              color: rootKeywords.length > 0 ? "var(--accent-blue-hover)" : "var(--text-tertiary)"
-            }}>
-            🌱 词根监控 {rootKeywords.length > 0 && `(${rootKeywords.length})`}
           </button>
         </div>
       )}
@@ -1630,6 +1403,19 @@ export default function Home() {
                 </div>
               )}
 
+              {/* Supabase 缓存回退提示 */}
+              {(data as any)?._cacheFallback && (
+                <div className="mb-3 border p-3 text-xs" style={{ borderColor: "rgba(96,165,250,0.3)", background: "rgba(96,165,250,0.06)", color: "#60a5fa", borderRadius: "var(--radius-lg)" }}>
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm">📦</span>
+                    <div>
+                      <div className="font-medium">显示 Supabase 缓存数据</div>
+                      <div style={{ color: "var(--text-tertiary)" }}>当前数据来自历史缓存（{data?.timestamp ? new Date(data.timestamp).toLocaleString() : "未知时间"}），可能不是最新。点击刷新按钮尝试重新获取。</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="min-w-0 mt-2 space-y-2 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
                 {loading ? (
                   <div className="rounded-lg p-4 text-center" style={{ background: "var(--bg-secondary)" }}>
@@ -1647,6 +1433,8 @@ export default function Home() {
                       data?._status ? `Google Trends 错误: ${data._status}` :
                       "No Google Trends data"
                     }
+                    onAction={() => fetchData(false, true)}
+                    onActionText="加载 Supabase 缓存"
                     actionLink={(function() {
                       const keywordsArray = keywords.split(',').map(k => k.trim());
                       const qParam = keywordsArray.map(k => encodeURIComponent(k)).join(',');
@@ -1736,7 +1524,12 @@ export default function Home() {
                       </div>
                     )}
                     {redditPosts
-                      .filter(post => !redditKwFilter || post.title.toLowerCase().includes(redditKwFilter.toLowerCase()))
+                      .filter((post, i) => {
+                        if (!redditKwFilter) return true;
+                        const kw = redditKeywords.find(k => k.keyword === redditKwFilter);
+                        if (kw?.indices?.length) return kw.indices.includes(i);
+                        return post.title.toLowerCase().includes(redditKwFilter.toLowerCase());
+                      })
                       .map((post, i) => (
                         <RedditCard key={`r-${i}`} post={post} index={i} read={isRead("reddit", post.url)} onRead={() => markAsRead("reddit", post.url)} />
                       ))
@@ -1757,9 +1550,53 @@ export default function Home() {
                 ) : hnPosts.length === 0 ? (
                   <EmptyState text="No HackerNews posts available" />
                 ) : (
-                  hnPosts.map((post, i) => (
-                    <HackerNewsCard key={`hn-${i}`} post={post} index={i} read={isRead("hn", String(post.id))} onRead={() => markAsRead("hn", String(post.id))} />
-                  ))
+                  <>
+                    {hnKeywords.length > 0 && (
+                      <div className="rounded-lg border p-2.5" style={{ background: "rgba(255, 102, 0, 0.04)", borderColor: "rgba(255, 102, 0, 0.2)" }}>
+                        <div className="mb-1.5 flex items-center justify-between text-xs font-medium" style={{ color: "#ff6600" }}>
+                          <span>LLM Extracted Keywords</span>
+                          {hnKwFilter && (
+                            <button onClick={() => setHnKwFilter(null)} className="flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:opacity-80" style={{ background: "rgba(255, 102, 0, 0.15)" }}>
+                              <span>Filtering: <b>{hnKwFilter}</b></span>
+                              <span style={{ marginLeft: 2 }}>&#x2715;</span>
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {hnKeywords.map((kw, i) => {
+                            const active = hnKwFilter === kw.keyword;
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => setHnKwFilter(active ? null : kw.keyword)}
+                                className="rounded-md px-2 py-1 text-xs font-medium transition-all"
+                                style={{
+                                  background: active ? "rgba(255, 102, 0, 0.3)" : "rgba(255, 102, 0, 0.12)",
+                                  color: "#ff6600",
+                                  outline: active ? "1.5px solid #ff6600" : "none",
+                                  outlineOffset: "-1.5px",
+                                }}
+                                title={kw.context}
+                              >
+                                {kw.keyword} ({kw.posts})
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {hnPosts
+                      .filter((_, i) => {
+                        if (!hnKwFilter) return true;
+                        const kw = hnKeywords.find(k => k.keyword === hnKwFilter);
+                        if (kw?.indices?.length) return kw.indices.includes(i);
+                        return false;
+                      })
+                      .map((post, i) => (
+                        <HackerNewsCard key={`hn-${i}`} post={post} index={i} read={isRead("hn", String(post.id))} onRead={() => markAsRead("hn", String(post.id))} />
+                      ))
+                    }
+                  </>
                 )}
               </div>
             </section>
@@ -1775,7 +1612,17 @@ export default function Home() {
                 ) : techNewsPosts.length === 0 ? (
                   <EmptyState text="No tech news available" />
                 ) : (
-                  techNewsPosts.map((article, i) => (
+                  <>
+                    {techNewsPosts
+                      .filter((_, i) => {
+                        if (!techNewsKwFilter) return true;
+                        const kw = techNewsKeywords.find(k => k.keyword === techNewsKwFilter);
+                        if (kw?.indices?.length) return kw.indices.includes(i);
+                        return false;
+                      })
+                      .map((article, i) => {
+                        const articleKeywords = techNewsKeywords.filter(kw => kw.indices?.includes(i));
+                        return (
                     <div
                       key={`tn-${i}`}
                       className="group border p-3 transition-colors"
@@ -1819,21 +1666,46 @@ export default function Home() {
                         >
                           {article.title}
                         </a>
+                        {articleKeywords.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {articleKeywords.map(kw => (
+                              <button
+                                key={kw.keyword}
+                                onClick={(e) => { e.stopPropagation(); setTechNewsKwFilter(techNewsKwFilter === kw.keyword ? null : kw.keyword); }}
+                                className="rounded px-1.5 py-0.5 text-[10px] font-medium transition-all"
+                                style={{
+                                  background: techNewsKwFilter === kw.keyword ? "rgba(59, 130, 246, 0.25)" : "rgba(59, 130, 246, 0.08)",
+                                  color: "#3b82f6",
+                                  outline: techNewsKwFilter === kw.keyword ? "1px solid rgba(59, 130, 246, 0.4)" : "none",
+                                }}
+                                title={kw.context}
+                              >
+                                {kw.keyword}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ))
+                    );
+                  })}
+                  </>
                 )}
               </div>
             </section>
 
             {/* --- GitHub Trending --- */}
             <section className={`${mobileTab !== "github" ? "hidden" : ""} sm:block`}>
-              <SectionHeader title="GitHub Trending" icon="💻" count={data?.github?.length || 0} />
+              <SectionHeader title="GitHub Trending" icon="💻" count={githubData.length} />
               <div className="min-w-0 mt-2 space-y-2 lg:max-h-[calc(100vh-240px)] lg:overflow-y-auto lg:space-y-1.5">
-                {!data?.github || data.github.length === 0 ? (
+                {githubLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="h-11 animate-pulse rounded-lg" style={{ background: "var(--bg-card)", opacity: 1 - i * 0.15 }} />
+                  ))
+                ) : githubData.length === 0 ? (
                   <EmptyState text="No GitHub projects trending" />
                 ) : (
-                  data.github.map((item, i) => (
+                  githubData.map((item, i) => (
                     <KeywordCard key={`gh-${i}`} item={item} index={i} isGithub read={isRead("github", item.name)} onRead={() => markAsRead("github", item.name)} />
                   ))
                 )}
@@ -2379,10 +2251,13 @@ function IndieHackersCard({ post, index, isExpanded, onToggle, read, onRead }: {
 }
 
 function RedditCard({ post, index, read, onRead }: { post: RedditPost; index: number; read: boolean; onRead: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
   const timeAgo = (dateStr: string) => {
     if (!dateStr) return "";
     const date = new Date(dateStr);
-    // Check if date is valid
     if (isNaN(date.getTime())) return "";
     const diff = Date.now() - date.getTime();
     const hours = Math.floor(diff / 3600000);
@@ -2391,50 +2266,82 @@ function RedditCard({ post, index, read, onRead }: { post: RedditPost; index: nu
     return `${Math.floor(hours / 24)}d ago`;
   };
 
-  const formatNumber = (n: number | undefined) => {
-    if (typeof n !== "number" || isNaN(n)) return "0";
-    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-    return n.toString();
-  };
-
-  // Safely get values with defaults
   const subreddit = post.subreddit ?? "unknown";
   const url = post.url ?? "#";
   const title = post.title ?? "Untitled";
 
+  const handleToggle = async () => {
+    if (expanded) { onRead(); setExpanded(false); return; }
+    setExpanded(true);
+    if (!summary && !loading) {
+      setLoading(true);
+      try {
+        const resp = await fetch(`/api/summarize-url?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`);
+        const data = await resp.json();
+        if (data.summary) setSummary(data.summary);
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+  };
+
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={onRead}
-      className="group flex items-start gap-2.5 border p-4 transition-all sm:gap-3 sm:p-2.5"
-      style={{ background: "var(--bg-card)", borderColor: "var(--border)", borderRadius: "var(--radius-lg)", opacity: read ? 0.4 : 1, transition: "opacity 0.3s" }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255, 69, 0, 0.4)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
+    <div
+      className="group min-w-0 overflow-hidden border transition-all"
+      style={{
+        background: "var(--bg-card)",
+        borderColor: expanded ? "rgba(255, 69, 0, 0.4)" : "var(--border)",
+        borderRadius: "var(--radius-lg)",
+        opacity: read ? 0.4 : 1,
+      }}
     >
-      <Rank n={index + 1} />
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>
-          {title}
+      <button onClick={handleToggle} className="flex min-w-0 w-full items-start gap-2.5 p-4 text-left sm:gap-3 sm:p-2.5">
+        <Rank n={index + 1} />
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>
+            {title}
+          </div>
+          <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
+            <span className="rounded px-1 py-0.5" style={{ background: "rgba(255, 69, 0, 0.1)", color: "#ff6b35" }}>
+              r/{subreddit}
+            </span>
+            {post.published && <span>🕒 {timeAgo(post.published)}</span>}
+          </div>
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
-          <span className="rounded px-1 py-0.5" style={{ background: "rgba(255, 69, 0, 0.1)", color: "#ff6b35" }}>
-            r/{subreddit}
-          </span>
-          {post.published && <span>🕒 {timeAgo(post.published)}</span>}
+        <ExternalIcon />
+      </button>
+      {expanded && (
+        <div className="px-4 pb-3 sm:px-2.5 sm:pb-2.5">
+          {loading ? (
+            <div className="animate-pulse text-xs" style={{ color: "var(--text-tertiary)" }}>Analyzing...</div>
+          ) : summary ? (
+            <div className="text-xs leading-relaxed whitespace-pre-wrap" style={{ color: "var(--text-secondary)" }}>{summary}</div>
+          ) : (
+            <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>Could not generate summary</div>
+          )}
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group/link mt-2 flex items-center gap-1.5 text-xs transition-colors"
+            style={{ color: "var(--text-tertiary)" }}
+            onClick={() => onRead()}
+          >
+            Open on Reddit <ExternalIcon />
+          </a>
         </div>
-      </div>
-      <ExternalIcon />
-    </a>
+      )}
+    </div>
   );
 }
 
 function HackerNewsCard({ post, index, read, onRead }: { post: HackerNewsPost; index: number; read: boolean; onRead: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
   const timeAgo = (dateStr: string) => {
     if (!dateStr) return "";
     const date = new Date(dateStr);
-    // Check if date is valid
     if (isNaN(date.getTime())) return "";
     const diff = Date.now() - date.getTime();
     const hours = Math.floor(diff / 3600000);
@@ -2449,7 +2356,6 @@ function HackerNewsCard({ post, index, read, onRead }: { post: HackerNewsPost; i
     return n.toString();
   };
 
-  // Safely get values with defaults
   const points = post.points ?? 0;
   const comments = post.comments ?? 0;
   const domain = post.domain ?? "unknown";
@@ -2458,54 +2364,83 @@ function HackerNewsCard({ post, index, read, onRead }: { post: HackerNewsPost; i
   const hnDiscussUrl = `https://news.ycombinator.com/item?id=${post.id}`;
   const hasExternalUrl = url && url !== hnDiscussUrl && domain !== "news.ycombinator.com";
 
+  const handleToggle = async () => {
+    if (expanded) { onRead(); setExpanded(false); return; }
+    setExpanded(true);
+    if (!summary && !loading) {
+      setLoading(true);
+      try {
+        const resp = await fetch(`/api/summarize-url?url=${encodeURIComponent(hnDiscussUrl)}&title=${encodeURIComponent(title)}`);
+        const data = await resp.json();
+        if (data.summary) setSummary(data.summary);
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+  };
+
   return (
-    <a
-      href={hnDiscussUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={onRead}
-      className="group flex items-start gap-2.5 border p-4 transition-all sm:gap-3 sm:p-2.5"
-      style={{ background: "var(--bg-card)", borderColor: "var(--border)", borderRadius: "var(--radius-lg)", opacity: read ? 0.4 : 1, transition: "opacity 0.3s" }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255, 102, 0, 0.4)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
+    <div
+      className="group min-w-0 overflow-hidden border transition-all"
+      style={{
+        background: "var(--bg-card)",
+        borderColor: expanded ? "rgba(255, 102, 0, 0.4)" : "var(--border)",
+        borderRadius: "var(--radius-lg)",
+        opacity: read ? 0.4 : 1,
+      }}
     >
-      <Rank n={index + 1} />
-      <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>
-          {title}
+      <button onClick={handleToggle} className="flex min-w-0 w-full items-start gap-2.5 p-4 text-left sm:gap-3 sm:p-2.5">
+        <Rank n={index + 1} />
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>
+            {title}
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
+            <span className="rounded px-1 py-0.5 max-w-[100px] truncate" style={{ background: "rgba(255, 102, 0, 0.1)", color: "#ff6600" }}>
+              {domain}
+            </span>
+            <span>🔥 {formatNumber(points + comments * 0.5)}</span>
+            <span>↑ {formatNumber(points)}</span>
+            <span>💬 {formatNumber(comments)}</span>
+            <span>{timeAgo(post.time)}</span>
+          </div>
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
-          <span className="rounded px-1 py-0.5 max-w-[100px] truncate" style={{ background: "rgba(255, 102, 0, 0.1)", color: "#ff6600" }}>
-            {domain}
-          </span>
-          <span>🔥 {formatNumber(points + comments * 0.5)}</span>
-          <span>↑ {formatNumber(points)}</span>
-          <span>💬 {formatNumber(comments)}</span>
-          <span>{timeAgo(post.time)}</span>
+        <ExternalIcon />
+      </button>
+      {expanded && (
+        <div className="px-4 pb-3 sm:px-2.5 sm:pb-2.5">
+          {loading ? (
+            <div className="animate-pulse text-xs" style={{ color: "var(--text-tertiary)" }}>Analyzing...</div>
+          ) : summary ? (
+            <div className="text-xs leading-relaxed whitespace-pre-wrap" style={{ color: "var(--text-secondary)" }}>{summary}</div>
+          ) : (
+            <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>Could not generate summary</div>
+          )}
+          <div className="mt-2 flex items-center gap-3">
+            <a
+              href={hnDiscussUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs transition-colors"
+              style={{ color: "var(--text-tertiary)" }}
+              onClick={() => onRead()}
+            >
+              Discussion <ExternalIcon />
+            </a>
+            {hasExternalUrl && (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs transition-colors"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                Article <ExternalIcon />
+              </a>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-1">
-        {hasExternalUrl ? (
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded p-1 transition-colors"
-            style={{ color: "var(--text-tertiary)" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-elevated)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-            title={`访问外部链接: ${url}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-          </a>
-        ) : (
-          <ExternalIcon />
-        )}
-      </div>
-    </a>
+      )}
+    </div>
   );
 }
 
@@ -3004,21 +2939,32 @@ function ExternalIcon() {
   );
 }
 
-function EmptyState({ text, actionLink, actionText }: { text: string; actionLink?: string; actionText?: string }) {
+function EmptyState({ text, actionLink, actionText, onAction, onActionText }: { text: string; actionLink?: string; actionText?: string; onAction?: () => void; onActionText?: string }) {
   return (
     <div className="rounded-lg border border-dashed p-6 text-center text-sm sm:p-8" style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}>
       <div>{text}</div>
-      {actionLink && (
-        <a
-          href={actionLink}
-          target="_blank"
-          rel="noopener"
-          className="mt-3 inline-block rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-          style={{ background: "var(--accent-blue)", color: "var(--text-primary)" }}
-        >
-          {actionText || "在 Google Trends 查看 →"}
-        </a>
-      )}
+      <div className="mt-3 flex items-center justify-center gap-2">
+        {onAction && (
+          <button
+            onClick={onAction}
+            className="inline-block rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+            style={{ background: "var(--accent-blue)", color: "var(--text-primary)" }}
+          >
+            {onActionText || "加载缓存数据"}
+          </button>
+        )}
+        {actionLink && (
+          <a
+            href={actionLink}
+            target="_blank"
+            rel="noopener"
+            className="inline-block rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+            style={{ background: "var(--accent-blue)", color: "var(--text-primary)" }}
+          >
+            {actionText || "在 Google Trends 查看 →"}
+          </a>
+        )}
+      </div>
     </div>
   );
 }

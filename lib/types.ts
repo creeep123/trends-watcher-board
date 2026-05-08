@@ -54,6 +54,7 @@ export interface HackerNewsPost {
 
 export interface HackerNewsResponse {
   posts: HackerNewsPost[];
+  keywords: LLMKeyword[];
   timestamp: string;
 }
 
@@ -67,6 +68,7 @@ export interface TechNewsPost {
 
 export interface TechNewsResponse {
   articles: TechNewsPost[];
+  keywords: LLMKeyword[];
   total: number;
   timestamp: string;
 }
@@ -91,6 +93,15 @@ export interface RedditKeyword {
   keyword: string;
   context: string;
   posts: number;
+  indices?: number[];
+}
+
+// Reusable keyword type (Reddit, HN, TechNews)
+export interface LLMKeyword {
+  keyword: string;
+  context: string;
+  posts: number;
+  indices?: number[];
 }
 
 export interface RedditResponse {

@@ -29,7 +29,9 @@ from TikTokApi import TikTokApi
 from supabase import create_client, Client as SupabaseClient
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
-LLM_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+SILICONFLOW_API_KEY = os.environ.get("SILICONFLOW_API_KEY", "")
+LLM_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"  # Fallback model for OpenRouter
 PRODUCT_HUNT_TOKEN = os.environ.get("PRODUCT_HUNT_TOKEN", "")
 
 # Supabase & Push config
@@ -83,14 +85,127 @@ def _rate_limit_pytrends():
 _cache: dict[str, dict] = {}
 
 
+# --- LLM Provider Pool with Circuit Breaker ---
+
+class LLMProvider:
+    """A single LLM provider with circuit breaker.
+
+    Circuit breaker states:
+    - CLOSED (healthy): normal operation
+    - OPEN (tripped): skip this provider for a cooldown period
+    - HALF-OPEN (probe): allow one request to test recovery
+    """
+
+    def __init__(self, name: str, base_url: str, api_key: str, model: str, priority: int = 0):
+        self.name = name
+        self.base_url = base_url
+        self.api_key = api_key
+        self.model = model
+        self.priority = priority  # lower = higher priority
+
+        self._failures = 0
+        self._trip_until = 0.0
+        self._lock = threading.Lock()
+
+    def is_available(self) -> bool:
+        with self._lock:
+            if self._failures == 0:
+                return True
+            if time.time() >= self._trip_until:
+                return True  # half-open: allow probe
+            return False
+
+    def record_success(self):
+        with self._lock:
+            self._failures = 0
+            self._trip_until = 0.0
+
+    def record_failure(self):
+        with self._lock:
+            self._failures += 1
+            if self._failures >= 3:
+                cooldown = min(30 * (2 ** (self._failures - 3)), 300)
+                self._trip_until = time.time() + cooldown
+                print(f"[LLM] Provider '{self.name}' tripped for {cooldown}s ({self._failures} consecutive failures)")
+
+    def call(self, prompt: str, max_tokens: int, timeout: int) -> str | None:
+        try:
+            resp = http_requests.post(
+                f"{self.base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": max_tokens,
+                },
+                timeout=timeout,
+            )
+            if resp.status_code == 429:
+                print(f"[LLM] Provider '{self.name}' rate limited (429)")
+                return None
+            resp.raise_for_status()
+            data = resp.json()
+            return (data["choices"][0]["message"]["content"] or "").strip()
+        except Exception as e:
+            print(f"[LLM] Provider '{self.name}' error: {e}")
+            return None
+
+
+def _init_llm_pool() -> list[LLMProvider]:
+    """Build provider pool ordered by priority (fastest first).
+
+    To add a new provider:
+      1. Set env var (e.g. MY_PROVIDER_API_KEY)
+      2. Append LLMProvider(...) here with appropriate priority
+    """
+    pool: list[LLMProvider] = []
+
+    # Priority 0 — Groq (~0.15s, fastest)
+    if GROQ_API_KEY:
+        pool.append(LLMProvider(
+            name="groq",
+            base_url="https://api.groq.com/openai/v1",
+            api_key=GROQ_API_KEY,
+            model="llama-3.3-70b-versatile",
+            priority=0,
+        ))
+
+    # Priority 1 — SiliconFlow (~1.6s, cheap)
+    if SILICONFLOW_API_KEY:
+        pool.append(LLMProvider(
+            name="siliconflow",
+            base_url="https://api.siliconflow.com/v1",
+            api_key=SILICONFLOW_API_KEY,
+            model="deepseek-ai/DeepSeek-V3",
+            priority=1,
+        ))
+
+    # Priority 2 — OpenRouter (~3s, reliable free tier fallback)
+    if OPENROUTER_API_KEY:
+        pool.append(LLMProvider(
+            name="openrouter",
+            base_url="https://openrouter.ai/api/v1",
+            api_key=OPENROUTER_API_KEY,
+            model=LLM_MODEL,
+            priority=2,
+        ))
+
+    pool.sort(key=lambda p: p.priority)
+    return pool
+
+
+_llm_pool: list[LLMProvider] = _init_llm_pool()
 _llm_last_call = 0.0
-_LLM_MIN_INTERVAL = 5.0  # seconds between LLM calls
+_LLM_MIN_INTERVAL = 1.0  # seconds between LLM calls (circuit breaker handles rate limits)
 
 
-def _call_llm(prompt: str, max_tokens: int = 2000, timeout: int = 60) -> str | None:
-    """Call OpenRouter LLM with retry on 429 and rate limiting. Returns content string or None."""
+def _call_llm(prompt: str, max_tokens: int = 2000, timeout: int = 60, model: str | None = None) -> str | None:
+    """Call LLM via provider pool. Tries providers in priority order, skipping tripped ones."""
     global _llm_last_call
-    if not OPENROUTER_API_KEY:
+    if not _llm_pool:
         return None
 
     # Rate-limit: wait if last call was too recent
@@ -98,38 +213,28 @@ def _call_llm(prompt: str, max_tokens: int = 2000, timeout: int = 60) -> str | N
     if elapsed < _LLM_MIN_INTERVAL:
         time.sleep(_LLM_MIN_INTERVAL - elapsed)
 
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            resp = http_requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": LLM_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": max_tokens,
-                },
-                timeout=timeout,
-            )
-            if resp.status_code == 429:
-                wait = (attempt + 1) * 15 + random.uniform(0, 5)
-                print(f"[LLM] 429 rate limited, retrying in {wait:.0f}s (attempt {attempt+1}/{max_retries})")
-                time.sleep(wait)
-                continue
-            resp.raise_for_status()
+    # If caller wants a specific model, try matching providers first
+    if model:
+        providers = [p for p in _llm_pool if model in p.model or p.model in model]
+        if not providers:
+            providers = _llm_pool  # no match → try all
+    else:
+        providers = _llm_pool
+
+    for provider in providers:
+        if not provider.is_available():
+            continue
+
+        print(f"[LLM] Trying provider '{provider.name}' (model={provider.model})")
+        content = provider.call(prompt, max_tokens, timeout)
+        if content:
+            provider.record_success()
             _llm_last_call = time.time()
-            data = resp.json()
-            return (data["choices"][0]["message"]["content"] or "").strip()
-        except Exception as e:
-            if attempt < max_retries - 1:
-                wait = (attempt + 1) * 8
-                print(f"[LLM] error: {e}, retrying in {wait:.0f}s (attempt {attempt+1}/{max_retries})")
-                time.sleep(wait)
-            else:
-                print(f"[LLM] all retries failed: {e}")
+            return content
+
+        provider.record_failure()
+
+    print(f"[LLM] All providers failed")
     return None
 
 
@@ -424,9 +529,9 @@ def _classify_tech_terms(names: list[str]) -> set[str]:
     return set()
 
 
-def _generate_batch_summaries(items: list[dict], source: str) -> list[dict]:
+def _generate_batch_summaries(items: list[dict], source: str, model: str | None = None) -> list[dict]:
     """Use LLM to generate summaries and tags for items, processing in small chunks."""
-    if not items or not OPENROUTER_API_KEY:
+    if not items or not _llm_pool:
         return items
 
     CHUNK_SIZE = 7  # smaller chunks for reliable JSON output
@@ -452,7 +557,7 @@ def _generate_batch_summaries(items: list[dict], source: str) -> list[dict]:
         )
 
         try:
-            content = _call_llm(prompt, max_tokens=1500, timeout=60)
+            content = _call_llm(prompt, max_tokens=1500, timeout=60, model=model)
             if content:
                 print(f"[LLM] {source} chunk {chunk_start+1}-{chunk_start+len(chunk)}: raw={len(content)} chars")
             if content:
@@ -477,7 +582,7 @@ def _generate_batch_summaries(items: list[dict], source: str) -> list[dict]:
                                 item["tags"] = summaries[key].get("tags", [])
         except Exception as e:
             print(f"[LLM] {source} chunk {chunk_start}-{chunk_start+len(chunk)} error: {e}")
-        time.sleep(_LLM_MIN_INTERVAL)  # rate limit between chunks
+        time.sleep(_LLM_MIN_INTERVAL)
 
     return items
 
@@ -789,45 +894,54 @@ def _fetch_subreddit_rss(subreddit: str, sort: str = "hot", limit: int = 15) -> 
     return posts
 
 
-def _extract_reddit_keywords(posts: list[dict]) -> list[dict]:
-    """Use LLM to extract trending tech/AI product names and keywords from Reddit post titles."""
-    if not posts:
+def _extract_keywords(items: list[dict], source: str) -> list[dict]:
+    """Use LLM to extract trending product/tool names from item titles.
+
+    Works for any source that has a 'title' field (Reddit, HN, TechNews, etc.).
+    Returns list of {keyword, context, posts, indices}.
+    """
+    if not items:
         return []
 
-    titles = [p["title"] for p in posts]
+    titles = [item["title"] for item in items]
+    numbered = "\n".join(f"{i}. {t}" for i, t in enumerate(titles))
+
+    source_label = {"reddit": "Reddit posts", "hackernews": "HackerNews stories", "technews": "tech news articles"}.get(source, "items")
+
     prompt = (
-        "Below are Reddit post titles from AI/tech subreddits. "
+        f"Below are numbered {source_label}. "
         "Extract specific product names, tools, models, or technologies mentioned. "
         "Reply ONLY with a JSON array of objects, each with:\n"
-        '- "keyword": the product/tool/model name (e.g. "Ollama", "GPT-5", "Stable Diffusion 4")\n'
+        '- "keyword": the product/tool/model name (e.g. "Ollama", "GPT-5", "Kubernetes")\n'
         '- "context": one-line summary of why it\'s trending (max 15 words)\n'
-        '- "posts": how many titles mention it\n\n'
+        '- "indices": [0-based numbers of titles that mention this keyword]\n\n'
         "Rules:\n"
         "- Only include specific named products/tools/models, NOT generic terms like 'AI' or 'machine learning'\n"
         "- Merge similar mentions (e.g. 'GPT-5' and 'gpt5' → 'GPT-5')\n"
         "- Max 15 keywords, sorted by mention count descending\n"
         "- If nothing specific found, reply []\n\n"
-        "Titles:\n" + "\n".join(f"- {t}" for t in titles)
+        "Titles:\n" + numbered
     )
 
     try:
-        content = _call_llm(prompt, max_tokens=800, timeout=20)
+        content = _call_llm(prompt, max_tokens=800, timeout=30)
         if content:
             start = content.find("[")
             end = content.rfind("]")
             if start != -1 and end != -1:
                 arr = json.loads(content[start:end + 1])
                 return [
-                {
-                    "keyword": item.get("keyword", ""),
-                    "context": item.get("context", ""),
-                    "posts": item.get("posts", 1),
-                }
-                for item in arr
-                if isinstance(item, dict) and item.get("keyword")
-            ]
+                    {
+                        "keyword": item.get("keyword", ""),
+                        "context": item.get("context", ""),
+                        "posts": len(item.get("indices", [1])),
+                        "indices": [i for i in item.get("indices", []) if isinstance(i, int) and 0 <= i < len(items)],
+                    }
+                    for item in arr
+                    if isinstance(item, dict) and item.get("keyword")
+                ]
     except Exception as e:
-        print(f"[LLM] Reddit keyword extraction error: {e}")
+        print(f"[LLM] {source} keyword extraction error: {e}")
 
     return []
 
@@ -876,7 +990,7 @@ def get_reddit(
     all_posts.sort(key=lambda p: p.get("score", 50), reverse=True)
 
     # Extract keywords via LLM
-    keywords = _extract_reddit_keywords(filtered)
+    keywords = _extract_keywords(filtered, "reddit")
 
     response = {
         "posts": filtered,
@@ -896,8 +1010,8 @@ PH_API_URL = "https://api.producthunt.com/v2/api/graphql"
 
 
 @app.get("/api/producthunt")
-def get_producthunt(period: str = "daily"):
-    """Fetch top products from Product Hunt. period: daily|weekly|monthly."""
+def get_producthunt(period: str = "daily", skip_llm: str = ""):
+    """Fetch top products from Product Hunt. period: daily|weekly|monthly. skip_llm=1 to skip LLM summaries."""
     if period not in ("daily", "weekly", "monthly"):
         period = "daily"
     cache_key = f"producthunt|{period}"
@@ -959,7 +1073,8 @@ def get_producthunt(period: str = "daily"):
             })
 
         # Generate AI summaries
-        products = _generate_batch_summaries(products, "producthunt")
+        if not skip_llm:
+            products = _generate_batch_summaries(products, "producthunt")
 
         response = {
             "products": products,
@@ -980,7 +1095,7 @@ def get_producthunt(period: str = "daily"):
 
 
 @app.get("/api/huggingface")
-def get_huggingface():
+def get_huggingface(skip_llm: str = ""):
     """Fetch trending models from HuggingFace Hub."""
     cache_key = "huggingface|trending"
     cached = _get_cached(cache_key)
@@ -1013,7 +1128,8 @@ def get_huggingface():
             })
 
         # Generate AI summaries
-        models = _generate_batch_summaries(models, "huggingface")
+        if not skip_llm:
+            models = _generate_batch_summaries(models, "huggingface")
 
         response = {
             "models": models,
@@ -1096,7 +1212,7 @@ def _fetch_indiehackers_posts() -> list[dict]:
 
 
 @app.get("/api/indiehackers")
-def get_indiehackers():
+def get_indiehackers(skip_llm: str = ""):
     """Fetch posts and products from Indie Hackers."""
     cache_key = "indiehackers|latest"
     cached = _get_cached(cache_key)
@@ -1112,7 +1228,8 @@ def get_indiehackers():
         return {"posts": [], "timestamp": datetime.now(timezone.utc).isoformat(), "_status": "Indie Hackers 暂时不可用"}
 
     # Generate AI summaries
-    posts = _generate_batch_summaries(posts, "indiehackers")
+    if not skip_llm:
+        posts = _generate_batch_summaries(posts, "indiehackers")
 
     response = {
         "posts": posts[:20],
@@ -1356,8 +1473,12 @@ def get_technews():
     # Sort by source and return
     all_articles.sort(key=lambda a: (a["source"], a.get("published", "")), reverse=True)
 
+    # Extract keywords via LLM
+    keywords = _extract_keywords(all_articles[:20], "technews")
+
     response = {
         "articles": all_articles[:20],  # Cap at 20 articles total
+        "keywords": keywords,
         "total": len(all_articles),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -1441,11 +1562,144 @@ def get_hackernews():
     except Exception as e:
         print(f"[HN] Error: {e}")
 
+    # Extract keywords via LLM
+    keywords = _extract_keywords(posts, "hackernews")
+
     response = {
         "posts": posts,
+        "keywords": keywords,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     _set_cache(cache_key, response)
+    return response
+
+
+# --- On-demand post summarization ---
+
+_SUMMARY_CACHE: dict[str, dict] = {}  # url hash -> {summary, cached_at}
+
+
+def _fetch_reddit_json(url: str) -> str:
+    """Fetch Reddit post selftext + top comments via JSON API."""
+    try:
+        resp = http_requests.get(
+            url.rstrip("/") + ".json",
+            headers={"User-Agent": REDDIT_UA},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            print(f"[summarize] Reddit JSON returned {resp.status_code}")
+            return ""
+        data = resp.json()
+        sections = []
+        if isinstance(data, list) and len(data) >= 1:
+            post = data[0]["data"]["children"][0]["data"]
+            selftext = post.get("selftext", "")
+            if selftext:
+                sections.append(f"POST: {selftext[:1000]}")
+            # Top comments
+            if len(data) >= 2:
+                for child in data[1]["data"]["children"][:5]:
+                    if child["kind"] == "t1":
+                        body = child["data"].get("body", "")
+                        if body:
+                            sections.append(f"COMMENT: {body[:300]}")
+        return "\n\n".join(sections)[:2500] if sections else ""
+    except Exception as e:
+        print(f"[summarize] Reddit JSON error: {e}")
+        return ""
+
+
+def _fetch_jina(url: str) -> str:
+    """Fetch page content via Jina Reader with block-page detection."""
+    try:
+        resp = http_requests.get(
+            f"https://r.jina.ai/{url}",
+            headers={"Accept": "text/markdown", "User-Agent": REDDIT_UA},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        content = resp.text[:3000]
+    except Exception as e:
+        print(f"[summarize] Jina fetch error: {e}")
+        return ""
+
+    if len(content) < 50:
+        return ""
+
+    block_signals = ["blocked by network security", "403 forbidden", "access denied",
+                     "just a moment", "cloudflare", "file a ticket", "captcha",
+                     "enable javascript and cookies"]
+    if any(sig in content.lower() for sig in block_signals):
+        print(f"[summarize] Jina returned block page for {url}")
+        return ""
+
+    return content
+
+
+def _title_only_fallback(title: str, url: str) -> str:
+    """When page fetch fails, return title as context with a note."""
+    return f"[Could not fetch full content — summarizing from title only]\nTitle: {title}\nURL: {url}"
+
+
+@app.get("/api/summarize-url")
+def summarize_url(
+    url: str = Query(description="Post URL"),
+    title: str = Query(default="", description="Post title"),
+):
+    """Fetch a post's content and generate an LLM summary focused on problems/solutions.
+
+    Reddit: uses JSON API (reliable, no 403).
+    HN: uses Jina Reader on the discussion page.
+    Other: uses Jina Reader.
+    """
+    cache_key = f"summary|{hashlib.md5(url.encode()).hexdigest()}"
+
+    # Check in-memory cache (24h TTL)
+    cached_entry = _SUMMARY_CACHE.get(cache_key)
+    if cached_entry and time.time() - cached_entry["cached_at"] < 86400:
+        return cached_entry["data"]
+
+    # Choose fetch strategy by source
+    content = ""
+    if "reddit.com" in url:
+        content = _fetch_reddit_json(url)
+    if not content and "news.ycombinator.com" in url:
+        # Try Jina for HN discussion pages
+        content = _fetch_jina(url)
+    if not content:
+        # Fallback: Jina for other sources
+        content = _fetch_jina(url)
+    if not content:
+        # Last resort: summarize from title alone (works even when fetch fails)
+        if title:
+            content = _title_only_fallback(title, url)
+
+    if not content:
+        return {"summary": "", "error": "Could not fetch content"}
+
+    prompt = (
+        "Task:\n"
+        "summarize the original content. \n\n"
+        "Constraint:\n"
+        "- Be concise — total under 100 words/chars. \n"
+        "- Use both English and Chinese\n"
+        "- Focus on: \n"
+        "    - what problem is raised (if there is), \n"
+        "    - what solution is proposed (if there is).\n\n"
+        "----original content----\n"
+        f"Title: {title}\n\n"
+        f"Content:\n{content}\n"
+        "----original content----"
+    )
+
+    result = _call_llm(prompt, max_tokens=400, timeout=30)
+    summary = result or ""
+
+    response = {"summary": summary, "url": url}
+    if summary:
+        _SUMMARY_CACHE[cache_key] = {"data": response, "cached_at": time.time()}
+
     return response
 
 
@@ -1782,7 +2036,8 @@ def _warmup_once():
                         all_posts.append(p)
                 time.sleep(0.3)
             all_posts.sort(key=lambda p: p.get("score", 50), reverse=True)
-            kws = _extract_reddit_keywords(all_posts)
+            capped = all_posts[:50]
+            kws = _extract_keywords(capped, "reddit")
             result = {
                 "posts": all_posts[:50], "keywords": kws, "subreddits": REDDIT_SUB_NAMES,
                 "sort": "hot", "total_posts": len(all_posts),
@@ -1874,21 +2129,26 @@ def _prefetch_upsert(key: str, data: dict, ttl_hours: int = 4):
 
 
 def prefetch_all():
-    """Fetch all board data and persist to Supabase twb_cache."""
+    """Fetch all board data and persist to Supabase twb_cache.
+
+    Two phases:
+    1. Fetch raw data (skip LLM) and store immediately — fast, < 30s total
+    2. Background: generate LLM summaries with fast model and update Supabase
+    """
     global _last_prefetch
     if not supabase_client:
         print("[prefetch] No Supabase client, skipping")
         return
 
-    print(f"[prefetch] Starting at {datetime.now(timezone.utc).isoformat()}")
+    print(f"[prefetch] Phase 1 (raw data) starting at {datetime.now(timezone.utc).isoformat()}")
     written = 0
     base = "http://127.0.0.1:8765"
 
-    # 1. Trending for default geos (RSS, fast)
+    # 1. Trending for default geos (RSS, fast, no LLM)
     for geo in WARMUP_TRENDING_GEOS:
         cache_key = f"trending|{geo}"
         try:
-            resp = http_requests.get(f"{base}/api/trending?geo={geo}", timeout=15)
+            resp = http_requests.get(f"{base}/api/trending?geo={geo}", timeout=60)
             if resp.status_code == 200:
                 data = resp.json()
                 _prefetch_upsert(cache_key, data, 4)
@@ -1901,7 +2161,7 @@ def prefetch_all():
     # 2. Reddit
     try:
         cache_key = "reddit|hot"
-        resp = http_requests.get(f"{base}/api/reddit?sort=hot", timeout=15)
+        resp = http_requests.get(f"{base}/api/reddit?sort=hot", timeout=120)
         if resp.status_code == 200:
             data = resp.json()
             _prefetch_upsert(cache_key, data, 4)
@@ -1934,48 +2194,31 @@ def prefetch_all():
     except Exception as e:
         print(f"[prefetch] technews error: {e}")
 
-    # 5. Product Hunt (daily + weekly + monthly)
-    for period in ["daily", "weekly", "monthly"]:
-        cache_key = f"ph|{period}"
+    # 5-7. PH, HF, IH — skip LLM for speed
+    llm_endpoints = [
+        (f"{base}/api/producthunt?period=daily&skip_llm=1", "ph|daily", "products"),
+        (f"{base}/api/producthunt?period=weekly&skip_llm=1", "ph|weekly", "products"),
+        (f"{base}/api/producthunt?period=monthly&skip_llm=1", "ph|monthly", "products"),
+        (f"{base}/api/huggingface?skip_llm=1", "huggingface", "models"),
+        (f"{base}/api/indiehackers?skip_llm=1", "indiehackers", "posts"),
+    ]
+    for url, cache_key, items_key in llm_endpoints:
         try:
-            resp = http_requests.get(f"{base}/api/producthunt?period={period}", timeout=120)
+            ttl = 8 if "ph|daily" == cache_key else 4
+            resp = http_requests.get(url, timeout=30)
             if resp.status_code == 200:
                 data = resp.json()
-                ttl = 8 if period == "daily" else 4
                 _prefetch_upsert(cache_key, data, ttl)
                 written += 1
-                print(f"[prefetch] {cache_key}: {len(data.get('products', []))} products")
+                count = len(data.get(items_key, []))
+                print(f"[prefetch] {cache_key}: {count} {items_key} (no summaries)")
         except Exception as e:
             print(f"[prefetch] {cache_key} error: {e}")
-
-    # 6. HuggingFace
-    try:
-        cache_key = "huggingface"
-        resp = http_requests.get(f"{base}/api/huggingface", timeout=120)
-        if resp.status_code == 200:
-            data = resp.json()
-            _prefetch_upsert(cache_key, data, 4)
-            written += 1
-            print(f"[prefetch] {cache_key}: {len(data.get('models', []))} models")
-    except Exception as e:
-        print(f"[prefetch] huggingface error: {e}")
-
-    # 7. IndieHackers
-    try:
-        cache_key = "indiehackers"
-        resp = http_requests.get(f"{base}/api/indiehackers", timeout=120)
-        if resp.status_code == 200:
-            data = resp.json()
-            _prefetch_upsert(cache_key, data, 4)
-            written += 1
-            print(f"[prefetch] {cache_key}: {len(data.get('posts', []))} posts")
-    except Exception as e:
-        print(f"[prefetch] indiehackers error: {e}")
 
     # 8. Trends (default combination only)
     try:
         cache_key = "trends|AI,LLM,maker,generator,creator,filter:now 1-d:US"
-        resp = http_requests.get(f"{base}/api/trends?keywords=AI,LLM,maker,generator,creator,filter&timeframe=now%201-d&geo=US", timeout=120)
+        resp = http_requests.get(f"{base}/api/trends?keywords=AI,LLM,maker,generator,creator,filter&timeframe=now%201-d&geo=US", timeout=60)
         if resp.status_code == 200:
             data = resp.json()
             _prefetch_upsert(cache_key, data, 4)
@@ -1985,7 +2228,59 @@ def prefetch_all():
         print(f"[prefetch] trends error: {e}")
 
     _last_prefetch = time.time()
-    print(f"[prefetch] Done: {written} keys written to Supabase")
+    print(f"[prefetch] Phase 1 done: {written} keys written to Supabase")
+
+    # Phase 2: Background LLM summary generation with fast model
+    t = threading.Thread(target=_prefetch_summaries, daemon=True)
+    t.start()
+
+
+def _prefetch_summaries():
+    """Phase 2: Generate LLM summaries for PH/HF/IH and update Supabase."""
+    if not _llm_pool or not supabase_client:
+        return
+
+    print(f"[prefetch] Phase 2 (LLM summaries) starting...")
+
+    # Read raw data from Supabase, generate summaries, write back
+    # Note: source name must match what _generate_batch_summaries expects
+    summary_keys = [
+        ("ph|daily", "products", "producthunt"),
+        ("huggingface", "models", "huggingface"),
+        ("indiehackers", "posts", "indiehackers"),
+    ]
+
+    for cache_key, items_key, source_name in summary_keys:
+        try:
+            result = supabase_client.table("twb_cache").select("data").eq("key", cache_key).single().execute()
+            if not result.data:
+                continue
+
+            data = result.data["data"]
+            items = data.get(items_key, [])
+            if not items:
+                continue
+
+            # Check if summaries already exist
+            has_summary = sum(1 for item in items if item.get("summary"))
+            if has_summary >= len(items) * 0.5:
+                print(f"[prefetch] Phase 2 {cache_key}: {has_summary}/{len(items)} already have summaries, skipping")
+                continue
+
+            print(f"[prefetch] Phase 2 {cache_key}: generating summaries for {len(items)} items...")
+            items = _generate_batch_summaries(items, source_name)  # Use main model (reliable)
+
+            # Write back to Supabase
+            data[items_key] = items
+            _prefetch_upsert(cache_key, data, 8 if "ph|daily" == cache_key else 4)
+
+            new_summaries = sum(1 for item in items if item.get("summary"))
+            print(f"[prefetch] Phase 2 {cache_key}: {new_summaries}/{len(items)} summaries generated")
+
+        except Exception as e:
+            print(f"[prefetch] Phase 2 {cache_key} error: {e}")
+
+    print(f"[prefetch] Phase 2 done")
 
 
 @app.get("/api/refresh-all")
@@ -2025,261 +2320,6 @@ async def lifespan(app: FastAPI):
 
 
 app.router.lifespan_context = lifespan
-
-
-# --- Root Keyword Monitoring ---
-
-# 词根存储（生产环境应使用数据库）
-_root_keywords: dict[str, dict] = {}
-_root_keywords_lock = threading.Lock()
-
-# 词根扫描队列和状态
-_scan_queue: list[str] = []
-_scan_progress: dict[str, dict] = {}  # {keyword: {"status": "pending"|"scanning"|"done"|"error", "timestamp": float}}
-_scan_lock = threading.Lock()
-
-
-def _generate_root_id(keyword: str) -> str:
-    """生成词根 ID"""
-    return hashlib.md5(keyword.lower().encode()).hexdigest()[:12]
-
-
-@app.get("/api/roots")
-def get_root_keywords():
-    """获取所有词根"""
-    with _root_keywords_lock:
-        return {
-            "keywords": list(_root_keywords.values()),
-            "total": len(_root_keywords),
-            "lastUpdated": datetime.now().isoformat()
-        }
-
-
-@app.post("/api/roots")
-def add_root_keyword(keyword: str = Query(..., description="关键词")):
-    """添加单个词根"""
-    if not keyword or not keyword.strip():
-        raise HTTPException(status_code=400, detail="关键词不能为空")
-
-    keyword = keyword.strip()
-    root_id = _generate_root_id(keyword)
-
-    with _root_keywords_lock:
-        if root_id in _root_keywords:
-            raise HTTPException(status_code=400, detail="词根已存在")
-
-        _root_keywords[root_id] = {
-            "id": root_id,
-            "keyword": keyword,
-            "priority": "medium",
-            "addedAt": datetime.now().isoformat(),
-            "lastChecked": None,
-            "nextCheckTime": None,
-            "checkFrequency": 12,
-            "latestData": {
-                "trendValue": None,
-                "changePercent": None,
-                "status": "unknown",
-                "relatedKeywords": [],
-                "newKeywords": [],
-                "timestamp": None
-            },
-            "history": []
-        }
-
-    return {"success": True, "id": root_id}
-
-
-@app.delete("/api/roots/{keyword}")
-def delete_root_keyword(keyword: str):
-    """删除词根"""
-    keyword_id = _generate_root_id(keyword)
-
-    with _root_keywords_lock:
-        if keyword_id not in _root_keywords:
-            raise HTTPException(status_code=404, detail="词根不存在")
-
-        del _root_keywords[key_id]
-
-    return {"success": True}
-
-
-@app.post("/api/roots/import")
-def import_root_keywords(keywords: list[str]):
-    """批量导入词根"""
-    if not keywords:
-        raise HTTPException(status_code=400, detail="关键词列表不能为空")
-
-    added = []
-    skipped = []
-
-    with _root_keywords_lock:
-        for kw in keywords:
-            keyword = kw.strip()
-            if not keyword:
-                continue
-
-            root_id = _generate_root_id(keyword)
-
-            if root_id in _root_keywords:
-                skipped.append(keyword)
-            else:
-                _root_keywords[root_id] = {
-                    "id": root_id,
-                    "keyword": keyword,
-                    "priority": "medium",
-                    "addedAt": datetime.now().isoformat(),
-                    "lastChecked": None,
-                    "nextCheckTime": None,
-                    "checkFrequency": 12,
-                    "latestData": {
-                        "trendValue": None,
-                        "changePercent": None,
-                        "status": "unknown",
-                        "relatedKeywords": [],
-                        "newKeywords": [],
-                        "timestamp": None
-                    },
-                    "history": []
-                }
-                added.append(keyword)
-
-    return {
-        "success": True,
-        "added": added,
-        "skipped": skipped,
-        "total": len(added)
-    }
-
-
-@app.post("/api/roots/scan")
-def scan_root_keywords(limit: int = Query(5, description="每次扫描数量")):
-    """扫描词根（渐进式）"""
-    # 获取需要扫描的词根
-    with _root_keywords_lock:
-        all_keywords = list(_root_keywords.values())
-
-    # 按优先级和上次扫描时间排序
-    def sort_key(kw):
-        last_checked = kw.get("lastChecked")
-        if not last_checked:
-            return 0  # 从未扫描的优先
-        return -datetime.fromisoformat(last_checked).timestamp()
-
-    all_keywords.sort(key=sort_key)
-
-    # 取前 N 个
-    to_scan = all_keywords[:limit]
-
-    if not to_scan:
-        return {"scanned": 0, "results": []}
-
-    results = []
-    for kw in to_scan:
-        try:
-            # 使用现有的 interest_over_time 端点获取趋势数据
-            keyword = kw["keyword"]
-            cache_key = f"roots:interest:{keyword}"
-
-            # 检查缓存
-            cached = _get_cached(cache_key)
-            if cached:
-                trend_value = cached.get("points", [{}])[-1].get("value", 0) if cached.get("points") else 0
-                related = cached.get("related", [])
-            else:
-                # 获取新数据
-                _rate_limit_pytrends()
-                pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
-                pytrends.build_payload([keyword], cat=0, timeframe="now 7-d", geo="", gprop="")
-                df = pytrends.interest_over_time()
-
-                if df is not None and not df.empty and keyword in df.columns:
-                    points = []
-                    for ts, row in df.iterrows():
-                        points.append({"timestamp": ts.isoformat(), "value": int(row[keyword])})
-                    trend_value = points[-1]["value"] if points else 0
-                else:
-                    trend_value = 0
-                    points = []
-
-                # 获取相关词
-                related_queries = pytrends.related_queries()
-                related = []
-                if keyword in related_queries and related_queries[keyword]:
-                    rq = related_queries[keyword]
-                    if rq.get('top') is not None:
-                        for _, row in rq['top'].head(10).iterrows():
-                            related.append(row['query'])
-
-                # 保存缓存
-                _set_cache(cache_key, {"points": points, "related": related})
-
-            # 计算变化百分比
-            change_percent = None
-            if kw.get("latestData", {}).get("trendValue") is not None:
-                old_value = kw["latestData"]["trendValue"]
-                if old_value > 0:
-                    change_percent = ((trend_value - old_value) / old_value) * 100
-
-            # 确定状态
-            if change_percent is not None:
-                if change_percent > 50:
-                    status = "surging"
-                elif change_percent > 10:
-                    status = "rising"
-                elif change_percent < -10:
-                    status = "declining"
-                else:
-                    status = "stable"
-            else:
-                status = "unknown"
-
-            # 更新词根数据
-            root_id = kw["id"]
-            with _root_keywords_lock:
-                if root_id in _root_keywords:
-                    old_related = set(kw.get("latestData", {}).get("relatedKeywords", []))
-                    new_related = set(related)
-                    new_keywords = list(new_related - old_related)
-
-                    _root_keywords[root_id]["lastChecked"] = datetime.now().isoformat()
-                    _root_keywords[root_id]["latestData"] = {
-                        "trendValue": trend_value,
-                        "changePercent": round(change_percent, 2) if change_percent is not None else None,
-                        "status": status,
-                        "relatedKeywords": related[:20],  # 只保存前20个
-                        "newKeywords": new_keywords[:5],    # 只保存前5个新词
-                        "timestamp": datetime.now().isoformat()
-                    }
-
-                    # 保存历史快照
-                    today = datetime.now().strftime("%Y-%m-%d")
-                    _root_keywords[root_id]["history"].append({
-                        "date": today,
-                        "trendValue": trend_value,
-                        "relatedKeywords": related[:20],
-                        "topRising": new_keywords[:5],
-                        "timestamp": datetime.now().isoformat()
-                    })
-
-            results.append({
-                "keyword": keyword,
-                "trendValue": trend_value,
-                "changePercent": change_percent,
-                "status": status
-            })
-
-        except Exception as e:
-            print(f"[roots] Error scanning '{keyword}': {e}")
-            results.append({
-                "keyword": keyword,
-                "error": str(e)
-            })
-
-    return {
-        "scanned": len(results),
-        "results": results
-    }
 
 
 @app.get("/health")

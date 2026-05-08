@@ -13,7 +13,13 @@ export function useReadItems() {
         .join(",");
       const res = await fetch(`/api/read-items?items=${encodeURIComponent(itemsParam)}`);
       const { read } = await res.json();
-      setReadSet(new Set(read as string[]));
+      // Merge instead of replace — prevents race condition where multiple
+      // concurrent fetchReadStatus calls overwrite each other's results
+      setReadSet(prev => {
+        const next = new Set(prev);
+        (read as string[]).forEach(key => next.add(key));
+        return next;
+      });
     } catch (e) {
       console.error("Failed to fetch read status:", e);
     }

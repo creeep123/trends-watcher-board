@@ -1,15 +1,16 @@
 import { supabase } from "./supabase";
 
 /**
- * Read from Supabase twb_cache. Returns null if miss or expired.
+ * Read from Supabase twb_cache. Returns null only if key doesn't exist at all.
+ * Prefers fresh data, falls back to stale (expired) data rather than nothing.
  */
 export async function getSupabaseCache<T>(key: string): Promise<T | null> {
   try {
+    // Try fresh first
     const { data, error } = await supabase
       .from("twb_cache")
-      .select("data")
+      .select("data, expires_at")
       .eq("key", key)
-      .gt("expires_at", new Date().toISOString())
       .single();
 
     if (error || !data) return null;

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-/** Read items expire after 7 days */
+/** trends/queries read items expire after 7 days, others are permanent */
+const EXPIRY_TYPES = new Set(["trending", "queries"]);
+
 function getReadExpiry(): string {
   return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 }
@@ -9,7 +11,7 @@ function getReadExpiry(): string {
 export async function GET(request: NextRequest) {
   const itemsParam = request.nextUrl.searchParams.get("items");
   if (!itemsParam) {
-    return NextResponse.json({ read: [] });
+    return NextResponse.json({ read: [] }, { headers: { "Cache-Control": "no-store" } });
   }
 
   // Parse "trending:ai,hn:12345,reddit:https://..." into array of {item_type, item_key}
@@ -24,38 +26,53 @@ export async function GET(request: NextRequest) {
   }).filter(Boolean) as { item_type: string; item_key: string }[];
 
   if (pairs.length === 0) {
-    return NextResponse.json({ read: [] });
+    return NextResponse.json({ read: [] }, { headers: { "Cache-Control": "no-store" } });
   }
 
-  // Build OR filter: match any (item_type, item_key) pair read within 7 days
-  const expiry = getReadExpiry();
-  const conditions = pairs.map(p =>
-    `item_type.eq.${p.item_type},item_key.eq.${encodeURIComponent(p.item_key)}`
-  ).join(",");
+  // Split into expiry types (trends/queries) and permanent types
+  const expiryPairs = pairs.filter(p => EXPIRY_TYPES.has(p.item_type));
+  const permanentPairs = pairs.filter(p => !EXPIRY_TYPES.has(p.item_type));
 
-  const { data, error } = await supabase
-    .from("twb_read_items")
-    .select("item_type, item_key")
-    .or(conditions)
-    .gte("read_at", expiry);
+  const readKeys = new Set<string>();
 
-  if (error) {
-    console.error("Read items query error:", error);
-    return NextResponse.json({ read: [] });
+  // Permanent read items: no expiry filter
+  if (permanentPairs.length > 0) {
+    const conditions = permanentPairs.map(p =>
+      `and(item_type.eq.${p.item_type},item_key.eq.${p.item_key})`
+    ).join(",");
+
+    const { data } = await supabase
+      .from("twb_read_items")
+      .select("item_type, item_key")
+      .or(conditions);
+
+    (data || []).forEach(r => readKeys.add(`${r.item_type}:${r.item_key}`));
   }
 
-  const readSet = new Set(
-    (data || []).map(r => `${r.item_type}:${r.item_key}`)
-  );
+  // Expiry read items: 7-day TTL
+  if (expiryPairs.length > 0) {
+    const expiry = getReadExpiry();
+    const conditions = expiryPairs.map(p =>
+      `and(item_type.eq.${p.item_type},item_key.eq.${p.item_key})`
+    ).join(",");
 
-  return NextResponse.json({ read: Array.from(readSet) });
+    const { data } = await supabase
+      .from("twb_read_items")
+      .select("item_type, item_key")
+      .or(conditions)
+      .gte("read_at", expiry);
+
+    (data || []).forEach(r => readKeys.add(`${r.item_type}:${r.item_key}`));
+  }
+
+  return NextResponse.json({ read: Array.from(readKeys) }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: NextRequest) {
   const { item_type, item_key } = await request.json();
 
   if (!item_type || !item_key) {
-    return NextResponse.json({ ok: false }, { status: 400 });
+    return NextResponse.json({ ok: false }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
 
   const { error } = await supabase
@@ -64,8 +81,8 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     console.error("Read items upsert error:", error);
-    return NextResponse.json({ ok: false }, { status: 500 });
+    return NextResponse.json({ ok: false }, { status: 500, headers: { "Cache-Control": "no-store" } });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }
