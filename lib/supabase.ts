@@ -95,6 +95,7 @@ export async function syncKeywordsFromSheets(keywords: string[]): Promise<void> 
 export interface KGRWorkbenchItem {
   id: string;
   keyword: string;
+  status: string;
   allintitle_count: number | null;
   allintitle_timestamp: string | null;
   search_volume: number | null;
@@ -132,6 +133,7 @@ export async function getKGRWorkbench(): Promise<KGRWorkbenchItem[]> {
  */
 export async function upsertKGRItem(item: {
   keyword: string;
+  status?: string;
   allintitle_count?: number | null;
   allintitle_timestamp?: string | null;
   search_volume?: number | null;

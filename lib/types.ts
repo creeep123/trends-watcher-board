@@ -319,8 +319,18 @@ export function calculateKDROI(
 }
 
 // KGR Workbench types
+export type KGRWorkflowStatus = 'unresearched' | 'researched' | 'to-publish' | 'abandoned';
+
+export const KGR_STATUS_CONFIG: Record<KGRWorkflowStatus, { label: string; color: string }> = {
+  'unresearched': { label: '未调研', color: '#9ca3af' },
+  'researched': { label: '已调研', color: '#60a5fa' },
+  'to-publish': { label: '待上站', color: '#34d399' },
+  'abandoned': { label: '已放弃', color: '#f87171' },
+};
+
 export interface KGRItem {
   keyword: string;
+  status: KGRWorkflowStatus;
   allintitleCount: number | null;  // Auto-fetched from backend
   allintitleTimestamp: string | null;  // When fetched
   searchVolume: number | null;  // Manual input from Semrush/Google Ads

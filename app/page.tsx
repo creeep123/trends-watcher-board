@@ -23,7 +23,7 @@ import type {
 } from "@/lib/types";
 import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS,
   getKGRInterpretation, getEKGRInterpretation, getKDROIInterpretation,
-  calculateEKGR, calculateKDROI, generateGTCompareUrl } from "@/lib/types";
+  calculateEKGR, calculateKDROI, generateGTCompareUrl, KGR_STATUS_CONFIG, KGRWorkflowStatus } from "@/lib/types";
 import { useReadItems } from "@/lib/useReadItems";
 import { AchievementSummary } from "@/lib/AchievementPanel";
 
@@ -144,6 +144,7 @@ function loadKGRWorkbench(): KGRItem[] {
       keyword: item.keyword || "",
       allintitleCount: item.allintitleCount ?? null,
       allintitleTimestamp: item.allintitleTimestamp ?? null,
+      status: item.status || 'unresearched',
       searchVolume: item.searchVolume ?? null,
       searchVolumeTimestamp: item.searchVolumeTimestamp ?? null,
       kd: item.kd ?? null,
@@ -266,7 +267,7 @@ export default function Home() {
   const [kgrLoading, setKgrLoading] = useState<Record<string, boolean>>({});
   const [batchImportText, setBatchImportText] = useState("");
   const [showBatchImport, setShowBatchImport] = useState(false);
-  const [kgrFilter, setKgrFilter] = useState<'all' | 'good-kgr' | 'good-ekgr' | 'good-kdroi'>('all');
+  const [kgrFilter, setKgrFilter] = useState<'all' | 'good-kgr' | 'good-ekgr' | 'good-kdroi' | 'status-unresearched' | 'status-researched' | 'status-to-publish' | 'status-abandoned'>('all');
   const [kgrSort, setKgrSort] = useState<'added' | 'kgr' | 'ekgr' | 'kdroi'>('added');
   const { fetchReadStatus, markAsRead, isRead } = useReadItems();
 
@@ -657,6 +658,7 @@ export default function Home() {
 
     const newItem: KGRItem = {
       keyword,
+      status: 'unresearched',
       allintitleCount: null,
       allintitleTimestamp: null,
       searchVolume: null,
@@ -777,6 +779,7 @@ export default function Home() {
 
       const newItem: KGRItem = {
         keyword,
+        status: 'unresearched',
         allintitleCount: null,
         allintitleTimestamp: null,
         searchVolume: null,
@@ -830,6 +833,9 @@ export default function Home() {
       items = items.filter(item => item.ekgrStatus === 'good');
     } else if (kgrFilter === 'good-kdroi') {
       items = items.filter(item => item.kdroiStatus === 'good');
+    } else if (kgrFilter?.startsWith('status-')) {
+      const status = kgrFilter.replace('status-', '');
+      items = items.filter(item => (item.status || 'unresearched') === status);
     }
 
     // Apply sort
@@ -857,9 +863,10 @@ export default function Home() {
 
   // Export to CSV
   const handleExportCSV = () => {
-    const headers = ['关键词', 'allintitle', '搜索量', 'KD', 'KGR', 'KGR状态', 'EKGR', 'EKGR状态', 'KDROI', 'KDROI状态'];
+    const headers = ['关键词', '状态', 'allintitle', '搜索量', 'KD', 'KGR', 'KGR状态', 'EKGR', 'EKGR状态', 'KDROI', 'KDROI状态'];
     const rows = filteredAndSortedItems.map(item => [
       item.keyword,
+      KGR_STATUS_CONFIG[(item.status || 'unresearched') as KGRWorkflowStatus]?.label || item.status || '',
       item.allintitleCount ?? '',
       item.searchVolume ?? '',
       item.kd ?? '',
@@ -1177,6 +1184,10 @@ export default function Home() {
                       style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
                     >
                       <option value="all">全部</option>
+                      <option value="status-unresearched">● 未调研</option>
+                      <option value="status-researched">● 已调研</option>
+                      <option value="status-to-publish">● 待上站</option>
+                      <option value="status-abandoned">● 已放弃</option>
                       <option value="good-kgr">黄金 KGR</option>
                       <option value="good-ekgr">优质 EKGR</option>
                       <option value="good-kdroi">高 KDROI</option>
@@ -1210,6 +1221,7 @@ export default function Home() {
                   <thead>
                     <tr className="border-b text-xs" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
                       <th className="p-2 text-left font-medium">关键词</th>
+                      <th className="p-2 text-center font-medium">状态</th>
                       <th className="p-2 text-right font-medium">allintitle</th>
                       <th className="p-2 text-right font-medium">搜索量</th>
                       <th className="p-2 text-right font-medium">KD</th>
@@ -1287,7 +1299,17 @@ export default function Home() {
               borderRadius: "var(--radius-md)",
               color: kgrItems.length > 0 ? "var(--accent-blue-hover)" : "var(--text-tertiary)"
             }}>
-            🎯 KGR {kgrItems.length > 0 && `(${kgrItems.length})`}
+            🎯 KGR {kgrItems.length > 0 && (() => {
+              const unresearched = kgrItems.filter(i => (i.status || 'unresearched') === 'unresearched').length;
+              const toPublish = kgrItems.filter(i => i.status === 'to-publish').length;
+              return (
+                <span>
+                  ({kgrItems.length})
+                  {unresearched > 0 && <span style={{ color: '#9ca3af', marginLeft: 6 }}>● {unresearched}未调研</span>}
+                  {toPublish > 0 && <span style={{ color: '#34d399', marginLeft: 6 }}>● {toPublish}待上站</span>}
+                </span>
+              );
+            })()}
           </button>
         </div>
       )}
@@ -3061,6 +3083,24 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
         <div className="min-w-[150px] max-w-[200px] text-sm font-medium break-words" style={{ color: "var(--text-primary)" }}>
           {item.keyword}
         </div>
+      </td>
+
+      {/* Status */}
+      <td className="p-2 text-center">
+        <select
+          value={item.status || 'unresearched'}
+          onChange={(e) => onUpdate(item.keyword, { status: e.target.value as KGRWorkflowStatus })}
+          className="rounded border px-1.5 py-0.5 text-xs outline-none cursor-pointer"
+          style={{
+            background: "var(--bg-secondary)",
+            borderColor: KGR_STATUS_CONFIG[(item.status || 'unresearched') as KGRWorkflowStatus]?.color || 'var(--border)',
+            color: KGR_STATUS_CONFIG[(item.status || 'unresearched') as KGRWorkflowStatus]?.color || 'var(--text-tertiary)',
+          }}
+        >
+          {(Object.entries(KGR_STATUS_CONFIG) as [KGRWorkflowStatus, { label: string; color: string }][]).map(([key, cfg]) => (
+            <option key={key} value={key}>{cfg.label}</option>
+          ))}
+        </select>
       </td>
 
       {/* allintitle */}

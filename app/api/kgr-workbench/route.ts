@@ -13,6 +13,7 @@ export async function GET() {
     // Transform Supabase format to KGRItem format
     const kgrItems: KGRItem[] = items.map(item => ({
       keyword: item.keyword,
+      status: (item.status || 'unresearched') as KGRItem['status'],
       allintitleCount: item.allintitle_count,
       allintitleTimestamp: item.allintitle_timestamp,
       searchVolume: item.search_volume,
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
 
     await upsertKGRItem({
       keyword: item.keyword,
+      status: item.status || 'unresearched',
       allintitle_count: item.allintitleCount,
       allintitle_timestamp: item.allintitleTimestamp,
       search_volume: item.searchVolume,

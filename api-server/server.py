@@ -66,11 +66,17 @@ DEFAULT_TTL = 3600  # 1h fallback
 _last_request_time = 0
 _MIN_REQUEST_INTERVAL = 2.0  # Minimum seconds between pytrends requests
 _rate_limit_lock = threading.Lock()
+_consecutive_429s = 0  # Track consecutive rate-limited requests
 
 def _rate_limit_pytrends():
     """Ensure minimum time between pytrends requests to avoid rate limiting."""
-    global _last_request_time
+    global _last_request_time, _consecutive_429s
     with _rate_limit_lock:
+        # If we're in a rate-limited state, skip the delay — fast fail
+        if _consecutive_429s >= 3:
+            _last_request_time = time.time()
+            return
+
         now = time.time()
         time_since_last = now - _last_request_time
         if time_since_last < _MIN_REQUEST_INTERVAL:
@@ -78,6 +84,18 @@ def _rate_limit_pytrends():
         # Add small random jitter (0-0.5s) to make requests look more natural
         time.sleep(random.uniform(0, 0.5))
         _last_request_time = time.time()
+
+def _mark_rate_limited():
+    """Called when a 429 is received to track rate limiting state."""
+    global _consecutive_429s
+    with _rate_limit_lock:
+        _consecutive_429s += 1
+
+def _mark_rate_limit_ok():
+    """Called when a request succeeds to reset rate limiting state."""
+    global _consecutive_429s
+    with _rate_limit_lock:
+        _consecutive_429s = 0
 
 
 # --- Cache with stale fallback ---
@@ -374,12 +392,14 @@ def fetch_related_queries(keyword: str, timeframe: str, geo: str, use_proxy: boo
                         "url": f"https://www.google.com/search?q={quote_plus(name)}&udm=50",
                     })
 
+            _mark_rate_limit_ok()
             return len(items) > 0
 
         except Exception as e:
             error_msg = str(e)
             if "429" in error_msg:
                 print(f"[pytrends] Rate limited for '{keyword}'")
+                _mark_rate_limited()
                 return "rate_limited"  # Special return value for 429
             print(f"[pytrends] Error for '{keyword}': {e}")
             return False
@@ -433,11 +453,18 @@ def get_trends(
 
     for kw in keyword_list:
         results = fetch_related_queries(kw, timeframe, geo)
+        if not results:
+            rate_limited = True
+            # If 3+ consecutive keywords return empty, short-circuit — Google is rate limiting globally
+            if rate_limited and len(all_items) == 0 and keyword_list.index(kw) >= 2:
+                print(f"[trends] Short-circuit at keyword '{kw}': Google is globally rate limiting")
+                break
         for item in results:
             if item["name"].lower() not in seen_names:
                 seen_names.add(item["name"].lower())
                 all_items.append(item)
-        if kw != keyword_list[-1]:
+        # Only sleep between keywords if we got actual data (skip when rate-limited)
+        if kw != keyword_list[-1] and results:
             time.sleep(2)
 
     # If no data (rate limited), return stale cache if available
