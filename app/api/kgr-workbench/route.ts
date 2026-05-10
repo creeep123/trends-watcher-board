@@ -133,6 +133,7 @@ export async function PUT(request: NextRequest) {
     for (const item of items) {
       await upsertKGRItem({
         keyword: item.keyword,
+        status: item.status || 'unresearched',
         allintitle_count: item.allintitleCount,
         allintitle_timestamp: item.allintitleTimestamp,
         search_volume: item.searchVolume,
