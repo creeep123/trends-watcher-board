@@ -263,6 +263,8 @@ export default function Home() {
 
   // KGR Workbench state
   const [kgrItems, setKgrItems] = useState<KGRItem[]>([]);
+  const [kgrDirty, setKgrDirty] = useState(false);
+  const [kgrSaving, setKgrSaving] = useState(false);
   const [kgrExpanded, setKgrExpanded] = useState(false);
   const [kgrLoading, setKgrLoading] = useState<Record<string, boolean>>({});
   const [batchImportText, setBatchImportText] = useState("");
@@ -493,6 +495,7 @@ export default function Home() {
           const data = await res.json();
           if (data.items && Array.isArray(data.items)) {
             setKgrItems(data.items);
+            setKgrDirty(false);
             // Also update localStorage as backup
             saveKGRWorkbench(data.items);
             return;
@@ -508,22 +511,9 @@ export default function Home() {
     loadKGRFromSupabase();
   }, []);
 
-  // Save KGR workbench on change - localStorage immediately, sync to Supabase in background
+  // Save KGR workbench to localStorage on change (no auto Supabase sync)
   useEffect(() => {
-    // Always save to localStorage immediately
     saveKGRWorkbench(kgrItems);
-
-    // Sync to Supabase in background (don't await, let it happen asynchronously)
-    if (kgrItems.length > 0) {
-      fetch('/api/kgr-workbench', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: kgrItems }),
-      }).catch((error) => {
-        // Silent fail - localStorage is the source of truth for offline
-        console.log('[KGR] Background sync failed:', error);
-      });
-    }
   }, [kgrItems]);
 
   // Close mobile dropdown menu on click outside
@@ -656,6 +646,8 @@ export default function Home() {
       return; // Already in workbench
     }
 
+    setKgrDirty(true);
+
     const newItem: KGRItem = {
       keyword,
       status: 'unresearched',
@@ -715,6 +707,7 @@ export default function Home() {
   };
 
   const handleUpdateKGR = (keyword: string, updates: Partial<KGRItem>) => {
+    setKgrDirty(true);
     setKgrItems(prev => prev.map(item => {
       if (item.keyword === keyword) {
         const updated = { ...item, ...updates };
@@ -758,10 +751,40 @@ export default function Home() {
 
   const handleRemoveFromKGR = (keyword: string) => {
     setKgrItems(prev => prev.filter(item => item.keyword !== keyword));
+    // Delete from Supabase so it doesn't reappear on reload
+    fetch(`/api/kgr-workbench?keyword=${encodeURIComponent(keyword)}`, {
+      method: 'DELETE',
+    }).catch(err => console.log('[KGR] Delete from Supabase failed:', err));
+  };
+
+  const handleSaveKGR = async () => {
+    if (!kgrDirty || kgrSaving) return;
+    setKgrSaving(true);
+    try {
+      const res = await fetch('/api/kgr-workbench', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: kgrItems }),
+      });
+      if (res.ok) {
+        setKgrDirty(false);
+        setToast({ message: 'KGR 工作台已保存', type: 'success' });
+        setTimeout(() => setToast(null), 1500);
+      } else {
+        throw new Error('Save failed');
+      }
+    } catch (error) {
+      console.log('[KGR] Save to Supabase failed:', error);
+      setToast({ message: '保存失败，请重试', type: 'error' });
+      setTimeout(() => setToast(null), 2000);
+    } finally {
+      setKgrSaving(false);
+    }
   };
 
   // Batch import keywords
   const handleBatchImport = () => {
+    setKgrDirty(true);
     const keywords = batchImportText
       .split('\n')
       .map(k => k.trim())
