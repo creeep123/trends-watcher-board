@@ -1113,6 +1113,18 @@ export default function Home() {
                   </span>
                 </div>
                 <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveKGR}
+                    disabled={!kgrDirty || kgrSaving}
+                    className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-40"
+                    style={{
+                      background: kgrDirty ? "var(--accent-blue)" : "var(--bg-elevated)",
+                      color: kgrDirty ? "white" : "var(--text-tertiary)",
+                    }}
+                    title={kgrDirty ? "有未保存的更改" : "所有更改已保存"}
+                  >
+                    {kgrSaving ? "保存中..." : kgrDirty ? "保存 ●" : "保存"}
+                  </button>
                   {kgrItems.length > 0 && (
                     <>
                       <button onClick={handleFetchAllAllintitle}
