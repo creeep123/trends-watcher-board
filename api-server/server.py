@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from urllib.parse import quote_plus
+from urllib.parse import quote, quote_plus
 
 from pydantic import BaseModel
 import asyncio
@@ -2005,8 +2005,9 @@ def enrich_keywords(req: EnrichRequest):
 
 # --- Background warmup ---
 
-# Warmup keywords should match frontend DEFAULT_KEYWORDS
-WARMUP_KEYWORDS = ["AI", "LLM", "maker", "generator", "creator", "filter"]
+# Warmup keywords MUST match frontend DEFAULT_KEYWORDS (lib/types.ts).
+# If you change one, change the other.
+WARMUP_KEYWORDS = ["AI", "LLM", "maker", "generator", "creator", "filter", "Anthropic"]
 WARMUP_TIMEFRAME = "now 1-d"
 WARMUP_TRENDING_GEOS = ["US", "ID", "BR"]
 WARMUP_INTERVAL = 3600  # 1 hour - refresh trends data more frequently
@@ -2105,12 +2106,12 @@ def _warmup_once():
                     "_cached": False,
                     "_status": "Google Trends 暂时不可用（可能限频）" if len(all_items) == 0 else None,
                 }
-                # Always cache to avoid repeated failed requests
-                _set_cache(key, response)
+                # Only cache non-empty results to preserve stale data for fallback
                 if len(all_items) > 0:
+                    _set_cache(key, response)
                     print(f"[warmup] trends {combo['desc']}: {len(all_items)} items cached")
                 else:
-                    print(f"[warmup] trends {combo['desc']}: cached empty response (will retry in {WARMUP_INTERVAL}s)")
+                    print(f"[warmup] trends {combo['desc']}: empty response, keeping stale cache (will retry in {WARMUP_INTERVAL}s)")
         except Exception as e:
             print(f"[warmup] trends {combo['desc']} error: {e}")
 
@@ -2145,9 +2146,11 @@ def _prefetch_upsert(key: str, data: dict, ttl_hours: int = 4):
     if not supabase_client:
         return
     try:
+        now = datetime.now(timezone.utc).isoformat()
         supabase_client.table("twb_cache").upsert({
             "key": key,
             "data": data,
+            "fetched_at": now,
             "expires_at": (datetime.now(timezone.utc) + timedelta(hours=ttl_hours)).isoformat(),
         }).execute()
         _set_cache(key, data)
@@ -2242,20 +2245,30 @@ def prefetch_all():
         except Exception as e:
             print(f"[prefetch] {cache_key} error: {e}")
 
-    # 8. Trends (default combination only)
-    try:
-        cache_key = "trends|AI,LLM,maker,generator,creator,filter:now 1-d:US"
-        resp = http_requests.get(f"{base}/api/trends?keywords=AI,LLM,maker,generator,creator,filter&timeframe=now%201-d&geo=US", timeout=60)
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get("google") and len(data["google"]) > 0:
-                _prefetch_upsert(cache_key, data, 4)
-                written += 1
-                print(f"[prefetch] {cache_key}: {len(data.get('google', []))} items")
-            else:
-                print(f"[prefetch] {cache_key}: skipped (empty google data)")
-    except Exception as e:
-        print(f"[prefetch] trends error: {e}")
+    # 8. Trends (both global and US, using keywords that match frontend DEFAULT_KEYWORDS)
+    trends_combos = [
+        {"keywords": WARMUP_KEYWORDS, "timeframe": "now 1-d", "geo": "", "desc": "global"},
+        {"keywords": WARMUP_KEYWORDS, "timeframe": "now 1-d", "geo": "US", "desc": "US"},
+    ]
+    for combo in trends_combos:
+        try:
+            kw_param = ",".join(combo["keywords"])
+            # Use Next.js key format (trends:) so normal page loads hit Supabase cache
+            cache_key = f"trends:{kw_param}:{combo['timeframe']}:{combo['geo']}"
+            resp = http_requests.get(
+                f"{base}/api/trends?keywords={kw_param}&timeframe={quote(combo['timeframe'])}&geo={combo['geo']}",
+                timeout=60,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("google") and len(data["google"]) > 0:
+                    _prefetch_upsert(cache_key, data, 4)
+                    written += 1
+                    print(f"[prefetch] {cache_key}: {len(data.get('google', []))} items")
+                else:
+                    print(f"[prefetch] {cache_key}: skipped (empty google data)")
+        except Exception as e:
+            print(f"[prefetch] trends {combo['desc']} error: {e}")
 
     _last_prefetch = time.time()
     print(f"[prefetch] Phase 1 done: {written} keys written to Supabase")

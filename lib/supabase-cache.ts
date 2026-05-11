@@ -13,6 +13,8 @@ export async function getSupabaseCache<T>(key: string): Promise<T | null> {
       .single();
 
     if (error || !data) return null;
+    // Respect expiry — expired entries are not returned for normal requests
+    if (data.expires_at && new Date(data.expires_at) < new Date()) return null;
     return data.data as T;
   } catch {
     return null;
