@@ -2040,7 +2040,7 @@ function TrendingCard({
             {item.traffic}
           </span>
         )}
-        <Chevron open={isExpanded} />
+        {isExpanded ? <Chevron open /> : <CopyButton text={item.name} />}
       </button>
       {isExpanded && <DecisionPanel keyword={item.name} points={interestData} loading={interestLoading} onAddToKGR={onAddToKGR} onRead={onRead} />}
     </div>
@@ -2570,7 +2570,7 @@ function KeywordCard({
         <span className="shrink-0 rounded-md px-1.5 py-0.5 text-xs font-mono font-medium" style={{ background: "rgba(52, 211, 153, 0.15)", color: "var(--accent-green)" }}>
           {item.value}
         </span>
-        <Chevron open={!!isExpanded} />
+        {isExpanded ? <Chevron open /> : <CopyButton text={item.name} />}
       </button>
       {isExpanded && (
         <EnrichedDecisionPanel
@@ -2987,6 +2987,33 @@ function Chevron({ open }: { open: boolean }) {
   );
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    });
+  };
+  return (
+    <button onClick={copy} title="复制关键词"
+      className="shrink-0 rounded-md p-1 transition-colors hover:bg-[var(--bg-secondary)]"
+      style={{ color: copied ? "var(--accent-green)" : "var(--text-tertiary)" }}>
+      {copied ? (
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      ) : (
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function ExternalIcon() {
   return (
     <svg className="h-4 w-4 shrink-0 opacity-40 transition-opacity sm:opacity-0 sm:group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
@@ -3053,7 +3080,6 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
   const [volumeInput, setVolumeInput] = useState(
     item.searchVolume !== null ? String(item.searchVolume) : ""
   );
-  const [volumeUnit, setVolumeUnit] = useState<'day' | 'month'>('month');
   const [kdInput, setKdInput] = useState(
     item.kd !== null ? String(item.kd) : ""
   );
@@ -3077,9 +3103,8 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
   const handleVolumeSubmit = () => {
     const vol = parseInt(volumeInput.replace(/[,\s]/g, ""), 10);
     if (!isNaN(vol) && vol >= 0) {
-      const monthlyVol = volumeUnit === 'day' ? vol * 30 : vol;
       onUpdate(item.keyword, {
-        searchVolume: monthlyVol,
+        searchVolume: vol,
         searchVolumeTimestamp: new Date().toISOString(),
       });
     }
@@ -3224,7 +3249,7 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
             onChange={(e) => setVolumeInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleVolumeSubmit(); }}
             onBlur={handleVolumeSubmit}
-            placeholder={volumeUnit === 'day' ? '日搜索量' : '月搜索量'}
+            placeholder="月搜索量"
             className="w-20 rounded border px-2 py-1 text-right text-xs"
             style={{
               background: "var(--bg-secondary)",
@@ -3232,14 +3257,6 @@ function KGRRow({ item, onUpdate, onRemove, loading, onFetchAllintitle }: {
               color: "var(--text-primary)"
             }}
           />
-          <button
-            onClick={() => setVolumeUnit(u => u === 'month' ? 'day' : 'month')}
-            className="shrink-0 rounded px-1 py-0.5 text-[10px] font-medium"
-            style={{ background: volumeUnit === 'day' ? "rgba(94, 106, 210, 0.15)" : "transparent", color: volumeUnit === 'day' ? "var(--accent-blue-hover)" : "var(--text-quaternary)" }}
-            title={volumeUnit === 'day' ? '当前：日搜索量，点击切换为月' : '当前：月搜索量，点击切换为日'}
-          >
-            {volumeUnit === 'day' ? '日' : '月'}
-          </button>
           <a href={googleTrendsUrl(`${item.keyword},happy birthday image`)}
             target="_blank" rel="noopener noreferrer"
             className="shrink-0 rounded px-1.5 py-1 text-xs font-medium transition-opacity hover:opacity-80"
