@@ -1146,6 +1146,12 @@ export default function Home() {
                       </button>
                     </>
                   )}
+                  <a href="https://query.domains/" target="_blank" rel="noopener noreferrer"
+                    className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80 inline-flex items-center"
+                    style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}
+                    title="查询域名可用性">
+                    🌐 买域名
+                  </a>
                   <button onClick={() => setShowBatchImport(!showBatchImport)}
                     className="rounded-lg px-2 py-1 text-xs transition-colors hover:opacity-80"
                     style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}
