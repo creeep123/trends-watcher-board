@@ -31,6 +31,7 @@ from supabase import create_client, Client as SupabaseClient
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 SILICONFLOW_API_KEY = os.environ.get("SILICONFLOW_API_KEY", "")
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 LLM_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"  # Fallback model for OpenRouter
 PRODUCT_HUNT_TOKEN = os.environ.get("PRODUCT_HUNT_TOKEN", "")
 
@@ -181,34 +182,44 @@ def _init_llm_pool() -> list[LLMProvider]:
     """
     pool: list[LLMProvider] = []
 
-    # Priority 0 — Groq (~0.15s, fastest)
+    # Priority 0 — DeepSeek Official (fast, cheap — 1¥/M tokens, no rate limit)
+    if DEEPSEEK_API_KEY:
+        pool.append(LLMProvider(
+            name="deepseek",
+            base_url="https://api.deepseek.com",
+            api_key=DEEPSEEK_API_KEY,
+            model="deepseek-v4-flash",
+            priority=0,
+        ))
+
+    # Priority 1 — Groq (~0.15s, but free tier rate-limited heavily)
     if GROQ_API_KEY:
         pool.append(LLMProvider(
             name="groq",
             base_url="https://api.groq.com/openai/v1",
             api_key=GROQ_API_KEY,
             model="llama-3.3-70b-versatile",
-            priority=0,
+            priority=1,
         ))
 
-    # Priority 1 — SiliconFlow (~1.6s, cheap)
+    # Priority 2 — SiliconFlow (~1.6s, cheap)
     if SILICONFLOW_API_KEY:
         pool.append(LLMProvider(
             name="siliconflow",
             base_url="https://api.siliconflow.com/v1",
             api_key=SILICONFLOW_API_KEY,
             model="deepseek-ai/DeepSeek-V3",
-            priority=1,
+            priority=2,
         ))
 
-    # Priority 2 — OpenRouter (~3s, reliable free tier fallback)
+    # Priority 3 — OpenRouter (~3s, reliable free tier fallback)
     if OPENROUTER_API_KEY:
         pool.append(LLMProvider(
             name="openrouter",
             base_url="https://openrouter.ai/api/v1",
             api_key=OPENROUTER_API_KEY,
             model=LLM_MODEL,
-            priority=2,
+            priority=3,
         ))
 
     pool.sort(key=lambda p: p.priority)
@@ -574,6 +585,8 @@ def _generate_batch_summaries(items: list[dict], source: str, model: str | None 
                 item_texts.append(f"{idx}. Model: {item.get('modelId','')}\n   Author: {item.get('author','')}\n   Pipeline: {item.get('pipelineTag','')}\n   Downloads: {item.get('downloads',0)}\n   Tags: {', '.join(item.get('tags',[])[:5])}")
             elif source == "indiehackers":
                 item_texts.append(f"{idx}. Title: {item.get('title','')}\n   Author: {item.get('author','')}\n   Votes: {item.get('votes',0)}")
+            elif source in ("reddit", "hackernews"):
+                item_texts.append(f"{idx}. Title: {item.get('title','')}\n   URL: {item.get('url','')}\n   Score: {item.get('score', item.get('points', 0))}")
 
         prompt = (
             f"For each of these {source} items, provide:\n"
@@ -2288,6 +2301,8 @@ def _prefetch_summaries():
     # Read raw data from Supabase, generate summaries, write back
     # Note: source name must match what _generate_batch_summaries expects
     summary_keys = [
+        ("reddit|hot", "posts", "reddit"),
+        ("hackernews|top", "posts", "hackernews"),
         ("ph|daily", "products", "producthunt"),
         ("huggingface", "models", "huggingface"),
         ("indiehackers", "posts", "indiehackers"),
@@ -2316,6 +2331,9 @@ def _prefetch_summaries():
             # Write back to Supabase
             data[items_key] = items
             _prefetch_upsert(cache_key, data, 8 if "ph|daily" == cache_key else 4)
+
+            # Also update in-memory cache so API returns summaries immediately
+            _set_cache(cache_key, data)
 
             new_summaries = sum(1 for item in items if item.get("summary"))
             print(f"[prefetch] Phase 2 {cache_key}: {new_summaries}/{len(items)} summaries generated")

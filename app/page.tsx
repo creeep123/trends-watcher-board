@@ -2315,7 +2315,7 @@ function IndieHackersCard({ post, index, isExpanded, onToggle, read, onRead }: {
 
 function RedditCard({ post, index, read, onRead }: { post: RedditPost; index: number; read: boolean; onRead: () => void }) {
   const [expanded, setExpanded] = useState(false);
-  const [summary, setSummary] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(post.summary ?? null);
   const [loading, setLoading] = useState(false);
 
   const timeAgo = (dateStr: string) => {
@@ -2399,7 +2399,7 @@ function RedditCard({ post, index, read, onRead }: { post: RedditPost; index: nu
 
 function HackerNewsCard({ post, index, read, onRead }: { post: HackerNewsPost; index: number; read: boolean; onRead: () => void }) {
   const [expanded, setExpanded] = useState(false);
-  const [summary, setSummary] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(post.summary ?? null);
   const [loading, setLoading] = useState(false);
 
   const timeAgo = (dateStr: string) => {

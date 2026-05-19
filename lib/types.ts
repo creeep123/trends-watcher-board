@@ -39,6 +39,7 @@ export interface RedditPost {
   ups?: number;       // 点赞数
   num_comments?: number;  // 评论数
   score?: number;     // 综合热度 (ups + num_comments * 2)
+  summary?: string;   // 预生成摘要
 }
 
 export interface HackerNewsPost {
@@ -50,6 +51,7 @@ export interface HackerNewsPost {
   comments: number;
   time: string;
   score?: number;     // 综合热度 (points + comments * 0.5)
+  summary?: string;   // 预生成摘要
 }
 
 export interface HackerNewsResponse {
