@@ -27,7 +27,7 @@ type HeatmapDay = { date: string; count: number; by_type: Record<string, number>
 interface ReadStats {
   today: {
     total: number;
-    new_words: { total: number; trending: number; queries: number; github: number };
+    new_words: { total: number; trending: number; queries: number; github: number; kgr: number; batch_gt: number };
     info: { total: number; reddit: number; hn: number; technews: number; ph: number; hf: number; ih: number };
   };
   heatmap: HeatmapDay[];
@@ -153,6 +153,7 @@ const TYPE_LABELS: Record<string, string> = {
   trending: "Trending", queries: "Queries", github: "GitHub",
   reddit: "Reddit", hn: "HN", technews: "TechNews",
   ph: "Product Hunt", hf: "HuggingFace", ih: "Indie Hackers",
+  kgr: "KGR", batch_gt: "批量 GT",
 };
 
 function formatDateLabel(dateStr: string): string {
@@ -404,6 +405,8 @@ function DetailPanel({ stats, onClose, onRefresh }: {
             { name: "trending", value: nw?.trending ?? 0, color: "var(--accent-blue)" },
             { name: "queries", value: nw?.queries ?? 0, color: "var(--accent-blue-hover)" },
             { name: "github", value: nw?.github ?? 0, color: "var(--accent-blue-muted)" },
+            { name: "kgr", value: nw?.kgr ?? 0, color: "#7170ff" },
+            { name: "batch_gt", value: nw?.batch_gt ?? 0, color: "#a78bfa" },
           ]} goal={nwGoal} />
           <StackedBar label="资讯" segments={[
             { name: "reddit", value: info?.reddit ?? 0, color: "var(--accent-blue)" },

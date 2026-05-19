@@ -151,6 +151,15 @@ export default function BatchGTPage() {
     ));
     try {
       await addViewingRecord(keywordId);
+      // Also record as read for achievement panel
+      const kw = keywords.find(k => k.id === keywordId);
+      if (kw) {
+        fetch("/api/read-items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ item_type: "batch_gt", item_key: kw.keyword }),
+        }).catch(console.error);
+      }
     } catch (error) {
       console.error("Failed to mark as viewed:", error);
       setKeywords(prev => prev.map(k =>

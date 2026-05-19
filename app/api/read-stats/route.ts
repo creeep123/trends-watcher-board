@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 
 // --- Helpers ---
 
-const NEW_WORD_TYPES = ["trending", "queries", "github"];
+const NEW_WORD_TYPES = ["trending", "queries", "github", "kgr", "batch_gt"];
 const INFO_TYPES = ["reddit", "hn", "technews", "ph", "hf", "ih"];
 
 function todayStartISO(): string {
@@ -49,6 +49,8 @@ export async function GET() {
     const trending = typeCounts["trending"] || 0;
     const queries = typeCounts["queries"] || 0;
     const github = typeCounts["github"] || 0;
+    const kgr = typeCounts["kgr"] || 0;
+    const batchGt = typeCounts["batch_gt"] || 0;
     const reddit = typeCounts["reddit"] || 0;
     const hn = typeCounts["hn"] || 0;
     const technews = typeCounts["technews"] || 0;
@@ -56,7 +58,7 @@ export async function GET() {
     const hf = typeCounts["hf"] || 0;
     const ih = typeCounts["ih"] || 0;
 
-    const newWordsTotal = trending + queries + github;
+    const newWordsTotal = trending + queries + github + kgr + batchGt;
     const infoTotal = reddit + hn + technews + ph + hf + ih;
     const todayTotal = newWordsTotal + infoTotal;
 
@@ -137,7 +139,7 @@ export async function GET() {
     return NextResponse.json({
       today: {
         total: todayTotal,
-        new_words: { total: newWordsTotal, trending, queries, github },
+        new_words: { total: newWordsTotal, trending, queries, github, kgr, batch_gt: batchGt },
         info: { total: infoTotal, reddit, hn, technews, ph, hf, ih },
       },
       heatmap,

@@ -743,6 +743,11 @@ export default function Home() {
           updated.kdroiStatus = null;
         }
 
+        // Track status change as read
+        if (updates.status && updates.status !== item.status) {
+          markAsRead("kgr", keyword);
+        }
+
         return updated;
       }
       return item;
