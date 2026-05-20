@@ -269,7 +269,7 @@ export default function Home() {
   const [kgrLoading, setKgrLoading] = useState<Record<string, boolean>>({});
   const [batchImportText, setBatchImportText] = useState("");
   const [showBatchImport, setShowBatchImport] = useState(false);
-  const [kgrFilter, setKgrFilter] = useState<'all' | 'good-kgr' | 'good-ekgr' | 'good-kdroi' | 'status-unresearched' | 'status-researched' | 'status-to-publish' | 'status-abandoned'>('all');
+  const [kgrFilter, setKgrFilter] = useState<'all' | 'good-kgr' | 'good-ekgr' | 'good-kdroi' | 'status-unresearched' | 'status-researched' | 'status-to-publish' | 'status-published' | 'status-abandoned'>('all');
   const [kgrSort, setKgrSort] = useState<'added' | 'kgr' | 'ekgr' | 'kdroi'>('added');
   const { fetchReadStatus, markAsRead, isRead } = useReadItems();
 
@@ -1233,6 +1233,7 @@ export default function Home() {
                       <option value="status-unresearched">● 未调研</option>
                       <option value="status-researched">● 已调研</option>
                       <option value="status-to-publish">● 待上站</option>
+                      <option value="status-published">● 已上站</option>
                       <option value="status-abandoned">● 已放弃</option>
                       <option value="good-kgr">黄金 KGR</option>
                       <option value="good-ekgr">优质 EKGR</option>

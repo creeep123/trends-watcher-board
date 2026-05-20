@@ -588,13 +588,24 @@ def _generate_batch_summaries(items: list[dict], source: str, model: str | None 
             elif source in ("reddit", "hackernews"):
                 item_texts.append(f"{idx}. Title: {item.get('title','')}\n   URL: {item.get('url','')}\n   Score: {item.get('score', item.get('points', 0))}")
 
-        prompt = (
-            f"For each of these {source} items, provide:\n"
-            "- A 1-2 sentence description\n"
-            "- 3-5 relevant tags\n\n"
-            "Reply ONLY with a JSON object mapping item NUMBER to {\"summary\": \"...\", \"tags\": [...]}\n\n"
-            "Items:\n" + "\n".join(item_texts)
-        )
+        if source in ("reddit", "hackernews"):
+            prompt = (
+                f"For each of these {source} posts, summarize the content.\n"
+                "- Focus on: what problem is raised (if any), what solution is proposed (if any)\n"
+                "- Be concise, 1-2 sentences per item\n"
+                "- Use both English and Chinese (中英双语)\n"
+                "- Also provide 3-5 relevant tags\n\n"
+                "Reply ONLY with a JSON object mapping item NUMBER to {\"summary\": \"...\", \"tags\": [...]}\n\n"
+                "Items:\n" + "\n".join(item_texts)
+            )
+        else:
+            prompt = (
+                f"For each of these {source} items, provide:\n"
+                "- A 1-2 sentence description\n"
+                "- 3-5 relevant tags\n\n"
+                "Reply ONLY with a JSON object mapping item NUMBER to {\"summary\": \"...\", \"tags\": [...]}\n\n"
+                "Items:\n" + "\n".join(item_texts)
+            )
 
         try:
             content = _call_llm(prompt, max_tokens=1500, timeout=60, model=model)

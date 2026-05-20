@@ -321,12 +321,13 @@ export function calculateKDROI(
 }
 
 // KGR Workbench types
-export type KGRWorkflowStatus = 'unresearched' | 'researched' | 'to-publish' | 'abandoned';
+export type KGRWorkflowStatus = 'unresearched' | 'researched' | 'to-publish' | 'published' | 'abandoned';
 
 export const KGR_STATUS_CONFIG: Record<KGRWorkflowStatus, { label: string; color: string }> = {
   'unresearched': { label: '未调研', color: '#9ca3af' },
   'researched': { label: '已调研', color: '#60a5fa' },
   'to-publish': { label: '待上站', color: '#34d399' },
+  'published': { label: '已上站', color: '#a78bfa' },
   'abandoned': { label: '已放弃', color: '#f87171' },
 };
 
