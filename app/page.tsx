@@ -25,6 +25,7 @@ import { TIMEFRAME_OPTIONS, GEO_OPTIONS, DEFAULT_KEYWORDS,
   getKGRInterpretation, getEKGRInterpretation, getKDROIInterpretation,
   calculateEKGR, calculateKDROI, generateGTCompareUrl, KGR_STATUS_CONFIG, KGRWorkflowStatus } from "@/lib/types";
 import { useReadItems } from "@/lib/useReadItems";
+import { useBlockedQueries } from "@/lib/useBlockedQueries";
 import { AchievementSummary } from "@/lib/AchievementPanel";
 
 // --- Tag logic ---
@@ -272,6 +273,7 @@ export default function Home() {
   const [kgrFilter, setKgrFilter] = useState<'all' | 'good-kgr' | 'good-ekgr' | 'good-kdroi' | 'status-unresearched' | 'status-researched' | 'status-to-publish' | 'status-published' | 'status-abandoned'>('all');
   const [kgrSort, setKgrSort] = useState<'added' | 'kgr' | 'ekgr' | 'kdroi'>('added');
   const { fetchReadStatus, markAsRead, isRead } = useReadItems();
+  const { fetchBlocked, block: blockQuery, isBlocked } = useBlockedQueries();
 
   // Toast notification
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -485,6 +487,9 @@ export default function Home() {
     ihPosts.forEach(p => { if (p.url) items.push({ item_type: "ih", item_key: p.url }); });
     if (items.length > 0) fetchReadStatus(items);
   }, [data, githubData, trendingItems, redditPosts, hnPosts, techNewsPosts, phProducts, hfModels, ihPosts, fetchReadStatus]);
+
+  // Fetch blocked queries on mount
+  useEffect(() => { fetchBlocked(); }, [fetchBlocked]);
 
   // Load KGR workbench on mount - try Supabase first, fallback to localStorage
   useEffect(() => {
@@ -1428,7 +1433,7 @@ export default function Home() {
 
             {/* --- Related Queries --- */}
             <section className={`${mobileTab !== "queries" ? "hidden" : ""} sm:block`}>
-              <SectionHeader title="Related Queries" icon="📊" count={data?.google?.length || 0}>
+              <SectionHeader title="Related Queries" icon="📊" count={sortedGoogle.filter(item => !isBlocked(item.name)).length}>
                 <button
                   onClick={() => setForceRefresh(true)}
                   disabled={loading}
@@ -1512,7 +1517,7 @@ export default function Home() {
                     actionText="在 Google Trends 查看 →"
                   />
                 ) : (
-                  sortedGoogle.map((item, i) => (
+                  sortedGoogle.filter(item => !isBlocked(item.name)).map((item, i) => (
                     <KeywordCard
                       key={`g-${item.name}`}
                       item={item}
@@ -1530,6 +1535,7 @@ export default function Home() {
                       onAddToKGR={handleAddToKGR}
                       read={isRead("queries", item.name)}
                       onRead={() => markAsRead("queries", item.name)}
+                      onBlock={() => blockQuery(item.name)}
                     />
                   ))
                 )}
@@ -2516,7 +2522,7 @@ function HackerNewsCard({ post, index, read, onRead }: { post: HackerNewsPost; i
 function KeywordCard({
   item, index, isGithub, isExpanded, onToggle, interestData, interestLoading,
   freshnessData, freshnessLoading, multiGeoData, multiGeoLoading,
-  enrichData, enrichLoading, onAddToKGR, read, onRead,
+  enrichData, enrichLoading, onAddToKGR, read, onRead, onBlock,
 }: {
   item: TrendKeyword; index: number; isGithub?: boolean; isExpanded?: boolean;
   onToggle?: () => void; interestData?: InterestPoint[]; interestLoading?: boolean;
@@ -2524,7 +2530,7 @@ function KeywordCard({
   multiGeoData?: MultiGeoData | null; multiGeoLoading?: boolean;
   enrichData?: EnrichData; enrichLoading?: boolean;
   onAddToKGR?: (keyword: string) => void;
-  read?: boolean; onRead?: () => void;
+  read?: boolean; onRead?: () => void; onBlock?: () => void;
 }) {
   const tags = getTags(item);
   const hasSurge = tags.includes("surge");
@@ -2556,7 +2562,7 @@ function KeywordCard({
     : "var(--text-secondary)";
 
   return (
-    <div className="min-w-0 overflow-x-auto border transition-all"
+    <div className="group min-w-0 overflow-x-auto border transition-all"
       style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue-hover)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)", borderRadius: "var(--radius-lg)", opacity: read ? 0.4 : 1, transition: "opacity 0.3s" }}>
       <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2 p-2.5 text-left sm:gap-3">
         {/* Score badge or rank */}
@@ -2583,6 +2589,16 @@ function KeywordCard({
           {item.value}
         </span>
         {isExpanded ? <Chevron open /> : <CopyButton text={item.name} />}
+        {!isGithub && onBlock && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onBlock(); }}
+            className="shrink-0 rounded px-1.5 py-0.5 text-xs sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-60 sm:hover:!opacity-100"
+            style={{ color: "var(--text-tertiary)" }}
+            title="拉黑此词"
+          >
+            &#x1F6AB;
+          </button>
+        )}
       </button>
       {isExpanded && (
         <EnrichedDecisionPanel
