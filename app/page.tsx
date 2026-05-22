@@ -2591,7 +2591,7 @@ function KeywordCard({
         {isExpanded ? <Chevron open /> : <CopyButton text={item.name} />}
         {!isGithub && onBlock && (
           <button
-            onClick={(e) => { e.stopPropagation(); onBlock(); }}
+            onClick={(e) => { e.stopPropagation(); if (confirm(`确定拉黑 "${item.name}"？拉黑后将永远不再展示。`)) onBlock(); }}
             className="shrink-0 rounded px-1.5 py-0.5 text-xs sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-60 sm:hover:!opacity-100"
             style={{ color: "var(--text-tertiary)" }}
             title="拉黑此词"

@@ -1,18 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 
 const ITEM_TYPE = "blocked_queries";
 
-function getAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
-
 /** GET /api/blocked-queries — 返回所有被拉黑的 query */
 export async function GET() {
-  const supabase = getAdminClient();
   const { data, error } = await supabase
     .from("twb_read_items")
     .select("item_key")
@@ -36,7 +28,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
 
-  const supabase = getAdminClient();
   const { error } = await supabase
     .from("twb_read_items")
     .upsert({ item_type: ITEM_TYPE, item_key: keyword, read_at: new Date().toISOString() }, { onConflict: "item_type,item_key" });
@@ -56,7 +47,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
 
-  const supabase = getAdminClient();
   const { error } = await supabase
     .from("twb_read_items")
     .delete()
