@@ -1633,8 +1633,10 @@ _SUMMARY_CACHE: dict[str, dict] = {}  # url hash -> {summary, cached_at}
 def _fetch_reddit_json(url: str) -> str:
     """Fetch Reddit post selftext + top comments via JSON API."""
     try:
+        # Use old.reddit.com — www.reddit.com returns 429 more aggressively
+        json_url = url.replace("www.reddit.com", "old.reddit.com").replace("https://reddit.com", "https://old.reddit.com").rstrip("/") + ".json"
         resp = http_requests.get(
-            url.rstrip("/") + ".json",
+            json_url,
             headers={"User-Agent": REDDIT_UA},
             timeout=10,
         )
@@ -1688,6 +1690,49 @@ def _fetch_jina(url: str) -> str:
     return content
 
 
+def _fetch_hn_comments(url: str) -> str:
+    """Fetch HN post top comments via Firebase API (reliable, no Cloudflare block)."""
+    import html as _html
+    try:
+        # Extract story ID from URL like https://news.ycombinator.com/item?id=48232118
+        match = re.search(r'[?&]id=(\d+)', url)
+        if not match:
+            return ""
+        story_id = match.group(1)
+
+        resp = http_requests.get(f"{HN_API_BASE}/item/{story_id}.json", timeout=8)
+        if resp.status_code != 200:
+            print(f"[summarize] HN Firebase returned {resp.status_code}")
+            return ""
+        story = resp.json()
+        if not story:
+            return ""
+
+        # Get self text if it's an Ask HN / Show HN with text
+        story_text = story.get("text", "")
+        sections = []
+        if story_text:
+            sections.append(f"POST: {_html.unescape(story_text)[:1000]}")
+
+        # Fetch top 5 direct comments (skip nested replies)
+        kids = story.get("kids", [])[:5]
+        for kid_id in kids:
+            try:
+                c_resp = http_requests.get(f"{HN_API_BASE}/item/{kid_id}.json", timeout=5)
+                if c_resp.status_code == 200:
+                    c = c_resp.json()
+                    c_text = c.get("text", "") if c else ""
+                    if c_text:
+                        sections.append(f"COMMENT: {_html.unescape(c_text)[:300]}")
+            except Exception:
+                continue
+
+        return "\n\n".join(sections)[:2500] if sections else ""
+    except Exception as e:
+        print(f"[summarize] HN Firebase error: {e}")
+        return ""
+
+
 def _title_only_fallback(title: str, url: str) -> str:
     """When page fetch fails, return title as context with a note."""
     return f"[Could not fetch full content — summarizing from title only]\nTitle: {title}\nURL: {url}"
@@ -1701,7 +1746,7 @@ def summarize_url(
     """Fetch a post's content and generate an LLM summary focused on problems/solutions.
 
     Reddit: uses JSON API (reliable, no 403).
-    HN: uses Jina Reader on the discussion page.
+    HN: uses Firebase API to fetch top comments.
     Other: uses Jina Reader.
     """
     cache_key = f"summary|{hashlib.md5(url.encode()).hexdigest()}"
@@ -1716,7 +1761,9 @@ def summarize_url(
     if "reddit.com" in url:
         content = _fetch_reddit_json(url)
     if not content and "news.ycombinator.com" in url:
-        # Try Jina for HN discussion pages
+        content = _fetch_hn_comments(url)
+    if not content:
+        # Fallback: Jina for other sources
         content = _fetch_jina(url)
     if not content:
         # Fallback: Jina for other sources
