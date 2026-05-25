@@ -178,7 +178,7 @@ function googleSearchUrl(kw: string) {
   return `https://www.google.com/search?q=${encodeURIComponent(kw)}`;
 }
 function googleAiUrl(kw: string) {
-  return `https://www.google.com/search?q=${encodeURIComponent(`what is "${kw}", explain in both English and Chinese, why it's getting popular recently, just speak plainly`)}&udm=50`;
+  return `https://www.google.com/search?q=${encodeURIComponent(`what is "${kw}" and why it's getting popular recently, explain in both English and Chinese, just speak plainly`)}&udm=50`;
 }
 function googleTrendsUrl(kw: string) {
   return `https://trends.google.com/trends/explore?q=${encodeURIComponent(kw)}&date=today%201-m`;
