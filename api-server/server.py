@@ -537,34 +537,41 @@ def get_trends(
     return response
 
 
-def _classify_tech_terms(names: list[str]) -> set[str]:
-    """Use LLM to classify which trending terms are tech/AI related."""
+def _classify_terms(names: list[str]) -> dict[str, str]:
+    """Use LLM to classify trending terms into categories.
+
+    Categories: tech, entertainment, gaming, sports, politics, other
+    """
     if not names:
-        return set()
+        return {}
 
     prompt = (
         "I will give you a list of trending search terms. "
-        "Reply ONLY with a JSON array containing the EXACT terms that are related to: "
-        "AI, tech, software, apps, programming, crypto, digital tools, startups, or internet products. "
-        "Be strict: exclude sports, entertainment, politics, weather unless they directly involve tech. "
-        "If none match, reply []. No explanation, just the JSON array.\n\n"
+        "Classify EACH term into exactly one category:\n"
+        "- tech: AI, software, apps, programming, crypto, digital tools, startups, internet products\n"
+        "- entertainment: movies, TV, celebrities, music, streaming, pop culture\n"
+        "- gaming: video games, game releases, esports, game studios\n"
+        "- sports: sports events, athletes, competitions\n"
+        "- politics: elections, government, political figures, policy\n"
+        "- other: weather, general news, anything not fitting above\n\n"
+        "Reply ONLY with a JSON object mapping term (lowercase) to category.\n"
+        "Example: {\"iphone 17\": \"tech\", \"oppenheimer\": \"entertainment\", \"gta 6\": \"gaming\"}\n\n"
         "Terms:\n" + "\n".join(f"- {n}" for n in names)
     )
 
     try:
-        content = _call_llm(prompt, max_tokens=500, timeout=15)
+        content = _call_llm(prompt, max_tokens=800, timeout=20)
         if not content:
-            return set()
-        # Extract JSON array from response
-        start = content.find("[")
-        end = content.rfind("]")
+            return {}
+        start = content.find("{")
+        end = content.rfind("}")
         if start != -1 and end != -1:
-            arr = json.loads(content[start:end + 1])
-            return {t.lower().strip() for t in arr if isinstance(t, str)}
+            obj = json.loads(content[start:end + 1])
+            return {k.lower().strip(): v.strip() for k, v in obj.items() if isinstance(k, str) and isinstance(v, str)}
     except Exception as e:
         print(f"[LLM] classification error: {e}")
 
-    return set()
+    return {}
 
 
 def _generate_batch_summaries(items: list[dict], source: str, model: str | None = None) -> list[dict]:
@@ -671,16 +678,15 @@ def get_trending(
         print(f"[RSS] trending error for geo={geo}: {e}")
 
     # LLM classification
+    CATEGORY_PRIORITY = {"entertainment": 0, "gaming": 1, "tech": 2, "sports": 3, "politics": 4, "other": 5}
     if items:
         names = [it["name"] for it in items]
-        tech_set = _classify_tech_terms(names)
+        cat_map = _classify_terms(names)
         for it in items:
-            if it["name"].lower().strip() in tech_set:
-                it["is_tech"] = True
-        # Sort: tech items first, then by original order
-        tech_items = [it for it in items if it["is_tech"]]
-        other_items = [it for it in items if not it["is_tech"]]
-        items = tech_items + other_items
+            cat = cat_map.get(it["name"].lower().strip(), "other")
+            it["category"] = cat
+            it["is_tech"] = cat == "tech"
+        items.sort(key=lambda it: CATEGORY_PRIORITY.get(it.get("category", "other"), 5))
 
     response = {
         "trending": items,

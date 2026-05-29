@@ -2036,6 +2036,19 @@ function TrendingCard({
   read?: boolean; onRead?: () => void;
 }) {
   const isTech = item.is_tech;
+  const category = item.category || (isTech ? "tech" : "other");
+
+  const CATEGORY_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+    entertainment: { bg: "rgba(236, 72, 153, 0.15)", text: "#ec4899", label: "Entertainment" },
+    gaming: { bg: "rgba(168, 85, 247, 0.15)", text: "#a855f7", label: "Gaming" },
+    tech: { bg: "rgba(94, 106, 210, 0.15)", text: "#5e6ad2", label: "Tech" },
+    sports: { bg: "rgba(34, 197, 94, 0.15)", text: "#22c55e", label: "Sports" },
+    politics: { bg: "rgba(234, 179, 8, 0.15)", text: "#eab308", label: "Politics" },
+    other: { bg: "rgba(148, 163, 184, 0.15)", text: "#94a3b8", label: "Other" },
+  };
+
+  const catStyle = CATEGORY_STYLES[category] || CATEGORY_STYLES.other;
+
   return (
     <div className="min-w-0 overflow-x-auto border transition-all"
       style={{
@@ -2048,9 +2061,9 @@ function TrendingCard({
       <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2 p-2.5 text-left sm:gap-3">
         <Rank n={index + 1} />
         <span className={`min-w-0 flex-1 break-words text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
-        {isTech && (
-          <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(94, 106, 210, 0.15)", color: "#5e6ad2" }}>
-            Tech
+        {category !== "other" && (
+          <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: catStyle.bg, color: catStyle.text }}>
+            {catStyle.label}
           </span>
         )}
         {item.traffic && (

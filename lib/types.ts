@@ -11,6 +11,7 @@ export interface TrendingItem {
   traffic: string;
   url: string;
   is_tech?: boolean;
+  category?: string;
 }
 
 export interface InterestPoint {
