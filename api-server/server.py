@@ -2383,14 +2383,18 @@ def _prefetch_summaries():
             if not items:
                 continue
 
-            # Check if summaries already exist
-            has_summary = sum(1 for item in items if item.get("summary"))
-            if has_summary >= len(items) * 0.5:
-                print(f"[prefetch] Phase 2 {cache_key}: {has_summary}/{len(items)} already have summaries, skipping")
+            # Only pre-generate summaries for the first 5 items
+            items_to_summarize = items[:5]
+            items_unsummarized = [it for it in items_to_summarize if not it.get("summary")]
+            if not items_unsummarized:
+                print(f"[prefetch] Phase 2 {cache_key}: top 5 already have summaries, skipping")
                 continue
 
-            print(f"[prefetch] Phase 2 {cache_key}: generating summaries for {len(items)} items...")
-            items = _generate_batch_summaries(items, source_name)  # Use main model (reliable)
+            print(f"[prefetch] Phase 2 {cache_key}: generating summaries for {len(items_unsummarized)}/5 items...")
+            items_to_summarize = _generate_batch_summaries(items_to_summarize, source_name)  # Use main model (reliable)
+
+            # Merge summarized items back
+            items[:5] = items_to_summarize
 
             # Write back to Supabase
             data[items_key] = items
