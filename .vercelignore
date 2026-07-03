@@ -1,0 +1,6 @@
+.agents/
+artifacts/
+playwright-report/
+node_modules/
+.next/
+.git/

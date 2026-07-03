@@ -1385,7 +1385,7 @@ export default function Home() {
         )}
 
         {/* Main content always visible, each section handles its own loading state */}
-        <div className="grid gap-2 sm:gap-6 lg:grid-cols-4">
+        <div className="grid gap-2 sm:gap-6 lg:grid-cols-2">
             {/* --- Trending Now --- */}
             <section className={`${mobileTab !== "trending" ? "hidden" : ""} sm:block`}>
               <SectionHeader title="Trending Now" icon="🔥" count={trendingItems.length}>
@@ -2050,7 +2050,7 @@ function TrendingCard({
   const catStyle = CATEGORY_STYLES[category] || CATEGORY_STYLES.other;
 
   return (
-    <div className="min-w-0 overflow-x-auto border transition-all"
+    <div className="min-w-0 overflow-hidden border transition-all"
       style={{
         background: isTech ? "rgba(94, 106, 210, 0.06)" : "var(--bg-card)",
         borderColor: isExpanded ? "var(--accent-blue-hover)" : isTech ? "rgba(94, 106, 210, 0.3)" : "var(--border)",
@@ -2060,7 +2060,7 @@ function TrendingCard({
       }}>
       <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2 p-2.5 text-left sm:gap-3">
         <Rank n={index + 1} />
-        <span className={`min-w-0 flex-1 break-words text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        <span className={`min-w-0 flex-1 break-words text-sm font-medium ${isExpanded ? '' : 'line-clamp-2'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
         {category !== "other" && (
           <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: catStyle.bg, color: catStyle.text }}>
             {catStyle.label}
@@ -2385,7 +2385,7 @@ function RedditCard({ post, index, read, onRead }: { post: RedditPost; index: nu
       <button onClick={handleToggle} className="flex min-w-0 w-full items-start gap-2.5 p-4 text-left sm:gap-3 sm:p-2.5">
         <Rank n={index + 1} />
         <div className="min-w-0 flex-1 overflow-hidden">
-          <div className="text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>
+          <div className="text-sm font-medium line-clamp-2" style={{ color: "var(--text-primary)" }}>
             {title}
           </div>
           <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
@@ -2479,7 +2479,7 @@ function HackerNewsCard({ post, index, read, onRead }: { post: HackerNewsPost; i
       <button onClick={handleToggle} className="flex min-w-0 w-full items-start gap-2.5 p-4 text-left sm:gap-3 sm:p-2.5">
         <Rank n={index + 1} />
         <div className="min-w-0 flex-1 overflow-hidden">
-          <div className="text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>
+          <div className="text-sm font-medium line-clamp-2" style={{ color: "var(--text-primary)" }}>
             {title}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
@@ -2557,7 +2557,7 @@ function KeywordCard({
         onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-purple)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}>
         <Rank n={index + 1} />
-        <span className="min-w-0 flex-1 text-sm font-medium line-clamp-2 sm:line-clamp-1" style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        <span className="min-w-0 flex-1 text-sm font-medium line-clamp-2" style={{ color: "var(--text-primary)" }}>{item.name}</span>
         <span className="shrink-0 rounded-md px-1.5 py-0.5 text-xs font-mono font-medium" style={{ background: "rgba(163, 120, 250, 0.15)", color: "var(--accent-purple)" }}>
           {item.value}
         </span>
@@ -2575,7 +2575,7 @@ function KeywordCard({
     : "var(--text-secondary)";
 
   return (
-    <div className="group min-w-0 overflow-x-auto border transition-all"
+    <div className="group min-w-0 overflow-hidden border transition-all"
       style={{ background: "var(--bg-card)", borderColor: isExpanded ? "var(--accent-blue-hover)" : score !== undefined && score >= 75 ? "rgba(52,211,153,0.4)" : hasSurge ? "rgba(239, 68, 68, 0.3)" : "var(--border)", borderRadius: "var(--radius-lg)", opacity: read ? 0.4 : 1, transition: "opacity 0.3s" }}>
       <button onClick={onToggle} className="flex min-w-0 w-full items-center gap-2 p-2.5 text-left sm:gap-3">
         {/* Score badge or rank */}
@@ -2590,7 +2590,7 @@ function KeywordCard({
         ) : (
           <Rank n={index + 1} />
         )}
-        <span className={`min-w-0 flex-1 break-words text-sm font-medium ${isExpanded ? '' : 'line-clamp-2 sm:line-clamp-1'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
+        <span className={`min-w-0 flex-1 break-words text-sm font-medium ${isExpanded ? '' : 'line-clamp-2'}`} style={{ color: "var(--text-primary)" }}>{item.name}</span>
         {score !== undefined && score >= 75 && (
           <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}>冲</span>
         )}
