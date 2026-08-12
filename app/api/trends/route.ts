@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
   setCache(cacheKey, response);
   // Only persist to Supabase if we have actual data (don't overwrite good cache with empty)
   if (googleResult.google && googleResult.google.length > 0) {
-    setSupabaseCache(cacheKey, response, 4 * 3600_000);
+    setSupabaseCache(cacheKey, response, 12 * 3600_000);
   }
 
   return NextResponse.json(response);

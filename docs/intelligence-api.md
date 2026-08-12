@@ -13,7 +13,9 @@ INTELLIGENCE_DATABASE_URL=postgresql://...
 INTELLIGENCE_API_KEYS=twb_key_one,twb_key_two
 ```
 
-Install `api-server/requirements.txt`, apply `intelligence/migrations/0001_init.sql`, then restart the FastAPI service. The twelve-hour prefetch writes incrementally to the intelligence database and makes one reusable cross-source brief. It no longer pre-generates separate scheduled summaries per source; individual post summaries remain on demand.
+Install `api-server/requirements.txt`, apply `intelligence/migrations/0001_init.sql`, then restart the FastAPI service. One unified pipeline runs every 12 hours, writes incrementally to the intelligence database, refreshes the persistent dashboard cache, and makes one reusable cross-source brief.
+
+The old hourly warmup has been removed. Service restarts read the last successful run from Neon and preserve the remaining schedule instead of immediately repeating a costly refresh. Scheduled source requests skip per-source LLM extraction; individual post summaries remain on demand. A process lock prevents scheduled and manual refreshes from overlapping, and `/health` exposes the current/next run state.
 
 ## Authentication and examples
 

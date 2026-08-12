@@ -7,7 +7,7 @@ import type { TrendKeyword } from "@/lib/types";
 export const maxDuration = 15;
 
 const CACHE_KEY = "github-trends:daily";
-const CACHE_TTL = 4 * 3600_000; // 4 hours
+const CACHE_TTL = 12 * 3600_000; // 12 hours
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

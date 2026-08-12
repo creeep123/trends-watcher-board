@@ -32,6 +32,35 @@ def connect():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 
+def latest_pipeline_at() -> datetime | None:
+    """Return the last completed pipeline time, falling back to the latest brief."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """SELECT COALESCE(
+                 (SELECT max(finished_at) FROM intelligence_runs WHERE status = 'success'),
+                 (SELECT max(generated_at) FROM intelligence_briefs)
+               ) AS latest"""
+        )
+        return cur.fetchone()["latest"]
+
+
+def start_run() -> str:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("INSERT INTO intelligence_runs DEFAULT VALUES RETURNING id")
+        return str(cur.fetchone()["id"])
+
+
+def finish_run(run_id: str, status: str, fetched: int = 0, new: int = 0,
+               selected: int = 0, error: str | None = None) -> None:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """UPDATE intelligence_runs SET finished_at=now(), status=%s,
+                      fetched_count=%s, new_count=%s, selected_count=%s, error=%s
+               WHERE id=%s""",
+            (status, fetched, new, selected, error, run_id),
+        )
+
+
 def normalize_url(value: str) -> str:
     if not value:
         return ""

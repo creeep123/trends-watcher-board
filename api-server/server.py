@@ -51,19 +51,20 @@ if SUPABASE_URL and SUPABASE_SERVICE_KEY:
 
 # --- Tiered cache TTL (seconds) ---
 CACHE_TTL_MAP = {
-    "trends":    7200,   # 2h — related queries change slowly
-    "trending":  1800,   # 30min — RSS-based, low cost
+    "trends":    43200,  # 12h — aligned with the unified scheduled refresh
+    "trending":  43200,  # 12h — aligned with the unified scheduled refresh
     "freshness": 14400,  # 4h — freshness doesn't shift fast
     "interest":  7200,   # 2h — 7-day chart, hourly data
     "multigeo":  21600,  # 6h — multi-country check is heavy
-    "reddit":    1800,   # 30min — JSON API, low cost
-    "hackernews": 1800,  # 30min — JSON API, low cost
+    "reddit":    43200,  # 12h — scheduled refresh; manual refresh remains available
+    "hackernews": 43200, # 12h — scheduled refresh; manual refresh remains available
     "tiktok":    1800,   # 30min — TikTok videos
     "enrich":    3600,   # 1h — composite scoring
     "allintitle": 7200,  # 2h — competition changes slowly
-    "producthunt": 86400,  # 24h — daily product launches
-    "huggingface": 3600,   # 1h — model trends update moderately
-    "indiehackers": 3600,  # 1h — posts update moderately
+    "technews":  43200,  # 12h
+    "producthunt": 43200, # 12h
+    "huggingface": 43200, # 12h
+    "indiehackers": 43200,# 12h
 }
 DEFAULT_TTL = 3600  # 1h fallback
 
@@ -1010,6 +1011,7 @@ def _extract_keywords(items: list[dict], source: str) -> list[dict]:
 @app.get("/api/reddit")
 def get_reddit(
     sort: str = Query(default="hot", description="Sort: hot or top"),
+    skip_llm: str = "",
 ):
     """Fetch AI/tech Reddit posts (last 16h) and extract trending keywords via LLM."""
     cache_key = f"reddit|{sort}"
@@ -1051,7 +1053,7 @@ def get_reddit(
     all_posts.sort(key=lambda p: p.get("score", 50), reverse=True)
 
     # Extract keywords via LLM
-    keywords = _extract_keywords(filtered, "reddit")
+    keywords = [] if skip_llm else _extract_keywords(filtered, "reddit")
 
     response = {
         "posts": filtered,
@@ -1409,7 +1411,7 @@ TECHNEWS_ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
 
 
 @app.get("/api/technews")
-def get_technews():
+def get_technews(skip_llm: str = ""):
     """Fetch latest tech news from major publications via RSS."""
     cache_key = "technews|latest"
     cached = _get_cached(cache_key)
@@ -1535,7 +1537,7 @@ def get_technews():
     all_articles.sort(key=lambda a: (a["source"], a.get("published", "")), reverse=True)
 
     # Extract keywords via LLM
-    keywords = _extract_keywords(all_articles[:20], "technews")
+    keywords = [] if skip_llm else _extract_keywords(all_articles[:20], "technews")
 
     response = {
         "articles": all_articles[:20],  # Cap at 20 articles total
@@ -1566,7 +1568,7 @@ def _extract_domain(url: str) -> str:
 
 
 @app.get("/api/hackernews")
-def get_hackernews():
+def get_hackernews(skip_llm: str = ""):
     """Fetch top stories from HackerNews API."""
     cache_key = "hackernews|top"
     cached = _get_cached(cache_key)
@@ -1624,7 +1626,7 @@ def get_hackernews():
         print(f"[HN] Error: {e}")
 
     # Extract keywords via LLM
-    keywords = _extract_keywords(posts, "hackernews")
+    keywords = [] if skip_llm else _extract_keywords(posts, "hackernews")
 
     response = {
         "posts": posts,
@@ -2084,142 +2086,26 @@ def enrich_keywords(req: EnrichRequest):
     return response
 
 
-# --- Background warmup ---
+# --- Unified scheduled refresh configuration ---
 
 # Warmup keywords MUST match frontend DEFAULT_KEYWORDS (lib/types.ts).
 # If you change one, change the other.
 WARMUP_KEYWORDS = ["AI", "LLM", "maker", "generator", "creator", "filter", "Anthropic"]
 WARMUP_TIMEFRAME = "now 1-d"
 WARMUP_TRENDING_GEOS = ["US", "ID", "BR"]
-WARMUP_INTERVAL = 3600  # 1 hour - refresh trends data more frequently
-
-_warmup_timer: Optional[threading.Timer] = None
 
 
-def _warmup_once():
-    """Pre-fetch default keyword data so first user request hits cache.
-
-    Order: trending (RSS) → reddit (RSS) → trends (pytrends) — pytrends last
-    because it may be rate-limited and we want the other data available ASAP.
-    """
-    print(f"[warmup] Starting at {datetime.now(timezone.utc).isoformat()}")
-
-    # 1. Warm up Trending Now for default geos (RSS, fast, no rate limit)
-    for geo in WARMUP_TRENDING_GEOS:
-        try:
-            cache_key = f"trending|{geo}"
-            if not _get_cached(cache_key):
-                rss_url = f"https://trends.google.com/trending/rss?geo={geo}"
-                resp = http_requests.get(rss_url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-                resp.raise_for_status()
-                root = ET.fromstring(resp.text)
-                items: list[dict] = []
-                for item in root.iter("item"):
-                    title_el = item.find("title")
-                    traffic_el = item.find("{https://trends.google.com/trending/rss}approx_traffic")
-                    if title_el is not None and title_el.text:
-                        name = title_el.text.strip()
-                        traffic = traffic_el.text.strip() if traffic_el is not None and traffic_el.text else ""
-                        items.append({"name": name, "traffic": traffic, "url": f"https://www.google.com/search?q={quote_plus(name)}&udm=50", "is_tech": False})
-                # Skip LLM classification during warmup to avoid rate limits.
-                # Classification will happen lazily on first user request via cache miss.
-                result = {"trending": items, "timestamp": datetime.now(timezone.utc).isoformat(), "geo": geo}
-                _set_cache(cache_key, result)
-                print(f"[warmup] trending {geo}: {len(items)} items")
-                time.sleep(0.5)
-        except Exception as e:
-            print(f"[warmup] trending {geo} error: {e}")
-
-    # 2. Warm up Reddit (RSS, fast, no rate limit)
-    try:
-        cache_key = "reddit|hot"
-        if not _get_cached(cache_key):
-            all_posts: list[dict] = []
-            seen_titles: set[str] = set()
-            for sub in REDDIT_SUB_NAMES:
-                posts = _fetch_subreddit_rss(sub, sort="hot", limit=15)
-                for p in posts:
-                    k = p["title"].lower().strip()
-                    if k not in seen_titles:
-                        seen_titles.add(k)
-                        all_posts.append(p)
-                time.sleep(0.3)
-            all_posts.sort(key=lambda p: p.get("score", 50), reverse=True)
-            capped = all_posts[:50]
-            kws = _extract_keywords(capped, "reddit")
-            result = {
-                "posts": all_posts[:50], "keywords": kws, "subreddits": REDDIT_SUB_NAMES,
-                "sort": "hot", "total_posts": len(all_posts),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            _set_cache(cache_key, result)
-            print(f"[warmup] reddit: {len(all_posts)} posts")
-    except Exception as e:
-        print(f"[warmup] reddit error: {e}")
-
-    # 3. Warm up related queries for common keyword/timeframe/geo combinations
-    # Only warm up most common combinations to avoid excessive warmup time
-    common_combinations = [
-        {"keywords": WARMUP_KEYWORDS, "timeframe": "now 1-d", "geo": "", "desc": "default global 1d"},
-        {"keywords": WARMUP_KEYWORDS, "timeframe": "now 1-d", "geo": "US", "desc": "US 1d"},
-    ]
-
-    for combo in common_combinations:
-        try:
-            key = f"trends|{_cache_key(combo['keywords'], combo['timeframe'], combo['geo'])}"
-            print(f"[warmup] trends {combo['desc']}: cache key = {key}")
-            if not _get_cached(key):
-                print(f"[warmup] trends {combo['desc']}: fetching...")
-                all_items: list[dict] = []
-                seen_names: set[str] = set()
-                for kw in combo["keywords"]:
-                    results = fetch_related_queries(kw, combo["timeframe"], combo["geo"])
-                    for item in results:
-                        if item["name"].lower() not in seen_names:
-                            seen_names.add(item["name"].lower())
-                            all_items.append(item)
-                    time.sleep(2)  # Longer delay to avoid rate limiting
-                response = {
-                    "google": all_items,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "params": {"keywords": combo["keywords"], "timeframe": combo["timeframe"], "geo": combo["geo"]},
-                    "_stale": False,
-                    "_cached": False,
-                    "_status": "Google Trends 暂时不可用（可能限频）" if len(all_items) == 0 else None,
-                }
-                # Only cache non-empty results to preserve stale data for fallback
-                if len(all_items) > 0:
-                    _set_cache(key, response)
-                    print(f"[warmup] trends {combo['desc']}: {len(all_items)} items cached")
-                else:
-                    print(f"[warmup] trends {combo['desc']}: empty response, keeping stale cache (will retry in {WARMUP_INTERVAL}s)")
-        except Exception as e:
-            print(f"[warmup] trends {combo['desc']} error: {e}")
-
-    # 4. Warm up Product Hunt, HuggingFace, Indie Hackers (raw data only, no LLM summaries)
-    warmup_endpoints = [
-        ("/api/producthunt?period=daily", "producthunt|daily", "products"),
-        ("/api/huggingface", "huggingface|trending", "models"),
-        ("/api/indiehackers", "indiehackers|latest", "posts"),
-    ]
-    for endpoint, cache_key, items_key in warmup_endpoints:
-        try:
-            if not _get_cached(cache_key):
-                print(f"[warmup] {cache_key}: prefetching raw data...")
-                # Note: these endpoints generate LLM summaries internally.
-                # Skip during warmup to avoid exhausting OpenRouter free tier rate limits.
-                # The first user request will trigger summary generation + caching.
-                pass
-        except Exception as e:
-            print(f"[warmup] {cache_key} error: {e}")
-
-    print(f"[warmup] Done at {datetime.now(timezone.utc).isoformat()}")
+# Hourly warmup was removed. The unified persisted pipeline below is the only
+# automatic refresh path; this avoids duplicate Reddit, Google Trends, and AI work.
 
 
 # --- Prefetch: persist all board data into Supabase twb_cache ---
 
 PREFETCH_INTERVAL = 12 * 3600  # 12 hours
 _last_prefetch = 0.0
+_prefetch_lock = threading.Lock()
+_prefetch_timer: Optional[threading.Timer] = None
+_prefetch_state = {"running": False, "started_at": None, "finished_at": None, "next_at": None, "last_error": None}
 
 
 def _prefetch_upsert(key: str, data: dict, ttl_hours: int = 4):
@@ -2240,153 +2126,112 @@ def _prefetch_upsert(key: str, data: dict, ttl_hours: int = 4):
 
 
 def prefetch_all():
-    """Fetch all board data and persist to Supabase twb_cache.
+    """Run the unified 12-hour pipeline once.
 
-    Two phases:
-    1. Fetch raw data (skip LLM) and store immediately — fast, < 30s total
-    2. Background: generate LLM summaries with fast model and update Supabase
+    Fetch source data without per-source LLM work, persist the dashboard cache,
+    ingest only new records, and create one reusable cross-source brief.
+    A non-blocking lock prevents scheduled/manual/startup triggers from overlapping.
     """
     global _last_prefetch
+    if not _prefetch_lock.acquire(blocking=False):
+        print("[prefetch] Already running, skipping duplicate trigger")
+        return False
     if not supabase_client:
         print("[prefetch] No Supabase client, skipping")
-        return
+        _prefetch_lock.release()
+        return False
 
-    print(f"[prefetch] Phase 1 (raw data) starting at {datetime.now(timezone.utc).isoformat()}")
-    written = 0
-    base = "http://127.0.0.1:8765"
+    run_id = None
+    stats = {"fetched": 0, "new": 0}
+    topic_count = 0
+    _prefetch_state.update(running=True, started_at=datetime.now(timezone.utc).isoformat(), last_error=None)
+    try:
+        if trend_intelligence.enabled():
+            run_id = trend_intelligence.start_run()
 
-    # 1. Trending for default geos (RSS, fast, no LLM)
-    for geo in WARMUP_TRENDING_GEOS:
-        cache_key = f"trending|{geo}"
-        try:
-            resp = http_requests.get(f"{base}/api/trending?geo={geo}", timeout=60)
-            if resp.status_code == 200:
+        print(f"[prefetch] Starting unified refresh at {datetime.now(timezone.utc).isoformat()}")
+        written = 0
+        base = "http://127.0.0.1:8765"
+
+        endpoints = [
+            *[(f"{base}/api/trending?geo={geo}", f"trending|{geo}", "trending") for geo in WARMUP_TRENDING_GEOS],
+            (f"{base}/api/reddit?sort=hot&skip_llm=1", "reddit|hot", "posts"),
+            (f"{base}/api/hackernews?skip_llm=1", "hackernews|top", "posts"),
+            (f"{base}/api/technews?skip_llm=1", "technews|latest", "articles"),
+            (f"{base}/api/producthunt?period=daily&skip_llm=1", "ph|daily", "products"),
+            (f"{base}/api/producthunt?period=weekly&skip_llm=1", "ph|weekly", "products"),
+            (f"{base}/api/producthunt?period=monthly&skip_llm=1", "ph|monthly", "products"),
+            (f"{base}/api/huggingface?skip_llm=1", "huggingface", "models"),
+            (f"{base}/api/indiehackers?skip_llm=1", "indiehackers", "posts"),
+        ]
+        for url, cache_key, items_key in endpoints:
+            try:
+                timeout = 120 if cache_key == "reddit|hot" else 90 if cache_key == "hackernews|top" else 45
+                resp = http_requests.get(url, timeout=timeout)
+                if resp.status_code != 200:
+                    print(f"[prefetch] {cache_key}: HTTP {resp.status_code}")
+                    continue
                 data = resp.json()
-                _prefetch_upsert(cache_key, data, 4)
-                written += 1
-                print(f"[prefetch] {cache_key}: {len(data.get('trending', []))} items")
-            time.sleep(0.5)
-        except Exception as e:
-            print(f"[prefetch] {cache_key} error: {e}")
-
-    # 2. Reddit
-    try:
-        cache_key = "reddit|hot"
-        resp = http_requests.get(f"{base}/api/reddit?sort=hot", timeout=120)
-        if resp.status_code == 200:
-            data = resp.json()
-            _prefetch_upsert(cache_key, data, 4)
-            written += 1
-            print(f"[prefetch] {cache_key}: {data.get('total_posts', 0)} posts")
-    except Exception as e:
-        print(f"[prefetch] reddit error: {e}")
-
-    # 3. HackerNews
-    try:
-        cache_key = "hackernews|top"
-        resp = http_requests.get(f"{base}/api/hackernews", timeout=15)
-        if resp.status_code == 200:
-            data = resp.json()
-            _prefetch_upsert(cache_key, data, 4)
-            written += 1
-            print(f"[prefetch] {cache_key}: {len(data.get('posts', []))} posts")
-    except Exception as e:
-        print(f"[prefetch] hackernews error: {e}")
-
-    # 4. TechNews
-    try:
-        cache_key = "technews|latest"
-        resp = http_requests.get(f"{base}/api/technews", timeout=15)
-        if resp.status_code == 200:
-            data = resp.json()
-            _prefetch_upsert(cache_key, data, 4)
-            written += 1
-            print(f"[prefetch] {cache_key}: {data.get('total', 0)} articles")
-    except Exception as e:
-        print(f"[prefetch] technews error: {e}")
-
-    # 5-7. PH, HF, IH — skip LLM for speed
-    llm_endpoints = [
-        (f"{base}/api/producthunt?period=daily&skip_llm=1", "ph|daily", "products"),
-        (f"{base}/api/producthunt?period=weekly&skip_llm=1", "ph|weekly", "products"),
-        (f"{base}/api/producthunt?period=monthly&skip_llm=1", "ph|monthly", "products"),
-        (f"{base}/api/huggingface?skip_llm=1", "huggingface", "models"),
-        (f"{base}/api/indiehackers?skip_llm=1", "indiehackers", "posts"),
-    ]
-    for url, cache_key, items_key in llm_endpoints:
-        try:
-            ttl = 8 if "ph|daily" == cache_key else 4
-            resp = http_requests.get(url, timeout=30)
-            if resp.status_code == 200:
-                data = resp.json()
-                _prefetch_upsert(cache_key, data, ttl)
+                _prefetch_upsert(cache_key, data, 12)
                 written += 1
                 count = len(data.get(items_key, []))
-                print(f"[prefetch] {cache_key}: {count} {items_key} (no summaries)")
-        except Exception as e:
-            print(f"[prefetch] {cache_key} error: {e}")
+                print(f"[prefetch] {cache_key}: {count} {items_key}")
+            except Exception as e:
+                print(f"[prefetch] {cache_key} error: {e}")
 
-    # 8. Trends (both global and US, using keywords that match frontend DEFAULT_KEYWORDS)
-    trends_combos = [
-        {"keywords": WARMUP_KEYWORDS, "timeframe": "now 1-d", "geo": "", "desc": "global"},
-        {"keywords": WARMUP_KEYWORDS, "timeframe": "now 1-d", "geo": "US", "desc": "US"},
-    ]
-    for combo in trends_combos:
+        # Related Queries is expensive and frequently rate-limited. Refresh only
+        # the single frontend-default global combination; user-selected variants
+        # remain available on demand and use stale-cache fallback.
         try:
-            kw_param = ",".join(combo["keywords"])
-            # Use Next.js key format (trends:) so normal page loads hit Supabase cache
-            cache_key = f"trends:{kw_param}:{combo['timeframe']}:{combo['geo']}"
+            kw_param = ",".join(WARMUP_KEYWORDS)
+            cache_key = f"trends:{kw_param}:now 1-d:"
             resp = http_requests.get(
-                f"{base}/api/trends?keywords={kw_param}&timeframe={quote(combo['timeframe'])}&geo={combo['geo']}",
-                timeout=60,
+                f"{base}/api/trends?keywords={kw_param}&timeframe={quote('now 1-d')}&geo=",
+                timeout=90,
             )
-            if resp.status_code == 200:
-                data = resp.json()
-                if data.get("google") and len(data["google"]) > 0:
-                    _prefetch_upsert(cache_key, data, 4)
-                    written += 1
-                    print(f"[prefetch] {cache_key}: {len(data.get('google', []))} items")
-                else:
-                    print(f"[prefetch] {cache_key}: skipped (empty google data)")
+            data = resp.json() if resp.status_code == 200 else {}
+            if data.get("google"):
+                _prefetch_upsert(cache_key, data, 12)
+                written += 1
+                print(f"[prefetch] {cache_key}: {len(data['google'])} items")
+            else:
+                print(f"[prefetch] {cache_key}: keeping stale data (fresh fetch empty)")
         except Exception as e:
-            print(f"[prefetch] trends {combo['desc']} error: {e}")
+            print(f"[prefetch] trends error: {e}")
 
-    _last_prefetch = time.time()
-    print(f"[prefetch] Phase 1 done: {written} keys written to Supabase")
+        print(f"[prefetch] Source phase done: {written} cache keys")
+        if trend_intelligence.enabled():
+            rows = trend_intelligence.flatten_cache({k: v["data"] for k, v in _cache.items()})
+            stats = trend_intelligence.ingest(rows)
+            brief = trend_intelligence.generate_today_brief(_call_llm)
+            topic_count = brief["topic_count"]
+            print(f"[intelligence] ingested={stats} topics={topic_count}")
 
-    # Phase 2: Background LLM summary generation with fast model
-    t = threading.Thread(target=_prefetch_summaries, daemon=True)
-    t.start()
-
-
-def _prefetch_summaries():
-    """Phase 2: one cross-source intelligence call replaces per-source summaries.
-
-    Individual Reddit/HN summaries remain available on demand when a card is opened,
-    but scheduled work makes only the reusable cross-source brief.
-    """
-    print("[prefetch] Phase 2 (cross-source intelligence) starting...")
-    _update_intelligence()
-    print("[prefetch] Phase 2 done")
-
-
-def _update_intelligence():
-    """Persist the current board cache and generate one reusable cross-source brief."""
-    if not trend_intelligence.enabled():
-        print("[intelligence] Database not configured, skipping")
-        return
-    try:
-        rows = trend_intelligence.flatten_cache({k: v["data"] for k, v in _cache.items()})
-        stats = trend_intelligence.ingest(rows)
-        brief = trend_intelligence.generate_today_brief(_call_llm)
-        print(f"[intelligence] ingested={stats} topics={brief['topic_count']}")
+        _last_prefetch = time.time()
+        if run_id:
+            trend_intelligence.finish_run(run_id, "success", stats["fetched"], stats["new"], topic_count)
+        _prefetch_state.update(running=False, finished_at=datetime.now(timezone.utc).isoformat(), last_error=None)
+        print("[prefetch] Unified refresh complete")
+        return True
     except Exception as e:
-        print(f"[intelligence] update error: {e}")
+        error = str(e)[:1000]
+        _prefetch_state.update(running=False, finished_at=datetime.now(timezone.utc).isoformat(), last_error=error)
+        if run_id:
+            try:
+                trend_intelligence.finish_run(run_id, "failed", stats["fetched"], stats["new"], topic_count, error)
+            except Exception:
+                pass
+        print(f"[prefetch] Unexpected error: {e}")
+        return False
+    finally:
+        _prefetch_lock.release()
 
 
 @app.get("/api/refresh-all")
 def refresh_all():
     """Manual trigger for full prefetch."""
+    if _prefetch_state["running"]:
+        return {"status": "already_running"}
     t = threading.Thread(target=prefetch_all, daemon=True)
     t.start()
     return {"status": "started"}
@@ -2491,37 +2336,53 @@ def intelligence_brief(
 @app.post("/api/v1/intelligence/refresh")
 def intelligence_refresh(authorization: str | None = Header(default=None)):
     _require_intelligence_key(authorization)
-    t = threading.Thread(target=_update_intelligence, daemon=True)
+    if _prefetch_state["running"]:
+        return {"status": "already_running"}
+    t = threading.Thread(target=prefetch_all, daemon=True)
     t.start()
     return {"status": "started"}
 
 
-def _warmup_loop():
-    """Run warmup and schedule next run. Also run prefetch if interval elapsed."""
-    global _warmup_timer
+def _schedule_prefetch(delay_seconds: float):
+    """Keep exactly one low-overhead timer for the next 12-hour refresh."""
+    global _prefetch_timer
+    delay_seconds = max(5.0, delay_seconds)
+    next_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+    _prefetch_state["next_at"] = next_at.isoformat()
+    _prefetch_timer = threading.Timer(delay_seconds, _scheduled_prefetch)
+    _prefetch_timer.daemon = True
+    _prefetch_timer.start()
+    print(f"[scheduler] Next unified refresh at {next_at.isoformat()}")
+
+
+def _scheduled_prefetch():
+    success = prefetch_all()
+    # Normal cadence is 12h. Retry a failed/no-op run after 1h without restoring
+    # the old hourly warmup workload.
+    _schedule_prefetch(PREFETCH_INTERVAL if success else 3600)
+
+
+def _initial_prefetch_delay() -> float:
+    """Avoid a costly refresh on every service restart when persisted data is fresh."""
+    if not trend_intelligence.enabled():
+        return 30.0
     try:
-        _warmup_once()
-        if time.time() - _last_prefetch >= PREFETCH_INTERVAL:
-            prefetch_all()
+        latest = trend_intelligence.latest_pipeline_at()
+        if latest:
+            age = (datetime.now(timezone.utc) - latest.astimezone(timezone.utc)).total_seconds()
+            return max(30.0, PREFETCH_INTERVAL - age)
     except Exception as e:
-        print(f"[warmup] Unexpected error: {e}")
-    _warmup_timer = threading.Timer(WARMUP_INTERVAL, _warmup_loop)
-    _warmup_timer.daemon = True
-    _warmup_timer.start()
+        print(f"[scheduler] Could not read last run: {e}")
+    return 30.0
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start warmup on server boot, stop on shutdown."""
-    # Startup: run first warmup after a short delay (let server bind first)
-    t = threading.Timer(3, _warmup_loop)
-    t.daemon = True
-    t.start()
-    print("[warmup] Scheduled initial warmup in 3s")
+    """Start one persisted 12-hour scheduler; do no hourly warmup work."""
+    _schedule_prefetch(_initial_prefetch_delay())
     yield
-    # Shutdown: cancel pending timer
-    if _warmup_timer:
-        _warmup_timer.cancel()
+    if _prefetch_timer:
+        _prefetch_timer.cancel()
 
 
 app.router.lifespan_context = lifespan
@@ -2535,7 +2396,8 @@ def health():
         age = round(now - entry["timestamp"])
         ttl = _ttl_for(key)
         cache_stats[key[:40]] = {"age_s": age, "ttl_s": ttl, "fresh": age < ttl}
-    return {"status": "ok", "cache_entries": len(_cache), "cache": cache_stats}
+    return {"status": "ok", "cache_entries": len(_cache), "cache": cache_stats,
+            "scheduler": {**_prefetch_state, "interval_seconds": PREFETCH_INTERVAL}}
 
 
 @app.post("/api/push/subscribe")

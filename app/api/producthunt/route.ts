@@ -3,7 +3,7 @@ import { getCached, setCache } from "@/lib/cache";
 import { getSupabaseCache, setSupabaseCache } from "@/lib/supabase-cache";
 
 const API_BASE = process.env.PYTRENDS_API_URL || "http://43.165.126.121";
-const TTL_MS = 8 * 3600_000;
+const TTL_MS = 12 * 3600_000;
 
 export const maxDuration = 30;
 
