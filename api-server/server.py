@@ -2218,7 +2218,7 @@ def _warmup_once():
 
 # --- Prefetch: persist all board data into Supabase twb_cache ---
 
-PREFETCH_INTERVAL = 4 * 3600  # 4 hours
+PREFETCH_INTERVAL = 12 * 3600  # 12 hours
 _last_prefetch = 0.0
 
 
