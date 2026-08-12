@@ -22,11 +22,12 @@ from pydantic import BaseModel
 import asyncio
 
 import requests as http_requests
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pytrends.request import TrendReq
 from TikTokApi import TikTokApi
 from supabase import create_client, Client as SupabaseClient
+import intelligence as trend_intelligence
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
@@ -34,6 +35,9 @@ SILICONFLOW_API_KEY = os.environ.get("SILICONFLOW_API_KEY", "")
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 LLM_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"  # Fallback model for OpenRouter
 PRODUCT_HUNT_TOKEN = os.environ.get("PRODUCT_HUNT_TOKEN", "")
+INTELLIGENCE_API_KEYS = {
+    key.strip() for key in os.environ.get("INTELLIGENCE_API_KEYS", "").split(",") if key.strip()
+}
 
 # Supabase & Push config
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
@@ -2410,12 +2414,131 @@ def _prefetch_summaries():
             print(f"[prefetch] Phase 2 {cache_key} error: {e}")
 
     print(f"[prefetch] Phase 2 done")
+    _update_intelligence()
+
+
+def _update_intelligence():
+    """Persist the current board cache and generate one reusable cross-source brief."""
+    if not trend_intelligence.enabled():
+        print("[intelligence] Database not configured, skipping")
+        return
+    try:
+        rows = trend_intelligence.flatten_cache({k: v["data"] for k, v in _cache.items()})
+        stats = trend_intelligence.ingest(rows)
+        brief = trend_intelligence.generate_today_brief(_call_llm)
+        print(f"[intelligence] ingested={stats} topics={brief['topic_count']}")
+    except Exception as e:
+        print(f"[intelligence] update error: {e}")
 
 
 @app.get("/api/refresh-all")
 def refresh_all():
     """Manual trigger for full prefetch."""
     t = threading.Thread(target=prefetch_all, daemon=True)
+    t.start()
+    return {"status": "started"}
+
+
+def _require_intelligence_key(authorization: str | None):
+    if not INTELLIGENCE_API_KEYS:
+        raise HTTPException(status_code=503, detail="Intelligence API is not configured")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer API key required")
+    supplied = authorization[7:].strip()
+    if not any(__import__("hmac").compare_digest(supplied, key) for key in INTELLIGENCE_API_KEYS):
+        raise HTTPException(status_code=403, detail="Invalid API key")
+
+
+def _intelligence_period(period: str, date_from: str | None, date_to: str | None):
+    now_local = datetime.now(trend_intelligence.SHANGHAI)
+    if date_from:
+        try:
+            start_local = datetime.fromisoformat(date_from).replace(tzinfo=trend_intelligence.SHANGHAI)
+            end_local = (datetime.fromisoformat(date_to).replace(tzinfo=trend_intelligence.SHANGHAI)
+                         if date_to else start_local + timedelta(days=1))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Dates must use YYYY-MM-DD")
+    elif period == "today":
+        start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_local = start_local + timedelta(days=1)
+    elif period in ("last_7_days", "week"):
+        end_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        start_local = end_local - timedelta(days=7)
+    elif period == "previous_week":
+        this_week = (now_local - timedelta(days=now_local.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_local, end_local = this_week - timedelta(days=7), this_week
+    else:
+        raise HTTPException(status_code=400, detail="period must be today, last_7_days, or previous_week")
+    if end_local <= start_local or end_local - start_local > timedelta(days=90):
+        raise HTTPException(status_code=400, detail="Date range must be 1-90 days")
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
+
+
+@app.get("/api/v1/intelligence/status")
+def intelligence_status(authorization: str | None = Header(default=None)):
+    _require_intelligence_key(authorization)
+    if not trend_intelligence.enabled():
+        raise HTTPException(status_code=503, detail="Intelligence database unavailable")
+    with trend_intelligence.connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT min(first_seen_at) earliest, max(last_seen_at) latest, count(*) item_count FROM intelligence_source_items")
+        stats = cur.fetchone()
+        cur.execute("SELECT max(generated_at) latest_brief FROM intelligence_briefs")
+        brief = cur.fetchone()
+    return {"status": "ok", "timezone": "Asia/Shanghai", **stats, **brief}
+
+
+@app.get("/api/v1/intelligence/records")
+def intelligence_records(
+    period: str = "today", from_date: str | None = Query(default=None, alias="from"),
+    to_date: str | None = Query(default=None, alias="to"), limit: int = Query(default=200, ge=1, le=500),
+    authorization: str | None = Header(default=None),
+):
+    _require_intelligence_key(authorization)
+    start, end = _intelligence_period(period, from_date, to_date)
+    records = trend_intelligence.selected_records(start, end, limit)
+    return {"period": {"from": start, "to": end, "timezone": "Asia/Shanghai"},
+            "count": len(records), "records": records}
+
+
+@app.get("/api/v1/intelligence/raw")
+def intelligence_raw(
+    period: str = "today", from_date: str | None = Query(default=None, alias="from"),
+    to_date: str | None = Query(default=None, alias="to"), limit: int = Query(default=500, ge=1, le=2000),
+    authorization: str | None = Header(default=None),
+):
+    _require_intelligence_key(authorization)
+    start, end = _intelligence_period(period, from_date, to_date)
+    records = trend_intelligence.raw_records(start, end, limit)
+    return {"period": {"from": start, "to": end, "timezone": "Asia/Shanghai"},
+            "count": len(records), "records": records}
+
+
+@app.get("/api/v1/intelligence/brief")
+def intelligence_brief(
+    period: str = "today", from_date: str | None = Query(default=None, alias="from"),
+    to_date: str | None = Query(default=None, alias="to"),
+    authorization: str | None = Header(default=None),
+):
+    _require_intelligence_key(authorization)
+    start, end = _intelligence_period(period, from_date, to_date)
+    with trend_intelligence.connect() as conn, conn.cursor() as cur:
+        # Exact daily brief when available; for longer periods return daily briefs together.
+        cur.execute(
+            """SELECT period_start, period_end, content, source_item_count, topic_count, generated_at, version
+               FROM intelligence_briefs WHERE period_start >= %s AND period_end <= %s
+               ORDER BY period_start DESC""", (start, end))
+        briefs = cur.fetchall()
+    if not briefs:
+        return {"period": {"from": start, "to": end, "timezone": "Asia/Shanghai"},
+                "status": "pending", "briefs": []}
+    return {"period": {"from": start, "to": end, "timezone": "Asia/Shanghai"},
+            "status": "ready", "briefs": briefs}
+
+
+@app.post("/api/v1/intelligence/refresh")
+def intelligence_refresh(authorization: str | None = Header(default=None)):
+    _require_intelligence_key(authorization)
+    t = threading.Thread(target=_update_intelligence, daemon=True)
     t.start()
     return {"status": "started"}
 

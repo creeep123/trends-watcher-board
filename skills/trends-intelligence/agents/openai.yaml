@@ -1,0 +1,4 @@
+interface:
+  display_name: "趋势情报"
+  short_description: "查询每日、每周趋势简报以及精选或未经筛选的来源数据"
+  default_prompt: "查询今天的趋势情报并突出新词、新需求、新工具和待解决问题。"

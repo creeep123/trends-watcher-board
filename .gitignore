@@ -15,3 +15,4 @@ public/sw.js.map
 public/gw.js
 public/gw.js.map
 .env*.local
+.secrets/
