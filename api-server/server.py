@@ -19,13 +19,11 @@ from typing import Optional
 from urllib.parse import quote, quote_plus
 
 from pydantic import BaseModel
-import asyncio
 
 import requests as http_requests
 from fastapi import FastAPI, Query, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pytrends.request import TrendReq
-from TikTokApi import TikTokApi
 from supabase import create_client, Client as SupabaseClient
 import intelligence as trend_intelligence
 
@@ -1839,6 +1837,11 @@ async def get_tiktok_videos():
     print(f"[TikTok] Starting TikTok API for keywords: {TIKTOK_KEYWORDS}")
 
     try:
+        # TikTokApi pulls in Playwright/browser-related modules. TikTok is rarely
+        # used, so keep that memory out of the always-on API process until this
+        # endpoint is actually requested with a configured token.
+        from TikTokApi import TikTokApi
+
         async with TikTokApi() as api:
             print("[TikTok] Creating sessions...")
             await api.create_sessions(
