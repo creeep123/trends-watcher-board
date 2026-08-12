@@ -13,7 +13,7 @@ INTELLIGENCE_DATABASE_URL=postgresql://...
 INTELLIGENCE_API_KEYS=twb_key_one,twb_key_two
 ```
 
-Install `api-server/requirements.txt`, apply `intelligence/migrations/0001_init.sql`, then restart the FastAPI service. The existing four-hour prefetch writes incrementally to the intelligence database and refreshes the daily brief.
+Install `api-server/requirements.txt`, apply `intelligence/migrations/0001_init.sql`, then restart the FastAPI service. The existing four-hour prefetch writes incrementally to the intelligence database and makes one reusable cross-source brief. It no longer pre-generates separate scheduled summaries per source; individual post summaries remain on demand.
 
 ## Authentication and examples
 

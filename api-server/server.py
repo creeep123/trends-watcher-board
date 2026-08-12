@@ -2360,61 +2360,14 @@ def prefetch_all():
 
 
 def _prefetch_summaries():
-    """Phase 2: Generate LLM summaries for PH/HF/IH and update Supabase."""
-    if not _llm_pool or not supabase_client:
-        return
+    """Phase 2: one cross-source intelligence call replaces per-source summaries.
 
-    print(f"[prefetch] Phase 2 (LLM summaries) starting...")
-
-    # Read raw data from Supabase, generate summaries, write back
-    # Note: source name must match what _generate_batch_summaries expects
-    summary_keys = [
-        ("reddit|hot", "posts", "reddit"),
-        ("hackernews|top", "posts", "hackernews"),
-        ("ph|daily", "products", "producthunt"),
-        ("huggingface", "models", "huggingface"),
-        ("indiehackers", "posts", "indiehackers"),
-    ]
-
-    for cache_key, items_key, source_name in summary_keys:
-        try:
-            result = supabase_client.table("twb_cache").select("data").eq("key", cache_key).single().execute()
-            if not result.data:
-                continue
-
-            data = result.data["data"]
-            items = data.get(items_key, [])
-            if not items:
-                continue
-
-            # Only pre-generate summaries for the first 5 items
-            items_to_summarize = items[:5]
-            items_unsummarized = [it for it in items_to_summarize if not it.get("summary")]
-            if not items_unsummarized:
-                print(f"[prefetch] Phase 2 {cache_key}: top 5 already have summaries, skipping")
-                continue
-
-            print(f"[prefetch] Phase 2 {cache_key}: generating summaries for {len(items_unsummarized)}/5 items...")
-            items_to_summarize = _generate_batch_summaries(items_to_summarize, source_name)  # Use main model (reliable)
-
-            # Merge summarized items back
-            items[:5] = items_to_summarize
-
-            # Write back to Supabase
-            data[items_key] = items
-            _prefetch_upsert(cache_key, data, 8 if "ph|daily" == cache_key else 4)
-
-            # Also update in-memory cache so API returns summaries immediately
-            _set_cache(cache_key, data)
-
-            new_summaries = sum(1 for item in items if item.get("summary"))
-            print(f"[prefetch] Phase 2 {cache_key}: {new_summaries}/{len(items)} summaries generated")
-
-        except Exception as e:
-            print(f"[prefetch] Phase 2 {cache_key} error: {e}")
-
-    print(f"[prefetch] Phase 2 done")
+    Individual Reddit/HN summaries remain available on demand when a card is opened,
+    but scheduled work makes only the reusable cross-source brief.
+    """
+    print("[prefetch] Phase 2 (cross-source intelligence) starting...")
     _update_intelligence()
+    print("[prefetch] Phase 2 done")
 
 
 def _update_intelligence():
