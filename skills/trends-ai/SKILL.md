@@ -1,5 +1,5 @@
 ---
-name: trends-intelligence
+name: trends-ai
 description: Query the Trends Watcher intelligence API for daily or weekly briefs, deduplicated selected records, or unfiltered source records. Use when users ask about 今日趋势情报、过去一周趋势、新词、新需求、新工具、待解决问题、趋势的精选原始数据、未经筛选的源数据, or request trend evidence in JSON.
 ---
 
