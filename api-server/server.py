@@ -1018,6 +1018,7 @@ def get_reddit(
     cached = _get_cached(cache_key)
     if cached:
         return cached
+    stale_keywords = (_get_stale(cache_key) or {}).get("keywords", []) if skip_llm else []
 
     all_posts: list[dict] = []
     seen_titles: set[str] = set()
@@ -1053,7 +1054,7 @@ def get_reddit(
     all_posts.sort(key=lambda p: p.get("score", 50), reverse=True)
 
     # Extract keywords via LLM
-    keywords = [] if skip_llm else _extract_keywords(filtered, "reddit")
+    keywords = stale_keywords if skip_llm else _extract_keywords(filtered, "reddit")
 
     response = {
         "posts": filtered,
@@ -1417,6 +1418,7 @@ def get_technews(skip_llm: str = ""):
     cached = _get_cached(cache_key)
     if cached:
         return cached
+    stale_keywords = (_get_stale(cache_key) or {}).get("keywords", []) if skip_llm else []
 
     all_articles: list[dict] = []
 
@@ -1537,7 +1539,7 @@ def get_technews(skip_llm: str = ""):
     all_articles.sort(key=lambda a: (a["source"], a.get("published", "")), reverse=True)
 
     # Extract keywords via LLM
-    keywords = [] if skip_llm else _extract_keywords(all_articles[:20], "technews")
+    keywords = stale_keywords if skip_llm else _extract_keywords(all_articles[:20], "technews")
 
     response = {
         "articles": all_articles[:20],  # Cap at 20 articles total
@@ -1574,6 +1576,7 @@ def get_hackernews(skip_llm: str = ""):
     cached = _get_cached(cache_key)
     if cached:
         return cached
+    stale_keywords = (_get_stale(cache_key) or {}).get("keywords", []) if skip_llm else []
 
     posts: list[dict] = []
 
@@ -1626,7 +1629,7 @@ def get_hackernews(skip_llm: str = ""):
         print(f"[HN] Error: {e}")
 
     # Extract keywords via LLM
-    keywords = [] if skip_llm else _extract_keywords(posts, "hackernews")
+    keywords = stale_keywords if skip_llm else _extract_keywords(posts, "hackernews")
 
     response = {
         "posts": posts,
@@ -2376,11 +2379,19 @@ def _initial_prefetch_delay() -> float:
     return 30.0
 
 
+def _bootstrap_scheduler():
+    """Calculate the persisted schedule off the ASGI startup path."""
+    _schedule_prefetch(_initial_prefetch_delay())
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start one persisted 12-hour scheduler; do no hourly warmup work."""
-    _schedule_prefetch(_initial_prefetch_delay())
+    bootstrap = threading.Timer(1.0, _bootstrap_scheduler)
+    bootstrap.daemon = True
+    bootstrap.start()
     yield
+    bootstrap.cancel()
     if _prefetch_timer:
         _prefetch_timer.cancel()
 
